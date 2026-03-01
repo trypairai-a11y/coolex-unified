@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" fill="none">
+  <!-- Icon mark: rounded square with CX monogram -->
+  <rect x="0" y="6" width="52" height="52" rx="9" fill="#0057B8"/>
+  <!-- C shape in cyan -->
+  <path d="M37 20 L22 20 C19 20 17 22 17 25 L17 39 C17 42 19 44 22 44 L37 44"
+        stroke="#00A3E0" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- X in white -->
+  <line x1="27" y1="24" x2="42" y2="40" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="42" y1="24" x2="27" y2="40" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+
+  <!-- COOLEX wordmark -->
+  <text x="64" y="48"
+        font-family="'Arial Black', Impact, 'Helvetica Neue', Arial, sans-serif"
+        font-weight="900" font-size="36" fill="#0057B8"
+        textLength="224" lengthAdjust="spacingAndGlyphs">COOLEX</text>
+  <!-- Cyan accent underline -->
+  <rect x="64" y="54" width="224" height="3.5" fill="#00A3E0" rx="1.5"/>
+</svg>
