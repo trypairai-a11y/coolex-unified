@@ -1,5 +1,5 @@
 export type RefrigerantType = 'R-410A' | 'R-32' | 'R-134a' | 'R-22' | 'R-407C' | 'R-404A';
-export type ProductCategory = 'package' | 'split' | 'mini-split' | 'chiller' | 'ccu' | 'precision';
+export type ProductCategory = 'package' | 'split' | 'vrf' | 'chiller' | 'ccu' | 'precision' | 'fan-coil' | 'crac';
 
 export interface ProductGroup {
   id: string;
@@ -51,4 +51,15 @@ export interface Model {
   lengthIn: number;
   widthIn: number;
   heightIn: number;
+  // Optional extended fields for real product data
+  refrigerant?: string;
+  compressorType?: string;
+  operatingWeight_kg?: number;
+  outdoorWeight_kg?: number;
+  indoorWeight_kg?: number;
+  capacity_at95F?: number;
+  capacity_at105F?: number;
+  capacity_at115F?: number;
+  power_at95F?: number;
+  power_at105F?: number;
 }

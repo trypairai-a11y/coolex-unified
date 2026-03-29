@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSelectionStore } from "@/lib/stores/selection-store";
@@ -15,9 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 
 const STEPS = [
-  { id: 1, label: "Group" },
-  { id: 2, label: "Series" },
-  { id: 3, label: "Project Info" },
+  { id: 1, label: "Project Info" },
+  { id: 2, label: "Group" },
+  { id: 3, label: "Series" },
   { id: 4, label: "Design Conditions" },
   { id: 5, label: "Results" },
   { id: 6, label: "Options" },
@@ -25,11 +25,26 @@ const STEPS = [
 ];
 
 export function SelectionStepper() {
-  const { step, navigateBack } = useSelectionStore();
+  const { step, navigateBack, setStep, selectedSeries, projectInfo, selectedGroup, designConditions, selectedModel } = useSelectionStore();
   const [pendingStep, setPendingStep] = useState<number | null>(null);
 
+  // Determine the highest step the user can navigate to based on completed data
+  const maxReachableStep = (() => {
+    if (!projectInfo) return 1;
+    if (!selectedGroup) return 2;
+    if (!selectedSeries) return 3;
+    if (!designConditions) return 4;
+    if (!selectedModel) return 5;
+    return 7; // all data filled
+  })();
+
   const handleStepClick = (targetStep: number) => {
-    if (step >= 5 && targetStep < step) {
+    if (targetStep === step) return; // already on this step
+    if (targetStep > step) {
+      // Going forward — just set step directly (data already exists)
+      setStep(targetStep);
+    } else if (step >= 5 && targetStep < step) {
+      // Going back from results+ — confirm
       setPendingStep(targetStep);
     } else {
       navigateBack(targetStep);
@@ -38,48 +53,59 @@ export function SelectionStepper() {
 
   return (
     <>
-      <div className="w-full bg-background border-b sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="flex items-center">
+      <div className="w-full bg-white border-b border-gray-100 sticky top-0 z-20">
+        <div className="overflow-x-auto">
+          <div className="flex items-center px-4 sm:px-6 py-3 min-w-[520px]">
+            {selectedSeries && (
+              <span className="mr-4 px-3 py-1 rounded-full bg-[#0057B8]/10 text-[#0057B8] text-xs font-bold tracking-wide shrink-0">
+                {selectedSeries.name}
+              </span>
+            )}
             {STEPS.map((s, i) => {
               const isCompleted = step > s.id;
               const isActive = step === s.id;
-              const canClick = isCompleted;
+              const canClick = s.id <= maxReachableStep && s.id !== step;
 
               return (
-                <div key={s.id} className="flex items-center flex-1 last:flex-none">
-                  {/* Node */}
-                  <div className="flex flex-col items-center gap-1">
+                <Fragment key={s.id}>
+                  <div className="flex flex-col items-center gap-1 shrink-0">
                     <button
                       onClick={() => canClick && handleStepClick(s.id)}
                       disabled={!canClick}
                       className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all border-2",
+                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium transition-all",
                         isCompleted
-                          ? "bg-green-500 border-green-500 text-white cursor-pointer hover:bg-green-600"
+                          ? "bg-gray-800 text-white cursor-pointer hover:bg-gray-700"
                           : isActive
-                          ? "bg-[#0057B8] border-[#0057B8] text-white shadow-md"
-                          : "bg-background border-gray-200 text-gray-400 cursor-default"
+                          ? "bg-[#0057B8] text-white"
+                          : canClick
+                          ? "bg-gray-200 text-gray-600 cursor-pointer hover:bg-gray-300"
+                          : "bg-gray-100 text-gray-400 cursor-default"
                       )}
                     >
-                      {isCompleted ? <Check className="w-4 h-4" /> : s.id}
+                      {isCompleted ? <Check className="w-3 h-3" /> : s.id}
                     </button>
                     <span className={cn(
-                      "text-xs font-medium whitespace-nowrap hidden sm:block",
-                      isActive ? "text-[#0057B8]" : isCompleted ? "text-green-600" : "text-gray-400"
+                      "text-[10px] font-medium whitespace-nowrap hidden sm:block",
+                      isActive
+                        ? "text-[#0057B8]"
+                        : isCompleted
+                        ? "text-gray-600"
+                        : canClick
+                        ? "text-gray-600"
+                        : "text-gray-400"
                     )}>
                       {s.label}
                     </span>
                   </div>
 
-                  {/* Connector */}
                   {i < STEPS.length - 1 && (
                     <div className={cn(
-                      "flex-1 h-0.5 mx-2 mt-[-1rem] sm:mt-0",
-                      step > s.id ? "bg-green-400" : "bg-gray-200"
+                      "flex-1 h-px mx-2 rounded-full transition-colors duration-300",
+                      isCompleted ? "bg-gray-300" : "bg-gray-100"
                     )} />
                   )}
-                </div>
+                </Fragment>
               );
             })}
           </div>

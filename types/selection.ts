@@ -1,14 +1,17 @@
 import type { ProductGroup, ProductSeries, Model } from './product';
 
+export type SelectionBasis = 'capacity' | 'airflow';
+
 export interface ProjectInfoFormData {
   projectName: string;
-  clientName: string;
-  unitReference: string;
-  unitTag: string;
-  quantity: number;
-  submittedFor: string;
-  country: string;
-  salesEngineer: string;
+  clientName?: string;
+  unitReference?: string;
+  unitTag?: string;
+  unitSelection?: string;
+  quantity?: number;
+  submittedFor?: string;
+  country?: string;
+  salesEngineer?: string;
 }
 
 export interface StandardDesignConditions {

@@ -78,7 +78,7 @@ export function DesignConditionsForm() {
   const POWER_SUPPLIES = ["220V/1Ph/60Hz", "380V/3Ph/60Hz", "415V/3Ph/50Hz", "460V/3Ph/60Hz", "480V/3Ph/60Hz"];
 
   return (
-    <div className="max-w-2xl">
+    <div className="w-full">
       <div className="flex items-center gap-3 mb-6">
         <Button variant="outline" size="sm" onClick={() => navigateBack(3)}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back

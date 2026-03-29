@@ -357,12 +357,12 @@ function SubmittalPDFDoc({
             <View style={styles.col}>
               <Text style={styles.sectionTitle}>Project Details</Text>
               <KV label="Project Name" value={projectInfo.projectName} />
-              <KV label="Client / Submitted For" value={projectInfo.submittedFor} />
-              <KV label="Unit Tag" value={projectInfo.unitTag} />
-              <KV label="Unit Reference" value={projectInfo.unitReference} />
-              <KV label="Quantity" value={projectInfo.quantity} />
-              <KV label="Country" value={projectInfo.country} />
-              <KV label="Sales Engineer" value={projectInfo.salesEngineer} />
+              <KV label="Client / Submitted For" value={projectInfo.submittedFor ?? ""} />
+              <KV label="Unit Tag" value={projectInfo.unitTag ?? ""} />
+              <KV label="Unit Reference" value={projectInfo.unitReference ?? ""} />
+              <KV label="Quantity" value={projectInfo.quantity ?? 1} />
+              <KV label="Country" value={projectInfo.country ?? ""} />
+              <KV label="Sales Engineer" value={projectInfo.salesEngineer ?? ""} />
             </View>
             <View style={styles.col}>
               <Text style={styles.sectionTitle}>Document Details</Text>

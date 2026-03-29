@@ -36,7 +36,18 @@ export default function ProjectDetailPage() {
       useSelectionStore.setState({
         selectedGroup: group,
         selectedSeries: series,
-        step: 3,
+        projectInfo: {
+          projectName: project.name,
+          clientName: project.clientName,
+          salesEngineer: project.salesEngineer,
+          submittedFor: project.submittedFor,
+          country: project.country,
+          unitReference: unit.reference,
+          unitTag: unit.tag,
+          quantity: unit.quantity,
+          unitSelection: 'cooling',
+        },
+        step: 2, // Land on Series (step 2) so user can confirm/change series
         revisionTargetProjectId: project.id,
         revisionTargetUnitId: unit.id,
       });

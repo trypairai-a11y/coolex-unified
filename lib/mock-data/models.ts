@@ -1,4 +1,9 @@
 import type { Model } from '@/types/product';
+import { NGW_MODELS } from './ngw-models';
+import { ACSC_MODELS } from './acsc-models';
+import { PNGC_MODELS } from './pngc-models';
+import { NGCC_MODELS } from './ngcc-models';
+import { CHCC_MODELS } from './chcc-models';
 
 // Helper to generate realistic mock models for a series
 function generateModels(seriesId: string, prefix: string, capacities: number[]): Model[] {
@@ -40,8 +45,12 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'split-ds': generateModels('split-ds', 'CDS', [2, 2.5, 3, 4, 5, 7.5, 10, 12.5, 15]),
   'ms-wall': generateModels('ms-wall', 'CMSW', [0.75, 1, 1.5, 2, 2.5, 3, 4]),
   'ms-cas': generateModels('ms-cas', 'CMSC', [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]),
-  'ngw-scroll': generateModels('ngw-scroll', 'CNGWS', [20, 25, 30, 40, 50, 60, 70, 80]),
-  'acsc': generateModels('acsc', 'CACSC', [80, 100, 120, 150, 175, 200]),
+  'ngw-scroll': NGW_MODELS,
+  'ngw': NGW_MODELS,
+  'acsc': ACSC_MODELS,
+  'pngc': PNGC_MODELS,
+  'ngcc': NGCC_MODELS,
+  'chcc': CHCC_MODELS,
   'wcc-scroll': generateModels('wcc-scroll', 'CWCCS', [50, 75, 100, 125, 150, 175, 200]),
   'wcc-screw': generateModels('wcc-screw', 'CWCCSC', [150, 200, 250, 300, 350, 400, 500]),
   'ccu-std': generateModels('ccu-std', 'CCCU', [1, 1.5, 2, 3, 4, 5, 7.5, 10, 12.5, 15]),

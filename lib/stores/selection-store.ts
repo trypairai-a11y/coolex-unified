@@ -1,10 +1,11 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
-import type { ProjectInfoFormData, DesignConditionsFormData } from '@/types/selection';
+import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis } from '@/types/selection';
 
 interface SelectionState {
   step: number;
+  selectionBasis: SelectionBasis | null;
   selectedGroup: ProductGroup | null;
   selectedSeries: ProductSeries | null;
   projectInfo: ProjectInfoFormData | null;
@@ -15,6 +16,7 @@ interface SelectionState {
   revisionTargetUnitId: string | null;
 
   setStep: (step: number) => void;
+  setSelectionBasis: (basis: SelectionBasis) => void;
   setSelectedGroup: (group: ProductGroup) => void;
   setSelectedSeries: (series: ProductSeries) => void;
   setProjectInfo: (info: ProjectInfoFormData) => void;
@@ -28,6 +30,7 @@ interface SelectionState {
 
 const initialState = {
   step: 1,
+  selectionBasis: null as SelectionBasis | null,
   selectedGroup: null,
   selectedSeries: null,
   projectInfo: null,
@@ -46,29 +49,29 @@ export const useSelectionStore = create<SelectionState>()(
 
       setStep: (step) => set({ step }),
 
+      setSelectionBasis: (basis) => set({ selectionBasis: basis }),
+
+      setProjectInfo: (info) => set({
+        projectInfo: info,
+        step: 2, // → Group
+      }),
+
       setSelectedGroup: (group) => set({
         selectedGroup: group,
-        // Reset all subsequent steps
+        // Reset subsequent steps but preserve projectInfo
         selectedSeries: null,
-        projectInfo: null,
         designConditions: null,
         selectedModel: null,
         selectedOptions: [],
-        step: 2,
+        step: 3, // → Series
       }),
 
       setSelectedSeries: (series) => set({
         selectedSeries: series,
-        projectInfo: null,
         designConditions: null,
         selectedModel: null,
         selectedOptions: [],
-        step: 3,
-      }),
-
-      setProjectInfo: (info) => set({
-        projectInfo: info,
-        step: 4,
+        step: 4, // → Design Conditions
       }),
 
       setDesignConditions: (conditions) => set({
@@ -89,26 +92,32 @@ export const useSelectionStore = create<SelectionState>()(
       })),
 
       navigateBack: (toStep) => set((state) => {
+        // Step order: 1=ProjectInfo, 2=Group, 3=Series, 4=Design, 5=Results, 6=Options, 7=Submittal
         const updates: Partial<SelectionState> = { step: toStep };
         if (toStep <= 1) {
+          // Back to Project Info — clear everything downstream
+          updates.selectionBasis = null;
           updates.selectedGroup = null;
           updates.selectedSeries = null;
-          updates.projectInfo = null;
           updates.designConditions = null;
           updates.selectedModel = null;
           updates.selectedOptions = [];
         } else if (toStep <= 2) {
+          // Back to Group — keep projectInfo, clear group + downstream
+          updates.selectionBasis = null;
+          updates.selectedGroup = null;
           updates.selectedSeries = null;
-          updates.projectInfo = null;
           updates.designConditions = null;
           updates.selectedModel = null;
           updates.selectedOptions = [];
         } else if (toStep <= 3) {
-          updates.projectInfo = null;
+          // Back to Series — keep projectInfo + group, clear series + downstream
+          updates.selectedSeries = null;
           updates.designConditions = null;
           updates.selectedModel = null;
           updates.selectedOptions = [];
         } else if (toStep <= 4) {
+          // Back to Design Conditions — keep through series, clear design+
           updates.designConditions = null;
           updates.selectedModel = null;
           updates.selectedOptions = [];

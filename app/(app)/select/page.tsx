@@ -12,13 +12,13 @@ import { SubmittalPreview } from "@/components/selection/SubmittalPreview";
 import { AnimatePresence, motion } from "framer-motion";
 
 const STEP_COMPONENTS = [
-  ProductGroupGrid,
-  SeriesGrid,
-  ProjectInfoForm,
-  DesignConditionsForm,
-  ResultsTable,
-  OptionsConfigurator,
-  SubmittalPreview,
+  ProjectInfoForm,     // 1 - Project Info
+  ProductGroupGrid,    // 2 - Group
+  SeriesGrid,          // 3 - Series
+  DesignConditionsForm, // 4 - Design Conditions
+  ResultsTable,        // 5 - Results
+  OptionsConfigurator, // 6 - Options
+  SubmittalPreview,    // 7 - Submittal
 ];
 
 export default function SelectPage() {
@@ -26,9 +26,11 @@ export default function SelectPage() {
   const StepComponent = STEP_COMPONENTS[step - 1] ?? ProductGroupGrid;
 
   return (
-    <div className="min-h-full flex flex-col -m-6">
-      <SelectionStepper />
-      <div className="flex-1 p-6">
+    <div className="min-h-full flex flex-col">
+      <div className="-mx-4 sm:-mx-6 -mt-4 sm:-mt-6">
+        <SelectionStepper />
+      </div>
+      <div className="flex-1 pt-4 sm:pt-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
