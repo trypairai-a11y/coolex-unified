@@ -19,7 +19,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
   };
 
   switch (groupId) {
-    // Rooftop Packaged Unit — boxy unit with top fan grilles
+    // Rooftop Packaged Unit - boxy unit with top fan grilles
     case "pac":
       return (
         <svg {...svgProps}>
@@ -50,7 +50,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Split System — outdoor condenser + indoor unit
+    // Split System - outdoor condenser + indoor unit
     case "split":
       return (
         <svg {...svgProps}>
@@ -81,7 +81,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Mini-Split — sleek wall-mount indoor unit
+    // Mini-Split - sleek wall-mount indoor unit
     case "mini-split":
       return (
         <svg {...svgProps}>
@@ -89,7 +89,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
           <line x1="25" y1="20" x2="25" y2="105" stroke="#CBD5E1" strokeWidth="1" />
           {/* Mounting bracket */}
           <rect x="25" y="42" width="6" height="30" rx="1" fill="#CBD5E1" />
-          {/* Main indoor unit body — sleek curved shape */}
+          {/* Main indoor unit body - sleek curved shape */}
           <path d="M32 35 Q32 30 40 28 L160 28 Q170 30 170 35 L170 72 Q170 78 160 80 L40 80 Q32 78 32 72 Z" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
           {/* Top airflow inlet */}
           <line x1="50" y1="33" x2="152" y2="33" stroke="#0057B8" strokeWidth="0.5" opacity="0.3" />
@@ -108,7 +108,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Air-cooled chiller — large unit with multiple fan circles on top
+    // Air-cooled chiller - large unit with multiple fan circles on top
     case "chiller-air":
       return (
         <svg {...svgProps}>
@@ -141,11 +141,11 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Water-cooled chiller — industrial with shell-and-tube evaporator shape
+    // Water-cooled chiller - industrial with shell-and-tube evaporator shape
     case "chiller-water":
       return (
         <svg {...svgProps}>
-          {/* Main chiller body — wider, no top fans */}
+          {/* Main chiller body - wider, no top fans */}
           <rect x="20" y="32" width="160" height="56" rx="5" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
           {/* Compressor section */}
           <rect x="28" y="40" width="50" height="40" rx="3" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.8" />
@@ -155,7 +155,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
           <ellipse cx="130" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
           <ellipse cx="145" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
           <ellipse cx="160" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
-          {/* Pipe connections — supply and return */}
+          {/* Pipe connections - supply and return */}
           <rect x="35" y="82" width="6" height="14" rx="3" fill="#0057B8" opacity="0.3" />
           <rect x="55" y="82" width="6" height="14" rx="3" fill="#00A3E0" opacity="0.3" />
           <rect x="135" y="82" width="6" height="14" rx="3" fill="#0057B8" opacity="0.3" />
@@ -172,7 +172,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Condensing Unit — outdoor box with single large fan
+    // Condensing Unit - outdoor box with single large fan
     case "ccu":
       return (
         <svg {...svgProps}>
@@ -204,7 +204,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Precision Cooling — tall cabinet with raised floor hint
+    // Precision Cooling - tall cabinet with raised floor hint
     case "precision":
       return (
         <svg {...svgProps}>
@@ -245,13 +245,13 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Fan Coil Unit — horizontal concealed unit
+    // Fan Coil Unit - horizontal concealed unit
     case "fan-coil":
       return (
         <svg {...svgProps}>
           {/* Ceiling line */}
           <line x1="10" y1="30" x2="190" y2="30" stroke="#CBD5E1" strokeWidth="1" />
-          {/* Main FCU body — horizontal slim */}
+          {/* Main FCU body - horizontal slim */}
           <rect x="30" y="35" width="140" height="35" rx="3" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
           {/* Fan section */}
           <circle cx="60" cy="52" r="10" stroke="#0057B8" strokeWidth="0.8" fill="#D1E3FC" />
@@ -283,7 +283,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // PNGF / PNGC / CIPK / SPU — generic packaged unit variants
+    // PNGF / PNGC / CIPK / SPU - generic packaged unit variants
     case "pngf":
     case "pngc":
       return (
@@ -372,7 +372,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
         </svg>
       );
 
-    // Default fallback — generic HVAC unit
+    // Default fallback - generic HVAC unit
     default:
       return (
         <svg {...svgProps}>

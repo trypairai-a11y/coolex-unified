@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useModels } from "@/hooks/useSelection";
+import { NomenclatureInline, NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
 import type { Model } from "@/types/product";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
@@ -73,7 +74,7 @@ export function ResultsTable() {
         <div>
           <h2 className="text-xl font-bold">Model Results</h2>
           <p className="text-muted-foreground text-sm">
-            {selectedSeries?.name} — {capacityBtuh ? `${(capacityBtuh / 1000).toFixed(0)}k Btu/h requested` : ""}
+            {selectedSeries?.name} - {capacityBtuh ? `${(capacityBtuh / 1000).toFixed(0)}k Btu/h requested` : ""}
           </p>
         </div>
       </div>
@@ -96,7 +97,12 @@ export function ResultsTable() {
                   className={`rounded-xl border p-4 transition-colors ${isSelected ? "border-[#0057B8] bg-blue-50" : "bg-card"}`}
                 >
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-mono font-bold text-sm">{model.modelNumber}</span>
+                    <div>
+                      <span className="font-mono font-bold text-sm">{model.modelNumber}</span>
+                      <div className="mt-1">
+                        <NomenclatureInline modelNumber={model.modelNumber} seriesId={selectedSeries?.id ?? ""} />
+                      </div>
+                    </div>
                     <Badge variant={model.matchPercent >= 95 ? "success" : model.matchPercent >= 80 ? "warning" : "outline"}>
                       {model.matchPercent}%
                     </Badge>
@@ -146,7 +152,6 @@ export function ResultsTable() {
                     <TH label="EER" sortable="eer" />
                     <TH label="Airflow (CFM)" sortable="airflowCFM" />
                     <TH label="Leaving DB/WB" />
-                    <TH label="Compressors" />
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -183,7 +188,6 @@ export function ResultsTable() {
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{model.airflowCFM.toLocaleString()}</td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">{model.leavingDBF}°F / {model.leavingWBF}°F</td>
-                        <td className="px-4 py-3 text-center text-muted-foreground">{model.compressorCount}</td>
                         <td className="px-4 py-3 text-right">
                           <Button
                             size="sm"
@@ -202,6 +206,17 @@ export function ResultsTable() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Nomenclature breakdown for selected model */}
+      {selectedModel && selectedSeries && (
+        <div className="mt-6">
+          <NomenclatureBreakdown
+            modelNumber={selectedModel.modelNumber}
+            seriesId={selectedSeries.id}
+            showOracleBOM={true}
+          />
+        </div>
       )}
 
       <div className="flex justify-end mt-6">

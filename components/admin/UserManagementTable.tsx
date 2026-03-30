@@ -125,7 +125,7 @@ export function UserManagementTable() {
                 <tr key={user.id} className="border-t hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-medium text-foreground">{user.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{user.company ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{user.company ?? "-"}</td>
                   <td className="px-4 py-3">
                     <Badge variant={ROLE_VARIANTS[user.role]} className="capitalize">{user.role}</Badge>
                   </td>

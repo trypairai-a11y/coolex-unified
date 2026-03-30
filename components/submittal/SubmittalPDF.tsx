@@ -313,6 +313,7 @@ interface SubmittalPDFDocProps {
   showPricing: boolean;
   revisionNumber: string;
   generatedBy: string;
+  oracleBOM?: string;
 }
 
 function SubmittalPDFDoc({
@@ -327,12 +328,13 @@ function SubmittalPDFDoc({
   showPricing,
   revisionNumber,
   generatedBy,
+  oracleBOM,
 }: SubmittalPDFDocProps) {
   const date = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const conditions = designConditions as unknown as Record<string, unknown>;
 
   return (
-    <Document title={`${projectInfo.projectName} — ${model.modelNumber} — Rev.${revisionNumber}`}>
+    <Document title={`${projectInfo.projectName} - ${model.modelNumber} - Rev.${revisionNumber}`}>
       {/* ── PAGE 1: COVER ─────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <PageHeader pageTitle="COVER PAGE" />
@@ -340,10 +342,10 @@ function SubmittalPDFDoc({
 
         <View style={{ marginTop: 20 }}>
           <View style={styles.coverBadge}>
-            <Text style={styles.coverBadgeText}>TECHNICAL SUBMITTAL — REV. {revisionNumber}</Text>
+            <Text style={styles.coverBadgeText}>TECHNICAL SUBMITTAL - REV. {revisionNumber}</Text>
           </View>
           <Text style={styles.coverTitle}>{projectInfo.projectName}</Text>
-          <Text style={styles.coverSubtitle}>{model.modelNumber} — {model.nominalTons} Tons</Text>
+          <Text style={styles.coverSubtitle}>{model.modelNumber} - {model.nominalTons} Tons</Text>
 
           <View style={[styles.highlightBox, { marginBottom: 16 }]}>
             <Text style={styles.highlightBoxTitle}>Selected Model</Text>
@@ -352,6 +354,16 @@ function SubmittalPDFDoc({
               {(model.totalCapacityBtuh / 12000).toFixed(1)} Tons · {model.eer} EER · {model.powerKW} kW · {model.compressorCount} Compressor{model.compressorCount > 1 ? "s" : ""}
             </Text>
           </View>
+
+          {oracleBOM && (
+            <View style={[styles.highlightBox, { marginBottom: 16, borderLeftColor: COOLEX_ACCENT }]}>
+              <Text style={styles.highlightBoxTitle}>Oracle BOM Nomenclature</Text>
+              <Text style={[styles.highlightValue, { fontSize: 11, letterSpacing: 0.5 }]}>{oracleBOM}</Text>
+              <Text style={{ fontSize: 7, color: "#64748B", marginTop: 3 }}>
+                Full unit configuration code for Oracle ERP / Bill of Materials
+              </Text>
+            </View>
+          )}
 
           <View style={styles.twoCol}>
             <View style={styles.col}>
@@ -386,7 +398,6 @@ function SubmittalPDFDoc({
             <View style={styles.col}>
               <KV label="Required Cooling Cap." value={`${((conditions.requiredCoolingCapacityBtuh as number ?? 0) / 1000).toFixed(0)}k Btu/h`} />
               <KV label="Power Supply" value={String(conditions.powerSupply ?? "")} />
-              <KV label="Ambient Temp" value={`${conditions.ambientTempF ?? ""}°F`} />
               <KV label="Entering DB" value={`${conditions.enteringDBF ?? ""}°F`} />
               <KV label="Entering WB" value={`${conditions.enteringWBF ?? ""}°F`} />
             </View>
@@ -414,7 +425,7 @@ function SubmittalPDFDoc({
               ["Airflow", model.airflowCFM.toLocaleString(), "CFM"],
               ["Leaving DB", model.leavingDBF.toString(), "°F"],
               ["Leaving WB", model.leavingWBF.toString(), "°F"],
-              ["# Compressors", model.compressorCount.toString(), "—"],
+              ["# Compressors", model.compressorCount.toString(), "-"],
               ["Match to Request", model.matchPercent.toString(), "%"],
             ].map(([param, val, unit], i) => (
               <View key={param} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
@@ -476,6 +487,7 @@ function SubmittalPDFDoc({
             <View style={styles.col}>
               <Text style={styles.sectionTitle}>General Data</Text>
               <KV label="Model Number" value={model.modelNumber} />
+              {oracleBOM && <KV label="Oracle BOM Code" value={oracleBOM} />}
               <KV label="Nominal Capacity" value={`${model.nominalTons} Tons`} />
               <KV label="Refrigerant" value="R-410A" />
               <KV label="Cabinet Finish" value="Powder-Coated, RAL 7035" />
@@ -519,7 +531,7 @@ function SubmittalPDFDoc({
               {model.lengthIn}" (L) × {model.widthIn}" (W) × {model.heightIn}" (H)
             </Text>
             <Text style={{ fontSize: 7, color: "#CBD5E1", marginTop: 8 }}>
-              [Three-view drawing: Top / Front / Side — engineering drawing to be inserted]
+              [Three-view drawing: Top / Front / Side - engineering drawing to be inserted]
             </Text>
           </View>
         </View>
@@ -580,7 +592,7 @@ function SubmittalPDFDoc({
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
-          <Text style={styles.sectionTitle}>Unit Dimensional Drawing — {model.modelNumber}</Text>
+          <Text style={styles.sectionTitle}>Unit Dimensional Drawing - {model.modelNumber}</Text>
 
           {/* Top view placeholder */}
           <View style={{ marginBottom: 8 }}>
@@ -667,6 +679,7 @@ interface SubmittalPDFViewerProps {
   showPricing: boolean;
   revisionNumber: string;
   generatedBy: string;
+  oracleBOM?: string;
 }
 
 export function SubmittalPDFViewer(props: SubmittalPDFViewerProps) {

@@ -12,6 +12,8 @@ import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useOptions } from "@/hooks/useSelection";
 import { useToast } from "@/components/ui/toast";
+import { NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
+import { buildOracleBOM } from "@/lib/nomenclature";
 import type { SubmittalOption } from "@/types/submittal";
 import type { Project, Unit, Revision } from "@/types/project";
 
@@ -30,6 +32,7 @@ const PDFViewer = dynamic(
 export function SubmittalPreview() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [unitSelection, setUnitSelection] = useState("");
   const { showToast, ToastComponent } = useToast();
   const router = useRouter();
 
@@ -42,9 +45,10 @@ export function SubmittalPreview() {
     navigateBack,
     revisionTargetProjectId,
     revisionTargetUnitId,
+    addUnitTargetProjectId,
     reset,
   } = useSelectionStore();
-  const { addProject, addRevision } = useProjectsStore();
+  const { addProject, addUnit, addRevision } = useProjectsStore();
   const { user } = useAuthStore();
   const showPricing = user?.role !== "dealer";
 
@@ -74,17 +78,51 @@ export function SubmittalPreview() {
         revisionNumber: nextRevNum,
         createdAt: now,
         createdBy,
-        changeSummary: `Rev. ${nextRevNum} — ${selectedModel.modelNumber}`,
+        changeSummary: `Rev. ${nextRevNum} - ${selectedModel.modelNumber}`,
         status: "issued",
       };
 
       addRevision(revisionTargetProjectId, revisionTargetUnitId, revision);
       setSaving(false);
       setSaved(true);
-      showToast(`Revision ${nextRevNum} saved — opening project...`, "success");
+      showToast(`Revision ${nextRevNum} saved - opening project...`, "success");
       await new Promise(r => setTimeout(r, 2000));
       reset();
       router.push(`/projects/${revisionTargetProjectId}`);
+    } else if (addUnitTargetProjectId) {
+      // Adding a new unit to an existing project
+      const unitId = `unit-${Date.now()}`;
+
+      const revision: Revision = {
+        id: `rev-${Date.now()}`,
+        unitId,
+        revisionNumber: "001",
+        createdAt: now,
+        createdBy,
+        changeSummary: `Initial selection - ${selectedModel.modelNumber}`,
+        status: "issued",
+      };
+
+      const unit: Unit = {
+        id: unitId,
+        projectId: addUnitTargetProjectId,
+        tag: projectInfo.unitTag || "",
+        reference: projectInfo.unitReference || "",
+        seriesId: selectedSeries.id,
+        seriesName: selectedSeries.name,
+        model: selectedModel,
+        quantity: Number(projectInfo.quantity ?? 1),
+        revisions: [revision],
+        currentRevision: "001",
+      };
+
+      addUnit(addUnitTargetProjectId, unit);
+      setSaving(false);
+      setSaved(true);
+      showToast("New unit added to project - opening project...", "success");
+      await new Promise(r => setTimeout(r, 2000));
+      reset();
+      router.push(`/projects/${addUnitTargetProjectId}`);
     } else {
       // Creating a new project
       const projectId = `proj-${Date.now()}`;
@@ -96,15 +134,15 @@ export function SubmittalPreview() {
         revisionNumber: "001",
         createdAt: now,
         createdBy,
-        changeSummary: `Initial selection — ${selectedModel.modelNumber}`,
+        changeSummary: `Initial selection - ${selectedModel.modelNumber}`,
         status: "issued",
       };
 
       const unit: Unit = {
         id: unitId,
         projectId,
-        tag: projectInfo.unitTag ?? "",
-        reference: projectInfo.unitReference ?? "",
+        tag: projectInfo.unitTag || "",
+        reference: projectInfo.unitReference || "",
         seriesId: selectedSeries.id,
         seriesName: selectedSeries.name,
         model: selectedModel,
@@ -129,7 +167,7 @@ export function SubmittalPreview() {
       addProject(project);
       setSaving(false);
       setSaved(true);
-      showToast("Submittal Rev.001 saved — opening project...", "success");
+      showToast("Submittal Rev.001 saved - opening project...", "success");
       await new Promise(r => setTimeout(r, 2000));
       reset();
       router.push(`/projects/${projectId}`);
@@ -158,7 +196,7 @@ export function SubmittalPreview() {
         </Button>
         <div>
           <h2 className="text-xl font-bold">Submittal Preview</h2>
-          <p className="text-muted-foreground text-sm">{projectInfo.projectName} — {selectedModel.modelNumber}</p>
+          <p className="text-muted-foreground text-sm">{projectInfo.projectName} - {selectedModel.modelNumber}</p>
         </div>
       </div>
 
@@ -177,6 +215,18 @@ export function SubmittalPreview() {
         ))}
       </div>
 
+      {/* Nomenclature & Oracle BOM */}
+      {selectedSeries && (
+        <div className="mb-6">
+          <NomenclatureBreakdown
+            modelNumber={selectedModel.modelNumber}
+            seriesId={selectedSeries.id}
+            selectedOptionIds={selectedOptions}
+            showOracleBOM={true}
+          />
+        </div>
+      )}
+
       {/* PDF Preview */}
       <div className="rounded-xl border overflow-hidden mb-6 bg-gray-50">
         <PDFViewer
@@ -191,6 +241,7 @@ export function SubmittalPreview() {
           showPricing={showPricing}
           revisionNumber="001"
           generatedBy={user?.name ?? ""}
+          oracleBOM={selectedSeries ? buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, selectedOptions).oracleBOM : selectedModel.modelNumber}
         />
       </div>
 
@@ -201,7 +252,7 @@ export function SubmittalPreview() {
         <div className="text-sm text-muted-foreground">
           {saved ? (
             <Badge variant="success" className="gap-1">
-              <Check className="w-3 h-3" /> Saved — opening project...
+              <Check className="w-3 h-3" /> Saved - opening project...
             </Badge>
           ) : (
             "Generate to save this submittal and auto-increment revision"

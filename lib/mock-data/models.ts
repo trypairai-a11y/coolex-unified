@@ -4,6 +4,7 @@ import { ACSC_MODELS } from './acsc-models';
 import { PNGC_MODELS } from './pngc-models';
 import { NGCC_MODELS } from './ngcc-models';
 import { CHCC_MODELS } from './chcc-models';
+import { PNGF_MODELS } from './pngf-models';
 
 // Helper to generate realistic mock models for a series
 function generateModels(seriesId: string, prefix: string, capacities: number[]): Model[] {
@@ -38,6 +39,7 @@ function generateModels(seriesId: string, prefix: string, capacities: number[]):
 }
 
 export const MOCK_MODELS: Record<string, Model[]> = {
+  'pngf': PNGF_MODELS,
   'pac-r': generateModels('pac-r', 'CPACR', [5, 7.5, 10, 12.5, 15, 20, 25, 30, 40, 50, 60, 70]),
   'pac-f': generateModels('pac-f', 'CPACF', [3, 5, 7.5, 10, 15, 20, 25, 30]),
   'pac-g': generateModels('pac-g', 'CPACG', [5, 7.5, 10, 15, 20, 25]),
@@ -66,10 +68,13 @@ export function getModelsForSeries(seriesId: string): Model[] {
 
 export function getModelsMatchingCapacity(seriesId: string, requestedBtuh: number): Model[] {
   const models = getModelsForSeries(seriesId);
-  // Find models within ±30% of requested capacity and sort by match
+  if (models.length === 0) return [];
+  // Calculate match % for all models and sort by best match
   const withMatch = models.map(m => ({
     ...m,
     matchPercent: Math.max(0, Math.round(100 - Math.abs((m.totalCapacityBtuh - requestedBtuh) / requestedBtuh) * 100)),
-  })).filter(m => m.matchPercent > 60);
-  return withMatch.sort((a, b) => b.matchPercent - a.matchPercent).slice(0, 6);
+  }));
+  withMatch.sort((a, b) => b.matchPercent - a.matchPercent);
+  // Return top 6, but always return at least the closest models even if match % is low
+  return withMatch.slice(0, 6);
 }

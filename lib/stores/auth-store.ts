@@ -67,7 +67,7 @@ export const useAuthStore = create<AuthState>()(
       }),
       {
         name: 'coolex-auth',
-        // Validate rehydrated state — if user object is corrupt, reset to logged out
+        // Validate rehydrated state - if user object is corrupt, reset to logged out
         onRehydrateStorage: () => (state) => {
           if (state?.isAuthenticated && (!state.user || !state.user.name || !state.user.email)) {
             state.isAuthenticated = false;

@@ -3,21 +3,20 @@ import type { ProductGroup, ProductSeries, Model } from './product';
 export type SelectionBasis = 'capacity' | 'airflow';
 
 export interface ProjectInfoFormData {
+  projectId: string;
   projectName: string;
-  clientName?: string;
-  unitReference?: string;
+  clientName: string;
+  unitReference: string;
   unitTag?: string;
-  unitSelection?: string;
-  quantity?: number;
+  quantity: number;
   submittedFor?: string;
-  country?: string;
-  salesEngineer?: string;
+  country: string;
+  salesEngineer: string;
 }
 
 export interface StandardDesignConditions {
   requiredCoolingCapacityBtuh: number;
   powerSupply: string;
-  ambientTempF: number;
   enteringDBF: number;
   enteringWBF: number;
   espInWG: number;

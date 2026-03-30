@@ -14,14 +14,14 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'louvered', category: 'construction', label: 'Louvered Condenser Guard', description: 'Heavy-duty aluminum louvered guards for condenser coil protection', priceAdderKWD: 65, applicableSeriesIds: ['pac-r', 'pac-f', 'pac-g', 'split-cs', 'split-ds'] },
   { id: 'vibration-iso', category: 'construction', label: 'Vibration Isolators', description: 'Spring-type vibration isolators for rooftop or structural applications', priceAdderKWD: 85, applicableSeriesIds: 'all' },
   { id: 'hail-guard', category: 'construction', label: 'Hail Guard', description: 'Galvanized steel hail protection for condenser coil', priceAdderKWD: 55, applicableSeriesIds: ['pac-r', 'pac-f', 'pac-g'] },
-  { id: 'cond-coil-coat', category: 'construction', label: 'Coated Condenser Coil', description: 'BlueFinTM coating for condenser coil — salt air protection', priceAdderKWD: 140, applicableSeriesIds: 'all' },
+  { id: 'cond-coil-coat', category: 'construction', label: 'Coated Condenser Coil', description: 'BlueFinTM coating for condenser coil - salt air protection', priceAdderKWD: 140, applicableSeriesIds: 'all' },
 
   // Electrical
   { id: 'nema4-ctrls', category: 'electrical', label: 'NEMA 4X Control Panel', description: 'NEMA 4X stainless steel control panel for wash-down environments', priceAdderKWD: 195, applicableSeriesIds: 'all' },
   { id: 'phase-mon', category: 'electrical', label: 'Phase Monitor Relay', description: 'Electronic phase failure, reversal, and voltage imbalance protection', priceAdderKWD: 35, applicableSeriesIds: 'all' },
-  { id: 'elec-heater-6kw', category: 'electrical', label: 'Electric Heater — 6 kW', description: 'Factory-installed electric resistance heater, 6 kW, 380V/3ph', priceAdderKWD: 110, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
-  { id: 'elec-heater-12kw', category: 'electrical', label: 'Electric Heater — 12 kW', description: 'Factory-installed electric resistance heater, 12 kW, 380V/3ph', priceAdderKWD: 175, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
-  { id: 'elec-heater-24kw', category: 'electrical', label: 'Electric Heater — 24 kW', description: 'Factory-installed electric resistance heater, 24 kW, 380V/3ph', priceAdderKWD: 280, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
+  { id: 'elec-heater-6kw', category: 'electrical', label: 'Electric Heater - 6 kW', description: 'Factory-installed electric resistance heater, 6 kW, 380V/3ph', priceAdderKWD: 110, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
+  { id: 'elec-heater-12kw', category: 'electrical', label: 'Electric Heater - 12 kW', description: 'Factory-installed electric resistance heater, 12 kW, 380V/3ph', priceAdderKWD: 175, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
+  { id: 'elec-heater-24kw', category: 'electrical', label: 'Electric Heater - 24 kW', description: 'Factory-installed electric resistance heater, 24 kW, 380V/3ph', priceAdderKWD: 280, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
   { id: 'gfci', category: 'electrical', label: 'GFCI Convenience Outlet', description: '115V GFCI convenience outlet in unit control panel', priceAdderKWD: 25, applicableSeriesIds: 'all' },
   { id: 'dual-power', category: 'electrical', label: 'Dual Power Entry', description: 'Separate compressor and fan power entry points for split-metering', priceAdderKWD: 90, applicableSeriesIds: ['pac-r', 'pac-f', 'pac-g'] },
 

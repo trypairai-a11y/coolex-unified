@@ -40,7 +40,7 @@ export const MOCK_PROJECTS: Project[] = [
         },
         quantity: 2,
         revisions: [
-          { id: 'rev-001a-001', unitId: 'unit-001a', revisionNumber: '001', createdAt: '2026-01-15T08:00:00Z', createdBy: 'Ahmed Al-Rashidi', changeSummary: 'Initial selection — 30-ton PAC-R', status: 'superseded' },
+          { id: 'rev-001a-001', unitId: 'unit-001a', revisionNumber: '001', createdAt: '2026-01-15T08:00:00Z', createdBy: 'Ahmed Al-Rashidi', changeSummary: 'Initial selection - 30-ton PAC-R', status: 'superseded' },
           { id: 'rev-001a-002', unitId: 'unit-001a', revisionNumber: '002', createdAt: '2026-02-10T10:15:00Z', createdBy: 'Ahmed Al-Rashidi', changeSummary: 'Added BACnet option + stainless drain pan', status: 'issued' },
         ],
         currentRevision: '002',
@@ -86,7 +86,7 @@ export const MOCK_PROJECTS: Project[] = [
         },
         quantity: 3,
         revisions: [
-          { id: 'rev-002a-001', unitId: 'unit-002a', revisionNumber: '001', createdAt: '2026-01-22T10:00:00Z', createdBy: 'Sara Al-Mutairi', changeSummary: 'Initial selection — 15-ton PDU precision cooling', status: 'issued' },
+          { id: 'rev-002a-001', unitId: 'unit-002a', revisionNumber: '001', createdAt: '2026-01-22T10:00:00Z', createdBy: 'Sara Al-Mutairi', changeSummary: 'Initial selection - 15-ton PDU precision cooling', status: 'issued' },
         ],
         currentRevision: '001',
       },
@@ -131,7 +131,7 @@ export const MOCK_PROJECTS: Project[] = [
         },
         quantity: 4,
         revisions: [
-          { id: 'rev-003a-001', unitId: 'unit-003a', revisionNumber: '001', createdAt: '2026-02-05T09:30:00Z', createdBy: 'Mohammed Al-Enezi', changeSummary: 'Initial selection — 5-ton CCU for produce cooler', status: 'draft' },
+          { id: 'rev-003a-001', unitId: 'unit-003a', revisionNumber: '001', createdAt: '2026-02-05T09:30:00Z', createdBy: 'Mohammed Al-Enezi', changeSummary: 'Initial selection - 5-ton CCU for produce cooler', status: 'draft' },
         ],
         currentRevision: '001',
       },

@@ -1,6 +1,6 @@
 import type { Model } from '@/types/product';
 
-// PNGC Rooftop Package Series — R-407C, 415V/3Ph/50Hz
+// PNGC Rooftop Package Series - R-407C, 415V/3Ph/50Hz
 // Performance data at 95°F (35°C) ambient, EDB 80°F / EWB 67°F
 // Source: PNGC Catalog (extracted from PDF)
 

@@ -261,8 +261,8 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isCCU: false,
     hasDualRefrigerant: false,
   },
-  // PNGF / PNGC / CIPK / SPU — Rooftop Packaged
-  // NGCC / CHCC / NGCF / CHCF — Split (concealed ducted)
+  // PNGF / PNGC / CIPK / SPU - Rooftop Packaged
+  // NGCC / CHCC / NGCF / CHCF - Split (concealed ducted)
   {
     id: 'pngf',
     groupId: 'pac',
@@ -371,12 +371,12 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isCCU: false,
     hasDualRefrigerant: false,
   },
-  // CHCF / NGCF — Split
+  // CHCF / NGCF - Split
   {
     id: 'chcf',
     groupId: 'split',
-    name: 'CHCF',
-    fullName: 'CHCF Concealed Ducted Split Series',
+    name: 'CHCF/CHEF',
+    fullName: 'CHCF/CHEF Concealed Ducted Split Series',
     modelPrefix: 'CHCF',
     minTons: 2,
     maxTons: 5.5,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Search, ChevronRight, Menu } from "lucide-react";
+import { Search, ChevronRight, Menu } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -94,11 +94,6 @@ export function TopBar() {
           className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
         >
           <Search className="h-4 w-4" />
-        </button>
-
-        <button className="relative h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-[#0057B8] rounded-full" />
         </button>
 
         {/* Avatar */}

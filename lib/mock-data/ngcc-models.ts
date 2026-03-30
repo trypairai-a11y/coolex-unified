@@ -1,6 +1,6 @@
 import type { Model } from '@/types/product';
 
-// NGCC / NGEC New Generation Compact Series — R-407C, 415V/3Ph/50Hz
+// NGCC / NGEC New Generation Compact Series - R-407C, 415V/3Ph/50Hz
 // Concealed Ducted Split with Hermetic Compressor (Tropical)
 // Performance data at 95°F (35°C) ambient, EDB 80°F / EWB 67°F
 // Source: NGCC/NGEC Catalog (extracted from PDF)

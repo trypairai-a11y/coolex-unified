@@ -1,30 +1,34 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, ArrowRight, Info } from "lucide-react";
+import { ArrowLeft, ArrowRight, Info, Thermometer, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSelectionStore } from "@/lib/stores/selection-store";
+import type { SelectionBasis } from "@/types/selection";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUnitStore } from "@/lib/stores/unit-store";
+import { toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
 
 const standardSchema = z.object({
-  requiredCoolingCapacityBtuh: z.coerce.number().min(6000, "Minimum 6,000 Btu/h").max(6000000),
+  requiredCoolingCapacityBtuh: z.coerce.number().min(0).max(100000000).optional(),
+  requiredAirflowCFM: z.coerce.number().min(0).max(10000000).optional(),
   powerSupply: z.string().min(1, "Power supply is required"),
-  ambientTempF: z.coerce.number().min(59).max(140),
-  enteringDBF: z.coerce.number().min(32).max(120),
-  enteringWBF: z.coerce.number().min(32).max(100),
-  espInWG: z.coerce.number().min(0).max(4),
+  enteringDBF: z.coerce.number(),
+  enteringWBF: z.coerce.number(),
+  espInWG: z.coerce.number().min(0),
   electricHeaterKW: z.coerce.number().min(0).max(200),
-  altitudeFt: z.coerce.number().min(0).max(15000),
+  altitudeFt: z.coerce.number().min(0),
   refrigerant: z.string().optional(),
   // Chiller fields (optional)
-  enteringWaterTempF: z.coerce.number().min(32).max(100).optional(),
-  leavingWaterTempF: z.coerce.number().min(32).max(95).optional(),
+  enteringWaterTempF: z.coerce.number().optional(),
+  leavingWaterTempF: z.coerce.number().optional(),
   waterFlowRateGPM: z.coerce.number().min(0).optional(),
   glycolPercent: z.coerce.number().min(0).max(50).optional(),
 });
@@ -48,34 +52,121 @@ function FieldWithTooltip({ label, tooltip, required, children }: { label: strin
   );
 }
 
+const BASIS_OPTIONS: { value: SelectionBasis; label: string; sublabel: string; description: string; icon: React.ElementType }[] = [
+  {
+    value: "capacity",
+    label: "Capacity",
+    sublabel: "TR \u00b7 BTU/h \u00b7 kW",
+    description: "Select by required cooling or heating output",
+    icon: Thermometer,
+  },
+  {
+    value: "airflow",
+    label: "Airflow",
+    sublabel: "CFM \u00b7 m\u00b3/h",
+    description: "Select by required air volume delivery",
+    icon: Wind,
+  },
+];
+
+// Fields that need conversion when switching unit systems
+const CONVERTIBLE_FIELDS = [
+  'requiredCoolingCapacityBtuh',
+  'requiredAirflowCFM',
+  'enteringDBF',
+  'enteringWBF',
+  'altitudeFt',
+  'espInWG',
+  'enteringWaterTempF',
+  'leavingWaterTempF',
+  'waterFlowRateGPM',
+] as const;
+
+function UnitToggle() {
+  const { unitSystem, toggleUnitSystem } = useUnitStore();
+  return (
+    <button
+      type="button"
+      onClick={toggleUnitSystem}
+      className="inline-flex items-center rounded-lg border bg-muted px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent shrink-0"
+    >
+      <span className={unitSystem === 'imperial' ? 'text-[#0057B8] font-semibold' : 'text-muted-foreground'}>
+        English
+      </span>
+      <span className="mx-1.5 text-muted-foreground/50">|</span>
+      <span className={unitSystem === 'metric' ? 'text-[#0057B8] font-semibold' : 'text-muted-foreground'}>
+        Metric
+      </span>
+    </button>
+  );
+}
+
 export function DesignConditionsForm() {
-  const { selectedSeries, designConditions, setDesignConditions, navigateBack } = useSelectionStore();
-  useAuthStore(); // available for future role-based field gating
+  const { selectedSeries, designConditions, setDesignConditions, navigateBack, selectionBasis, setSelectionBasis, projectInfo, updateProjectInfo } = useSelectionStore();
+  useAuthStore();
+  const { unitSystem } = useUnitStore();
+  const prevUnitRef = useRef(unitSystem);
   const isChiller = selectedSeries?.isChiller ?? false;
   const isCCU = selectedSeries?.isCCU ?? false;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(standardSchema) as any,
-    defaultValues: (designConditions as FormData) ?? {
-      requiredCoolingCapacityBtuh: 120000,
-      powerSupply: "380V/3Ph/60Hz",
-      ambientTempF: 115,
-      enteringDBF: 80,
-      enteringWBF: 67,
-      espInWG: 0.5,
-      electricHeaterKW: 0,
-      altitudeFt: 0,
-      ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24, glycolPercent: 0 } : {}),
-    },
-  });
+  // Default values - always stored in Imperial internally
+  const imperialDefaults: FormData = {
+    requiredCoolingCapacityBtuh: 120000,
+    requiredAirflowCFM: 4000,
+    powerSupply: "380V/3Ph/60Hz",
+    enteringDBF: 80,
+    enteringWBF: 67,
+    espInWG: 0.5,
+    electricHeaterKW: 0,
+    altitudeFt: 0,
+    ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24, glycolPercent: 0 } : {}),
+  };
+
+  // Merge saved conditions (imperial) with defaults
+  const savedImperial = (designConditions as FormData) ?? imperialDefaults;
+
+  // Convert to display units for initial form values
+  const displayDefaults = { ...savedImperial };
+  for (const field of CONVERTIBLE_FIELDS) {
+    if (displayDefaults[field] != null) {
+      displayDefaults[field] = toDisplay(displayDefaults[field] as number, field, unitSystem);
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const onSubmit = (data: any) => {
+  const { register, handleSubmit, setValue, getValues, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(standardSchema) as any,
+    defaultValues: displayDefaults,
+  });
+
+  // When unit system changes (from TopBar toggle), convert all visible values in-place
+  useEffect(() => {
+    const prevSystem = prevUnitRef.current;
+    if (prevSystem === unitSystem) return;
+    prevUnitRef.current = unitSystem;
+    for (const field of CONVERTIBLE_FIELDS) {
+      const rawVal = getValues(field as keyof FormData) as number | undefined;
+      if (rawVal == null) continue;
+      const imperial = toImperial(rawVal, field, prevSystem);
+      const converted = toDisplay(imperial, field, unitSystem);
+      setValue(field as keyof FormData, converted as never);
+    }
+  }, [unitSystem, getValues, setValue]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const onSubmitWrapped = (data: any) => {
+    // Convert all values back to Imperial before storing
+    for (const field of CONVERTIBLE_FIELDS) {
+      if (data[field] != null) {
+        data[field] = toImperial(data[field], field, unitSystem);
+      }
+    }
     setDesignConditions(data);
   };
 
   const POWER_SUPPLIES = ["220V/1Ph/60Hz", "380V/3Ph/60Hz", "415V/3Ph/50Hz", "460V/3Ph/60Hz", "480V/3Ph/60Hz"];
+
+  const u = (field: string) => unitLabel(field, unitSystem);
 
   return (
     <div className="w-full">
@@ -83,35 +174,157 @@ export function DesignConditionsForm() {
         <Button variant="outline" size="sm" onClick={() => navigateBack(3)}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
         </Button>
-        <div>
+        <div className="flex-1">
           <h2 className="text-xl font-bold">Design Conditions</h2>
           <p className="text-muted-foreground text-sm">
-            {selectedSeries?.name} — {selectedSeries?.tonRangeLabel}
+            {selectedSeries?.name} - {selectedSeries?.tonRangeLabel}
             {isChiller && " · Chiller inputs required"}
+            {projectInfo?.unitReference && (
+              <span className="ml-2 text-xs font-medium text-[#0057B8] bg-[#EBF3FF] px-2 py-0.5 rounded-full">
+                Ref: {projectInfo.unitReference}
+              </span>
+            )}
           </p>
+        </div>
+
+        <UnitToggle />
+      </div>
+
+      {/* Unit Reference & Quantity */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F4] shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,87,184,0.04)] overflow-hidden mb-6">
+        <div className="px-5 sm:px-6 py-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="unitReference">Unit Reference</Label>
+              <Input
+                id="unitReference"
+                placeholder="e.g. AHU-01, FCU-3A"
+                defaultValue={projectInfo?.unitReference ?? ""}
+                onChange={(e) => updateProjectInfo({ unitReference: e.target.value })}
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label htmlFor="unitQuantity">Unit Quantity <span className="text-[#0057B8]">*</span></Label>
+              <Input
+                id="unitQuantity"
+                type="number"
+                min={1}
+                required
+                placeholder="1"
+                defaultValue={projectInfo?.quantity ?? 1}
+                onChange={(e) => updateProjectInfo({ quantity: parseInt(e.target.value) || 1 })}
+                className="mt-1.5"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Capacity */}
+      {/* Selection Basis */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F4] shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,87,184,0.04)] overflow-hidden mb-6">
+        <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#F0F4FB]">
+          <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#0057B8] mb-0.5">Selection Basis</p>
+          <h3 className="text-sm font-semibold text-[#0D1626]">
+            Selection will be based on Capacity or Airflow?
+            <span className="text-[#0057B8] ml-0.5">*</span>
+          </h3>
+        </div>
+        <div className="px-5 sm:px-6 py-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {BASIS_OPTIONS.map(({ value, label, sublabel, description, icon: Icon }) => {
+              const selected = selectionBasis === value;
+              const colorMap = {
+                capacity: {
+                  selected: "border-[#0057B8] bg-[#EBF3FF] shadow-[0_0_0_3px_rgba(0,87,184,0.1)]",
+                  unselected: "border-[#B8D4F0] bg-[#F0F7FF] hover:border-[#0057B8] hover:bg-[#E6F0FB]",
+                },
+                airflow: {
+                  selected: "border-[#00875A] bg-[#E6F9F0] shadow-[0_0_0_3px_rgba(0,135,90,0.1)]",
+                  unselected: "border-[#A8E6CF] bg-[#F0FFF8] hover:border-[#00875A] hover:bg-[#E0F5EC]",
+                },
+              };
+              const colors = colorMap[value];
+              const accent = value === "airflow" ? "#00875A" : "#0057B8";
+              const iconBgUnselected = value === "airflow" ? "#E6F9F0" : "#EBF3FF";
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setSelectionBasis(value)}
+                  className={`relative flex flex-col items-start gap-3 p-4 rounded-xl border-2 text-left transition-all duration-150 focus:outline-none
+                    ${selected ? colors.selected : colors.unselected}`}
+                >
+                  <div className="absolute top-3.5 right-3.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all duration-150"
+                    style={selected ? { borderColor: accent, backgroundColor: accent } : { borderColor: "#CBD5E1", backgroundColor: "white" }}>
+                    {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </div>
+
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150"
+                    style={selected ? { backgroundColor: accent, color: "white" } : { backgroundColor: iconBgUnselected, color: accent }}>
+                    <Icon className="w-5 h-5" strokeWidth={1.75} />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold leading-tight" style={{ color: selected ? accent : "#0D1626" }}>
+                      {label}
+                    </p>
+                    <p className="text-[11px] font-medium mt-0.5" style={{ color: selected ? `${accent}B3` : "#9BA8C0" }}>
+                      {sublabel}
+                    </p>
+                    <p className="text-[11px] text-[#8894AB] mt-1.5 leading-snug pr-4">
+                      {description}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmitWrapped)} className="space-y-6">
+        {/* Capacity or Airflow Requirements */}
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground border-b pb-2">Capacity Requirements</h3>
+          <h3 className="text-sm font-semibold text-foreground border-b pb-2">
+            {selectionBasis === 'airflow' ? 'Airflow Requirements' : 'Capacity Requirements'}
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FieldWithTooltip
-              label="Required Cooling Capacity (Btu/h)"
-              tooltip="Total cooling capacity required at the design conditions. Used to rank model matches."
-              required
-            >
-              <Input
-                type="number"
-                placeholder="120,000"
-                {...register("requiredCoolingCapacityBtuh")}
-                className={errors.requiredCoolingCapacityBtuh ? "border-destructive" : ""}
-              />
-              {errors.requiredCoolingCapacityBtuh && (
-                <p className="text-xs text-destructive">{errors.requiredCoolingCapacityBtuh.message}</p>
-              )}
-            </FieldWithTooltip>
+            {selectionBasis === 'airflow' ? (
+              <FieldWithTooltip
+                label={`Required Airflow (${u('requiredAirflowCFM')})`}
+                tooltip="Total airflow volume required at the design conditions. Used to rank model matches."
+                required
+              >
+                <Input
+                  type="number"
+                  step={unitSystem === 'metric' ? "1" : "1"}
+                  placeholder={unitSystem === 'imperial' ? "4000" : "6796"}
+                  {...register("requiredAirflowCFM")}
+                  className={errors.requiredAirflowCFM ? "border-destructive" : ""}
+                />
+                {errors.requiredAirflowCFM && (
+                  <p className="text-xs text-destructive">{errors.requiredAirflowCFM.message}</p>
+                )}
+              </FieldWithTooltip>
+            ) : (
+              <FieldWithTooltip
+                label={`Required Cooling Capacity (${u('requiredCoolingCapacityBtuh')})`}
+                tooltip="Total cooling capacity required at the design conditions. Used to rank model matches."
+                required
+              >
+                <Input
+                  type="number"
+                  step={unitSystem === 'metric' ? "0.01" : "1"}
+                  placeholder={unitSystem === 'imperial' ? "120000" : "35.17"}
+                  {...register("requiredCoolingCapacityBtuh")}
+                  className={errors.requiredCoolingCapacityBtuh ? "border-destructive" : ""}
+                />
+                {errors.requiredCoolingCapacityBtuh && (
+                  <p className="text-xs text-destructive">{errors.requiredCoolingCapacityBtuh.message}</p>
+                )}
+              </FieldWithTooltip>
+            )}
 
             <div className="space-y-1.5">
               <Label>Power Supply <span className="text-destructive">*</span></Label>
@@ -130,16 +343,7 @@ export function DesignConditionsForm() {
           <h3 className="text-sm font-semibold text-foreground border-b pb-2">Environmental Conditions</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FieldWithTooltip
-              label="Outdoor Ambient Temp (°F)"
-              tooltip="Design outdoor ambient dry-bulb temperature. Gulf climate: typically 110–125°F."
-              required
-            >
-              <Input type="number" {...register("ambientTempF")} />
-              {errors.ambientTempF && <p className="text-xs text-destructive">{errors.ambientTempF.message}</p>}
-            </FieldWithTooltip>
-
-            <FieldWithTooltip
-              label="Altitude (ft)"
+              label={`Altitude (${u('altitudeFt')})`}
               tooltip="Installation altitude above sea level. Affects capacity and fan performance."
             >
               <Input type="number" {...register("altitudeFt")} />
@@ -153,28 +357,30 @@ export function DesignConditionsForm() {
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Evaporator Conditions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FieldWithTooltip
-                label="Entering Dry Bulb (°F)"
+                label={`Entering Dry Bulb (${u('enteringDBF')})`}
                 tooltip="Room dry-bulb temperature at the evaporator inlet."
                 required
               >
-                <Input type="number" {...register("enteringDBF")} />
+                <Input type="number" step="0.1" {...register("enteringDBF")} />
                 {errors.enteringDBF && <p className="text-xs text-destructive">{errors.enteringDBF.message}</p>}
               </FieldWithTooltip>
 
               <FieldWithTooltip
-                label="Entering Wet Bulb (°F)"
+                label={`Entering Wet Bulb (${u('enteringWBF')})`}
                 tooltip="Room wet-bulb temperature at the evaporator inlet. Used to calculate latent load."
                 required
               >
-                <Input type="number" {...register("enteringWBF")} />
+                <Input type="number" step="0.1" {...register("enteringWBF")} />
                 {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
               </FieldWithTooltip>
 
               <FieldWithTooltip
-                label="External Static Pressure (in. WG)"
-                tooltip="Total external static pressure for the duct system. Typical: 0.3–1.5 in. WG."
+                label={`External Static Pressure (${u('espInWG')})`}
+                tooltip={unitSystem === 'imperial'
+                  ? "Total external static pressure for the duct system. Typical: 0.3–1.5 in. WG."
+                  : "Total external static pressure for the duct system. Typical: 75–375 Pa."}
               >
-                <Input type="number" step="0.05" {...register("espInWG")} />
+                <Input type="number" step={unitSystem === 'imperial' ? "0.05" : "1"} {...register("espInWG")} />
               </FieldWithTooltip>
 
               <div className="space-y-1.5">
@@ -190,14 +396,23 @@ export function DesignConditionsForm() {
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Hydronic / Chiller Conditions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FieldWithTooltip label="Entering Water Temp (°F)" tooltip="Chilled water return temperature entering the evaporator.">
-                <Input type="number" {...register("enteringWaterTempF")} />
+              <FieldWithTooltip
+                label={`Entering Water Temp (${u('enteringWaterTempF')})`}
+                tooltip="Chilled water return temperature entering the evaporator."
+              >
+                <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
               </FieldWithTooltip>
-              <FieldWithTooltip label="Leaving Water Temp (°F)" tooltip="Chilled water supply temperature leaving the evaporator.">
-                <Input type="number" {...register("leavingWaterTempF")} />
+              <FieldWithTooltip
+                label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
+                tooltip="Chilled water supply temperature leaving the evaporator."
+              >
+                <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
               </FieldWithTooltip>
-              <FieldWithTooltip label="Water Flow Rate (GPM)" tooltip="Chilled water flow rate through the evaporator.">
-                <Input type="number" {...register("waterFlowRateGPM")} />
+              <FieldWithTooltip
+                label={`Water Flow Rate (${u('waterFlowRateGPM')})`}
+                tooltip="Chilled water flow rate through the evaporator."
+              >
+                <Input type="number" step="0.01" {...register("waterFlowRateGPM")} />
               </FieldWithTooltip>
               <FieldWithTooltip label="Glycol (%)" tooltip="Ethylene or propylene glycol concentration for freeze protection.">
                 <Input type="number" {...register("glycolPercent")} />

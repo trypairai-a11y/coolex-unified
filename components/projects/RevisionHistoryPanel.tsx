@@ -44,7 +44,7 @@ export function RevisionHistoryPanel({ unit, open, onClose }: RevisionHistoryPan
         <SheetHeader className="mb-6">
           <SheetTitle>Revision History</SheetTitle>
           <SheetDescription>
-            {unit ? `${unit.tag} — ${unit.reference}` : ""}
+            {unit ? `${unit.tag} - ${unit.reference}` : ""}
           </SheetDescription>
         </SheetHeader>
 

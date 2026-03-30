@@ -1,21 +1,45 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Tag, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Tag, AlertCircle, Wrench, Zap, Snowflake, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useOptions } from "@/hooks/useSelection";
+import { NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
 import type { EquipmentOption } from "@/lib/mock-data/options";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  construction: "Construction Options",
-  electrical: "Electrical Options",
-  refrigeration: "Refrigeration Options",
-  controls: "Controls & BAS",
+const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon: React.ElementType; color: string; bgColor: string }> = {
+  construction: {
+    label: "Construction Options",
+    description: "Structural and protective accessories",
+    icon: Wrench,
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
+  },
+  electrical: {
+    label: "Electrical Options",
+    description: "Power and electrical accessories",
+    icon: Zap,
+    color: "text-yellow-600",
+    bgColor: "bg-yellow-50",
+  },
+  refrigeration: {
+    label: "Refrigeration Options",
+    description: "Refrigerant circuit accessories",
+    icon: Snowflake,
+    color: "text-cyan-600",
+    bgColor: "bg-cyan-50",
+  },
+  controls: {
+    label: "Controls & BAS",
+    description: "Building automation and monitoring",
+    icon: Cpu,
+    color: "text-violet-600",
+    bgColor: "bg-violet-50",
+  },
 };
 
 export function OptionsConfigurator() {
@@ -31,12 +55,11 @@ export function OptionsConfigurator() {
     return acc;
   }, {});
 
-  const selectedTotal = (options ?? [])
-    .filter(o => selectedOptions.includes(o.id))
-    .reduce((sum, o) => sum + o.priceAdderKWD, 0);
+  const selectedCount = selectedOptions.length;
 
   return (
     <div className="w-full">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Button variant="outline" size="sm" onClick={() => navigateBack(5)}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
@@ -47,9 +70,22 @@ export function OptionsConfigurator() {
         </div>
       </div>
 
+      {/* Live nomenclature with option codes */}
+      {selectedModel && selectedSeries && (
+        <div className="mb-5">
+          <NomenclatureBreakdown
+            modelNumber={selectedModel.modelNumber}
+            seriesId={selectedSeries.id}
+            selectedOptionIds={selectedOptions}
+            showOracleBOM={true}
+            compact={false}
+          />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)}
         </div>
       ) : isError ? (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-3">
@@ -57,44 +93,67 @@ export function OptionsConfigurator() {
           <p className="text-sm">Failed to load options</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(CATEGORY_LABELS).map(([cat, catLabel]) => {
+        <div className="space-y-5">
+          {Object.entries(CATEGORY_CONFIG).map(([cat, config]) => {
             const catOptions = grouped[cat] ?? [];
             if (!catOptions.length) return null;
+            const catSelectedCount = catOptions.filter(o => selectedOptions.includes(o.id)).length;
+            const Icon = config.icon;
+
             return (
-              <div key={cat}>
-                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#0057B8]" />
-                  {catLabel}
-                </h3>
-                <div className="space-y-2">
+              <div
+                key={cat}
+                className="rounded-xl border border-border bg-card overflow-hidden"
+              >
+                {/* Category Header */}
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-border/60 bg-muted/20">
+                  <div className={`flex items-center justify-center w-9 h-9 rounded-lg ${config.bgColor}`}>
+                    <Icon className={`w-[18px] h-[18px] ${config.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-foreground">{config.label}</h3>
+                      {catSelectedCount > 0 && (
+                        <Badge variant="secondary" className="text-[11px] px-1.5 py-0 h-5 bg-[#0057B8]/10 text-[#0057B8] border-0">
+                          {catSelectedCount} selected
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{config.description}</p>
+                  </div>
+                </div>
+
+                {/* Options List */}
+                <div className="divide-y divide-border/40">
                   {catOptions.map((opt) => {
                     const isChecked = selectedOptions.includes(opt.id);
                     return (
                       <div
                         key={opt.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                          isChecked ? "border-[#0057B8] bg-blue-50" : "border-border hover:border-muted-foreground/30 hover:bg-muted/20"
+                        className={`flex items-center gap-3 px-5 py-3.5 cursor-pointer transition-colors ${
+                          isChecked
+                            ? "bg-[#0057B8]/[0.04]"
+                            : "hover:bg-muted/30"
                         }`}
                         onClick={() => toggleOption(opt.id)}
                       >
                         <Checkbox
                           checked={isChecked}
                           onCheckedChange={() => toggleOption(opt.id)}
-                          className="mt-0.5"
+                          className="shrink-0"
                           onClick={e => e.stopPropagation()}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium text-foreground">{opt.label}</span>
-                            {showPricing && (
-                              <span className="text-sm font-semibold text-[#0057B8] whitespace-nowrap">
-                                +KWD {opt.priceAdderKWD.toFixed(0)}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">{opt.description}</p>
+                          <span className={`text-sm font-medium ${isChecked ? "text-[#0057B8]" : "text-foreground"}`}>
+                            {opt.label}
+                          </span>
+                          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{opt.description}</p>
                         </div>
+                        {showPricing && (
+                          <span className={`text-xs font-medium shrink-0 tabular-nums ${isChecked ? "text-[#0057B8]" : "text-muted-foreground"}`}>
+                            +{opt.priceAdderKWD} KWD
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -103,18 +162,25 @@ export function OptionsConfigurator() {
             );
           })}
 
-          {showPricing && selectedOptions.length > 0 && (
-            <>
-              <Separator />
-              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Tag className="w-4 h-4 text-[#0057B8]" />
-                  Selected options total
-                  <Badge variant="secondary">{selectedOptions.length} items</Badge>
-                </div>
-                <span className="font-bold text-[#0057B8]">+KWD {selectedTotal.toFixed(0)}</span>
+          {/* Summary Footer */}
+          {selectedCount > 0 && (
+            <div className="flex items-center gap-3 p-4 rounded-xl border border-[#0057B8]/20 bg-[#0057B8]/[0.04]">
+              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#0057B8]/10">
+                <Tag className="w-[18px] h-[18px] text-[#0057B8]" />
               </div>
-            </>
+              <div className="flex-1">
+                <span className="text-sm font-semibold text-foreground">
+                  {selectedCount} option{selectedCount !== 1 ? "s" : ""} selected
+                </span>
+                {showPricing && (
+                  <p className="text-xs text-muted-foreground">
+                    Options total: <span className="font-medium text-[#0057B8]">
+                      +{(options ?? []).filter(o => selectedOptions.includes(o.id)).reduce((s, o) => s + o.priceAdderKWD, 0)} KWD
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -25,26 +25,14 @@ const STEPS = [
 ];
 
 export function SelectionStepper() {
-  const { step, navigateBack, setStep, selectedSeries, projectInfo, selectedGroup, designConditions, selectedModel } = useSelectionStore();
+  const { step, navigateBack, setStep, selectedSeries } = useSelectionStore();
   const [pendingStep, setPendingStep] = useState<number | null>(null);
-
-  // Determine the highest step the user can navigate to based on completed data
-  const maxReachableStep = (() => {
-    if (!projectInfo) return 1;
-    if (!selectedGroup) return 2;
-    if (!selectedSeries) return 3;
-    if (!designConditions) return 4;
-    if (!selectedModel) return 5;
-    return 7; // all data filled
-  })();
 
   const handleStepClick = (targetStep: number) => {
     if (targetStep === step) return; // already on this step
-    if (targetStep > step) {
-      // Going forward — just set step directly (data already exists)
-      setStep(targetStep);
-    } else if (step >= 5 && targetStep < step) {
-      // Going back from results+ — confirm
+    if (targetStep > step) return; // can't jump forward
+    if (step >= 5 && targetStep < step) {
+      // Going back from results+ - confirm
       setPendingStep(targetStep);
     } else {
       navigateBack(targetStep);
@@ -64,7 +52,8 @@ export function SelectionStepper() {
             {STEPS.map((s, i) => {
               const isCompleted = step > s.id;
               const isActive = step === s.id;
-              const canClick = s.id <= maxReachableStep && s.id !== step;
+              const isFuture = s.id > step;
+              const canClick = isCompleted; // only completed steps are clickable
 
               return (
                 <Fragment key={s.id}>
@@ -78,9 +67,7 @@ export function SelectionStepper() {
                           ? "bg-gray-800 text-white cursor-pointer hover:bg-gray-700"
                           : isActive
                           ? "bg-[#0057B8] text-white"
-                          : canClick
-                          ? "bg-gray-200 text-gray-600 cursor-pointer hover:bg-gray-300"
-                          : "bg-gray-100 text-gray-400 cursor-default"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
                       )}
                     >
                       {isCompleted ? <Check className="w-3 h-3" /> : s.id}
@@ -89,11 +76,7 @@ export function SelectionStepper() {
                       "text-[10px] font-medium whitespace-nowrap hidden sm:block",
                       isActive
                         ? "text-[#0057B8]"
-                        : isCompleted
-                        ? "text-gray-600"
-                        : canClick
-                        ? "text-gray-600"
-                        : "text-gray-400"
+                        : "text-gray-600"
                     )}>
                       {s.label}
                     </span>

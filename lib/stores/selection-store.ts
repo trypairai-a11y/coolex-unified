@@ -14,12 +14,14 @@ interface SelectionState {
   selectedOptions: string[];
   revisionTargetProjectId: string | null;
   revisionTargetUnitId: string | null;
+  addUnitTargetProjectId: string | null;
 
   setStep: (step: number) => void;
   setSelectionBasis: (basis: SelectionBasis) => void;
   setSelectedGroup: (group: ProductGroup) => void;
   setSelectedSeries: (series: ProductSeries) => void;
   setProjectInfo: (info: ProjectInfoFormData) => void;
+  updateProjectInfo: (partial: Partial<ProjectInfoFormData>) => void;
   setDesignConditions: (conditions: DesignConditionsFormData) => void;
   setSelectedModel: (model: Model) => void;
   toggleOption: (optionId: string) => void;
@@ -39,6 +41,7 @@ const initialState = {
   selectedOptions: [],
   revisionTargetProjectId: null,
   revisionTargetUnitId: null,
+  addUnitTargetProjectId: null,
 };
 
 export const useSelectionStore = create<SelectionState>()(
@@ -55,6 +58,10 @@ export const useSelectionStore = create<SelectionState>()(
         projectInfo: info,
         step: 2, // → Group
       }),
+
+      updateProjectInfo: (partial) => set((state) => ({
+        projectInfo: state.projectInfo ? { ...state.projectInfo, ...partial } : null,
+      })),
 
       setSelectedGroup: (group) => set({
         selectedGroup: group,
@@ -95,7 +102,7 @@ export const useSelectionStore = create<SelectionState>()(
         // Step order: 1=ProjectInfo, 2=Group, 3=Series, 4=Design, 5=Results, 6=Options, 7=Submittal
         const updates: Partial<SelectionState> = { step: toStep };
         if (toStep <= 1) {
-          // Back to Project Info — clear everything downstream
+          // Back to Project Info - clear everything downstream
           updates.selectionBasis = null;
           updates.selectedGroup = null;
           updates.selectedSeries = null;
@@ -103,7 +110,7 @@ export const useSelectionStore = create<SelectionState>()(
           updates.selectedModel = null;
           updates.selectedOptions = [];
         } else if (toStep <= 2) {
-          // Back to Group — keep projectInfo, clear group + downstream
+          // Back to Group - keep projectInfo, clear group + downstream
           updates.selectionBasis = null;
           updates.selectedGroup = null;
           updates.selectedSeries = null;
@@ -111,13 +118,13 @@ export const useSelectionStore = create<SelectionState>()(
           updates.selectedModel = null;
           updates.selectedOptions = [];
         } else if (toStep <= 3) {
-          // Back to Series — keep projectInfo + group, clear series + downstream
+          // Back to Series - keep projectInfo + group, clear series + downstream
           updates.selectedSeries = null;
           updates.designConditions = null;
           updates.selectedModel = null;
           updates.selectedOptions = [];
         } else if (toStep <= 4) {
-          // Back to Design Conditions — keep through series, clear design+
+          // Back to Design Conditions - keep through series, clear design+
           updates.designConditions = null;
           updates.selectedModel = null;
           updates.selectedOptions = [];
@@ -137,7 +144,11 @@ export const useSelectionStore = create<SelectionState>()(
 
       reset: () => set(initialState),
     }),
-    { name: 'coolex-selection' }
+    {
+      name: 'coolex-selection',
+      version: 2,
+      migrate: () => initialState,
+    }
     ),
     { name: 'SelectionStore' }
   )

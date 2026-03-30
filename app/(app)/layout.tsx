@@ -30,7 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Sidebar — fixed overlay on mobile, static on desktop */}
+      {/* Sidebar - fixed overlay on mobile, static on desktop */}
       <div
         className={`
           fixed md:relative z-50 md:z-auto h-full

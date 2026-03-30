@@ -1,6 +1,6 @@
 import type { Model } from '@/types/product';
 
-// CHCC / CHEC Concealed Ducted Split Series — R-407C, 220V/1Ph/50Hz (small) or 415V/3Ph/50Hz
+// CHCC / CHEC Concealed Ducted Split Series - R-407C, 220V/1Ph/50Hz (small) or 415V/3Ph/50Hz
 // Performance data at 95°F (35°C) ambient, EDB 80°F / EWB 67°F
 // Source: CHCC/CHEC Catalog (extracted from PDF)
 

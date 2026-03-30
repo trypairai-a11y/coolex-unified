@@ -197,7 +197,7 @@ export const NGW_MODELS: NGWModelSpec[] = [
     widthIn: Math.round(2384 / 25.4),
     heightIn: Math.round(1075 / 25.4),
   },
-  // 4-Row Coil Models (D4) — higher capacity due to extra row
+  // 4-Row Coil Models (D4) - higher capacity due to extra row
   {
     id: 'NGW-026D4',
     seriesId: 'ngw',

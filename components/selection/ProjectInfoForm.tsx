@@ -1,38 +1,46 @@
 "use client";
 
-import React from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowRight, Building2, Tag, FileText } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowRight, Building2, Copy, Check } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { ProjectInfoFormData } from "@/types/selection";
 
-const schema = z.object({
+function generateProjectId(): string {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `PRJ-${yy}${mm}-${rand}`;
+}
+
+const COUNTRIES = [
+  "Kuwait",
+  "Saudi Arabia",
+  "United Arab Emirates",
+  "Bahrain",
+  "Qatar",
+  "Oman",
+  "Iraq",
+  "Jordan",
+  "Egypt",
+  "Lebanon",
+  "Other",
+] as const;
+
+const projectInfoSchema = z.object({
   projectName: z.string().min(2, "Project name is required"),
+  country: z.string().min(1, "Country is required"),
   clientName: z.string().optional(),
-  unitReference: z.string().optional(),
+  unitReference: z.string().optional().default(""),
   unitTag: z.string().optional(),
-  unitSelection: z.string().optional(),
-  quantity: z.coerce.number().min(1).max(999).optional(),
-  submittedFor: z.string().optional(),
-  country: z.string().optional(),
+  quantity: z.coerce.number().optional().default(1),
   salesEngineer: z.string().optional(),
 });
 
-type SchemaData = z.infer<typeof schema>;
-
-const COUNTRIES = ["Kuwait", "Saudi Arabia", "UAE", "Qatar", "Bahrain", "Oman", "Iraq", "Jordan", "Egypt", "Lebanon"];
-
-const SUBMITTED_FOR_OPTIONS = [
-  "End User",
-  "Mechanical Contractor",
-  "General Contractor",
-  "Facilities Management",
-  "Consultant",
-  "Government",
-];
+type FormData = z.infer<typeof projectInfoSchema>;
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
@@ -115,25 +123,31 @@ StyledInput.displayName = "StyledInput";
 export function ProjectInfoForm() {
   const { projectInfo, setProjectInfo } = useSelectionStore();
 
+  const projectId = useMemo(
+    () => projectInfo?.projectId || generateProjectId(),
+    [projectInfo?.projectId]
+  );
+
+  const [copied, setCopied] = useState(false);
+  const handleCopyId = useCallback(() => {
+    navigator.clipboard.writeText(projectId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [projectId]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<SchemaData>({
-    resolver: zodResolver(schema) as any,
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(projectInfoSchema) as any,
     defaultValues: projectInfo ?? {
       projectName: "",
+      country: "",
       clientName: "",
-      unitReference: "",
-      unitTag: "",
-      unitSelection: "",
-      quantity: 1,
-      submittedFor: "",
-      country: "Kuwait",
       salesEngineer: "",
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const onSubmit = (data: any) => {
-    setProjectInfo(data as ProjectInfoFormData);
+  const onSubmit = (data: FormData) => {
+    setProjectInfo({ ...data, projectId } as ProjectInfoFormData);
   };
 
   return (
@@ -148,65 +162,48 @@ export function ProjectInfoForm() {
         <SectionCard num="01" icon={Building2} title="Project Details" description="Identify the project and client">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
             <div className="md:col-span-2">
+              <Field label="Project ID" hint="(auto-generated)">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-[42px] px-3.5 rounded-lg border border-[#DDE3EF] bg-[#F0F4FB] text-sm font-mono font-medium text-[#4A5578] flex items-center tracking-wide">
+                    {projectId}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyId}
+                    className="inline-flex items-center justify-center w-[42px] h-[42px] rounded-lg border border-[#DDE3EF] bg-[#FAFBFF] text-[#6B7A99] hover:bg-[#EBF3FF] hover:text-[#0057B8] hover:border-[#B8C4DA] transition-all duration-150"
+                    title="Copy Project ID"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </Field>
+            </div>
+            <div className="md:col-span-2">
               <Field label="Project Name" required error={errors.projectName?.message}>
                 <StyledInput placeholder="e.g. Al Hamra Village Phase 3" {...register("projectName")} />
               </Field>
             </div>
-            <Field label="Client Name" hint="(optional)" error={errors.clientName?.message}>
+            <Field label="Country" required error={errors.country?.message}>
+              <select
+                {...register("country")}
+                className="w-full h-[42px] px-3.5 rounded-lg border border-[#DDE3EF] bg-[#FAFBFF] text-sm text-[#0D1626]
+                  transition-all duration-150 appearance-none
+                  focus:outline-none focus:border-[#0057B8] focus:bg-white focus:ring-3 focus:ring-[#0057B8]/10
+                  hover:border-[#B8C4DA]
+                  bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236B7A99%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]
+                  bg-no-repeat bg-[right_12px_center]"
+              >
+                <option value="" className="text-[#B0BAD1]">Select country…</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Client Name" error={errors.clientName?.message}>
               <StyledInput placeholder="e.g. Gulf Bank K.S.C.P." {...register("clientName")} />
             </Field>
-            <Field label="Sales Engineer" hint="(optional)" error={errors.salesEngineer?.message}>
+            <Field label="Sales Engineer" error={errors.salesEngineer?.message}>
               <StyledInput placeholder="e.g. Ahmed Al-Rashidi" {...register("salesEngineer")} />
-            </Field>
-          </div>
-        </SectionCard>
-
-        <SectionCard num="02" icon={Tag} title="Unit Identification" description="Tag and reference for this equipment">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-            <Field label="Unit Reference" hint="(optional)" error={errors.unitReference?.message}>
-              <StyledInput placeholder="e.g. Lobby AHU" {...register("unitReference")} />
-            </Field>
-            <Field label="Unit Tag" hint="(optional)" error={errors.unitTag?.message}>
-              <StyledInput placeholder="e.g. AHU-01" {...register("unitTag")} />
-            </Field>
-            <Field label="Unit Selection" hint="(optional)" error={errors.unitSelection?.message}>
-              <StyledInput placeholder="e.g. Main Lobby Cooling Unit" {...register("unitSelection")} />
-            </Field>
-            <Field label="Quantity" hint="(optional)" error={errors.quantity?.message}>
-              <StyledInput type="number" placeholder="1" min={1} max={999} {...register("quantity")} />
-            </Field>
-          </div>
-        </SectionCard>
-
-        <SectionCard num="03" icon={FileText} title="Submission Details" description="Who this submittal is prepared for">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-            <Field label="Submitted For" hint="(optional)" error={errors.submittedFor?.message}>
-              <Select defaultValue={projectInfo?.submittedFor} onValueChange={(v) => setValue("submittedFor", v)}>
-                <SelectTrigger className="h-[42px] rounded-lg border-[#DDE3EF] bg-[#FAFBFF] text-sm text-[#0D1626]
-                  focus:ring-3 focus:ring-[#0057B8]/10 focus:border-[#0057B8] hover:border-[#B8C4DA]
-                  data-[placeholder]:text-[#B0BAD1] transition-all duration-150">
-                  <SelectValue placeholder="Select recipient type..." />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-[#DDE3EF] shadow-lg">
-                  {SUBMITTED_FOR_OPTIONS.map((v) => (
-                    <SelectItem key={v} value={v} className="text-sm cursor-pointer">{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Country" hint="(optional)" error={errors.country?.message}>
-              <Select defaultValue={projectInfo?.country ?? "Kuwait"} onValueChange={(v) => setValue("country", v)}>
-                <SelectTrigger className="h-[42px] rounded-lg border-[#DDE3EF] bg-[#FAFBFF] text-sm text-[#0D1626]
-                  focus:ring-3 focus:ring-[#0057B8]/10 focus:border-[#0057B8] hover:border-[#B8C4DA]
-                  data-[placeholder]:text-[#B0BAD1] transition-all duration-150">
-                  <SelectValue placeholder="Select country..." />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-[#DDE3EF] shadow-lg">
-                  {COUNTRIES.map((c) => (
-                    <SelectItem key={c} value={c} className="text-sm cursor-pointer">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </Field>
           </div>
         </SectionCard>

@@ -57,7 +57,7 @@ export function PriceListManager() {
   };
 
   const handleImport = () => {
-    showToast("Mock import successful — price list v3.3 loaded", "success");
+    showToast("Mock import successful - price list v3.3 loaded", "success");
   };
 
   return (
@@ -72,7 +72,7 @@ export function PriceListManager() {
             Version history:
             <select className="ml-2 text-sm border rounded px-2 py-0.5">
               {HISTORY.map(h => (
-                <option key={h.label}>{h.label} — {h.date}</option>
+                <option key={h.label}>{h.label} - {h.date}</option>
               ))}
             </select>
           </div>
@@ -96,7 +96,7 @@ export function PriceListManager() {
             <TabsContent key={group.id} value={group.id}>
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{group.name} — Base Prices</CardTitle>
+                  <CardTitle className="text-base">{group.name} - Base Prices</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="rounded-lg border overflow-hidden">

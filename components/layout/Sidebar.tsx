@@ -143,7 +143,7 @@ export function Sidebar() {
         {!sidebarCollapsed && (
           <div className="flex items-center gap-2 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/coolex-logo.svg" alt="COOLEX" className="h-14 w-auto" />
+            <img src="/coolex-logo.png" alt="COOLEX" className="h-10 w-auto mix-blend-multiply" />
             <div className="text-muted-foreground/60 text-[10px] font-semibold uppercase tracking-widest hidden xl:block leading-tight">
               Selector
             </div>

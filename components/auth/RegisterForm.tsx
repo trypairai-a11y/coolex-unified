@@ -75,7 +75,7 @@ export function RegisterForm() {
             </div>
             <div className="text-white text-left">
               <div className="text-xl font-bold">COOLEX</div>
-              <div className="text-white/70 text-xs">Unified Selector — Access Request</div>
+              <div className="text-white/70 text-xs">Unified Selector - Access Request</div>
             </div>
           </div>
         </div>

@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { MOCK_PROJECTS } from '@/lib/mock-data/projects';
-import type { Project, Revision } from '@/types/project';
+import type { Project, Unit, Revision } from '@/types/project';
 
 interface ProjectsState {
   projects: Project[];
   addProject: (project: Project) => void;
+  addUnit: (projectId: string, unit: Unit) => void;
   addRevision: (projectId: string, unitId: string, revision: Revision) => void;
 }
 
@@ -17,6 +18,18 @@ export const useProjectsStore = create<ProjectsState>()(
 
         addProject: (project) =>
           set((state) => ({ projects: [...state.projects, project] })),
+
+        addUnit: (projectId, unit) =>
+          set((state) => ({
+            projects: state.projects.map((p) => {
+              if (p.id !== projectId) return p;
+              return {
+                ...p,
+                updatedAt: new Date().toISOString(),
+                units: [...p.units, unit],
+              };
+            }),
+          })),
 
         addRevision: (projectId, unitId, revision) =>
           set((state) => ({
