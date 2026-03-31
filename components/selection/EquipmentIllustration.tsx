@@ -109,7 +109,11 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
       );
 
     // Air-cooled chiller - large unit with multiple fan circles on top
-    case "chiller-air":
+    case "chiller-acsc":
+    case "chiller-thac":
+    case "chiller-dhac":
+    case "chiller-acc-bp":
+    case "chiller-acc-st":
       return (
         <svg {...svgProps}>
           {/* Main chiller body */}
@@ -138,37 +142,6 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
           <rect x="148" y="55" width="30" height="18" rx="2" fill="#fff" stroke="#0057B8" strokeWidth="0.6" />
           <rect x="152" y="59" width="22" height="6" rx="1" fill="#E8F0FE" />
           <circle cx="157" cy="69" r="1.5" fill="#00A3E0" />
-        </svg>
-      );
-
-    // Water-cooled chiller - industrial with shell-and-tube evaporator shape
-    case "chiller-water":
-      return (
-        <svg {...svgProps}>
-          {/* Main chiller body - wider, no top fans */}
-          <rect x="20" y="32" width="160" height="56" rx="5" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
-          {/* Compressor section */}
-          <rect x="28" y="40" width="50" height="40" rx="3" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.8" />
-          <text x="38" y="64" fontSize="7" fill="#0057B8" fontFamily="sans-serif" opacity="0.5">COMP</text>
-          {/* Heat exchanger tubes (shell and tube hint) */}
-          <ellipse cx="115" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
-          <ellipse cx="130" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
-          <ellipse cx="145" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
-          <ellipse cx="160" cy="52" rx="4" ry="12" stroke="#0057B8" strokeWidth="0.8" fill="#B8D4F0" />
-          {/* Pipe connections - supply and return */}
-          <rect x="35" y="82" width="6" height="14" rx="3" fill="#0057B8" opacity="0.3" />
-          <rect x="55" y="82" width="6" height="14" rx="3" fill="#00A3E0" opacity="0.3" />
-          <rect x="135" y="82" width="6" height="14" rx="3" fill="#0057B8" opacity="0.3" />
-          <rect x="155" y="82" width="6" height="14" rx="3" fill="#00A3E0" opacity="0.3" />
-          {/* Water flow arrows */}
-          <text x="30" y="102" fontSize="6" fill="#0057B8" opacity="0.5">IN</text>
-          <text x="51" y="102" fontSize="6" fill="#00A3E0" opacity="0.5">OUT</text>
-          {/* Control panel */}
-          <rect x="85" y="65" width="28" height="16" rx="2" fill="#fff" stroke="#0057B8" strokeWidth="0.6" />
-          <circle cx="93" cy="71" r="2" fill="#00A3E0" />
-          <rect x="98" y="69" width="10" height="3" rx="1" fill="#E8F0FE" />
-          {/* Base / skid */}
-          <line x1="15" y1="88" x2="185" y2="88" stroke="#0057B8" strokeWidth="1.2" />
         </svg>
       );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -19,17 +19,49 @@ import {
   Plus,
   Pencil,
   Settings2,
+  Archive,
+  Trash2,
+  Copy,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { RevisionHistoryPanel } from "@/components/projects/RevisionHistoryPanel";
+import { SelectionSheetDialog } from "@/components/projects/SelectionSheetDialog";
 import { useProject } from "@/hooks/useProjects";
+import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useSelectionStore } from "@/lib/stores/selection-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { PRODUCT_GROUPS } from "@/lib/mock-data/product-groups";
 import { PRODUCT_SERIES } from "@/lib/mock-data/product-series";
-import type { Unit } from "@/types/project";
+import type { Unit, ProjectStatus } from "@/types/project";
 
 function formatDate(iso: string) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -51,9 +83,98 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const id = params.id as string;
   const { data: project, isLoading } = useProject(id);
+  const { updateProject, deleteProject } = useProjectsStore();
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [revPanelOpen, setRevPanelOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { reset } = useSelectionStore();
+  const { user } = useAuthStore();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [combinedPdfLoading, setCombinedPdfLoading] = useState(false);
+
+  const handleDownloadCombinedPDF = async () => {
+    if (!project || project.units.length === 0) return;
+    setCombinedPdfLoading(true);
+    try {
+      const { generateCombinedPDFBlob } = await import(
+        "@/components/submittal/CombinedSubmittalPDF"
+      );
+      const showPricing = user?.role !== "dealer";
+      const blob = await generateCombinedPDFBlob(project, showPricing);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.name.replace(/\s+/g, "_")}_Combined_Submittal.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setCombinedPdfLoading(false);
+    }
+  };
+
+  // Edit form state
+  const [editName, setEditName] = useState("");
+  const [editClient, setEditClient] = useState("");
+  const [editSalesEngineer, setEditSalesEngineer] = useState("");
+  const [editSubmittedFor, setEditSubmittedFor] = useState("");
+  const [editCountry, setEditCountry] = useState("");
+  const [editStatus, setEditStatus] = useState<ProjectStatus>("active");
+
+  // Sync form state when dialog opens
+  useEffect(() => {
+    if (editOpen && project) {
+      setEditName(project.name);
+      setEditClient(project.clientName);
+      setEditSalesEngineer(project.salesEngineer);
+      setEditSubmittedFor(project.submittedFor);
+      setEditCountry(project.country);
+      setEditStatus(project.status);
+    }
+  }, [editOpen, project]);
+
+  const handleSaveEdit = () => {
+    if (!project) return;
+    updateProject(project.id, {
+      name: editName,
+      clientName: editClient,
+      salesEngineer: editSalesEngineer,
+      submittedFor: editSubmittedFor,
+      country: editCountry,
+      status: editStatus,
+    });
+    setEditOpen(false);
+  };
+
+  const handleDelete = () => {
+    if (!project) return;
+    deleteProject(project.id);
+    router.push("/projects");
+  };
+
+  const handleDuplicate = () => {
+    if (!project) return;
+    const newProject = {
+      ...project,
+      id: crypto.randomUUID(),
+      name: `${project.name} (Copy)`,
+      status: "draft" as ProjectStatus,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      units: [],
+    };
+    useProjectsStore.getState().addProject(newProject);
+    router.push(`/projects/${newProject.id}`);
+  };
+
+  const handleArchive = () => {
+    if (!project) return;
+    updateProject(project.id, {
+      status: project.status === "archived" ? "active" : "archived",
+    });
+  };
 
   const handleCreateRevision = (unit: Unit) => {
     const series = PRODUCT_SERIES.find((s) => s.id === unit.seriesId);
@@ -162,12 +283,35 @@ export default function ProjectDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <MoreVertical className="w-4 h-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                <Pencil className="w-4 h-4 mr-2" /> Edit Project
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDuplicate}>
+                <Copy className="w-4 h-4 mr-2" /> Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleArchive}>
+                <Archive className="w-4 h-4 mr-2" />
+                {project.status === "archived" ? "Unarchive" : "Archive"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Delete Project
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -208,6 +352,30 @@ export default function ProjectDetailPage() {
               {project.units.length}
             </Badge>
           </div>
+          <div className="flex items-center gap-2">
+            {project.units.length > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadCombinedPDF}
+                disabled={combinedPdfLoading}
+              >
+                {combinedPdfLoading ? (
+                  <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Generating...</>
+                ) : (
+                  <><Download className="w-3.5 h-3.5 mr-1.5" /> Combined Submittal</>
+                )}
+              </Button>
+            )}
+            {project.units.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSheetOpen(true)}
+              >
+                <FileText className="w-3.5 h-3.5 mr-1.5" /> Selection Sheet
+              </Button>
+            )}
           <Button
             size="sm"
             className="bg-[#0057B8] hover:bg-[#004494] text-white"
@@ -226,13 +394,14 @@ export default function ProjectDetailPage() {
                   quantity: 1,
                 },
                 addUnitTargetProjectId: project.id,
-                step: 1,
+                step: 2,
               });
               router.push("/select");
             }}
           >
             <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Unit
           </Button>
+          </div>
         </div>
 
         {project.units.length === 0 ? (
@@ -263,7 +432,7 @@ export default function ProjectDetailPage() {
                     quantity: 1,
                   },
                   addUnitTargetProjectId: project.id,
-                  step: 1,
+                  step: 2,
                 });
                 router.push("/select");
               }}
@@ -343,6 +512,115 @@ export default function ProjectDetailPage() {
         open={revPanelOpen}
         onClose={() => setRevPanelOpen(false)}
       />
+
+      <SelectionSheetDialog
+        project={project}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+      />
+
+      {/* ─── Edit Project Dialog ─── */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+            <DialogDescription>Update project information.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Project Name</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-client">Client</Label>
+              <Input
+                id="edit-client"
+                value={editClient}
+                onChange={(e) => setEditClient(e.target.value)}
+                placeholder="Client name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-engineer">Sales Engineer</Label>
+              <Input
+                id="edit-engineer"
+                value={editSalesEngineer}
+                onChange={(e) => setEditSalesEngineer(e.target.value)}
+                placeholder="Sales engineer name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-submitted">Submitted For</Label>
+              <Input
+                id="edit-submitted"
+                value={editSubmittedFor}
+                onChange={(e) => setEditSubmittedFor(e.target.value)}
+                placeholder="Submitted for"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-country">Country</Label>
+              <Input
+                id="edit-country"
+                value={editCountry}
+                onChange={(e) => setEditCountry(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={editStatus} onValueChange={(v) => setEditStatus(v as ProjectStatus)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-[#0057B8] hover:bg-[#004494] text-white"
+              onClick={handleSaveEdit}
+              disabled={!editName.trim()}
+            >
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete Confirmation Dialog ─── */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &ldquo;{project.name}&rdquo;? This action cannot be
+              undone and all equipment units will be permanently removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

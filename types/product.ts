@@ -31,6 +31,7 @@ export interface ProductSeries {
   isChiller: boolean;
   isCCU: boolean;
   hasDualRefrigerant: boolean;
+  cfmRangeLabel?: string;
 }
 
 export interface Model {

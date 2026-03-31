@@ -1,35 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   ArrowLeft,
-  Package,
-  Wind,
-  Droplets,
-  Zap,
-  Fan,
-  Thermometer,
-  Server,
-  Gauge,
 } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import type { ProductGroup } from "@/types/product";
-import type { ProductCategory } from "@/types/product";
-
-const CATEGORY_ICONS: Record<ProductCategory, React.ElementType> = {
-  package: Package,
-  split: Wind,
-  vrf: Zap,
-  chiller: Droplets,
-  ccu: Thermometer,
-  precision: Server,
-  "fan-coil": Fan,
-  crac: Gauge,
-};
 
 export function ProductGroupGrid() {
   const { setSelectedGroup, navigateBack } = useSelectionStore();
@@ -79,9 +60,7 @@ export function ProductGroupGrid() {
 
       {/* Product Group Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 flex-1">
-        {(groups ?? []).map((group, i) => {
-          const Icon = CATEGORY_ICONS[group.category] ?? Package;
-          return (
+        {(groups ?? []).map((group, i) => (
             <motion.button
               key={group.id}
               initial={{ opacity: 0, y: 20 }}
@@ -111,15 +90,15 @@ export function ProductGroupGrid() {
                 }}
               />
 
-              {/* Icon */}
-              <div
-                className="relative w-16 h-16 rounded-2xl flex items-center justify-center
-                  transition-transform duration-300 group-hover:scale-110"
-                style={{ background: `${group.gradientFrom}10` }}
-              >
-                <Icon
-                  className="w-8 h-8 transition-colors duration-300"
-                  style={{ color: group.gradientFrom }}
+              {/* Product image */}
+              <div className="relative w-24 h-24 flex items-center justify-center
+                  transition-transform duration-300 group-hover:scale-110">
+                <Image
+                  src={group.imageUrl}
+                  alt={group.name}
+                  width={96}
+                  height={96}
+                  className="object-contain drop-shadow-md"
                 />
               </div>
 
@@ -146,8 +125,7 @@ export function ProductGroupGrid() {
                 {group.seriesCount} {group.seriesCount === 1 ? "series" : "series"}
               </span>
             </motion.button>
-          );
-        })}
+          ))}
       </div>
     </div>
   );

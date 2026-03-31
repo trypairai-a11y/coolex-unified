@@ -113,7 +113,7 @@ export function DesignConditionsForm() {
   const imperialDefaults: FormData = {
     requiredCoolingCapacityBtuh: 120000,
     requiredAirflowCFM: 4000,
-    powerSupply: "380V/3Ph/60Hz",
+    powerSupply: "380-400V/3Ph/60Hz",
     enteringDBF: 80,
     enteringWBF: 67,
     espInWG: 0.5,
@@ -164,7 +164,7 @@ export function DesignConditionsForm() {
     setDesignConditions(data);
   };
 
-  const POWER_SUPPLIES = ["220V/1Ph/60Hz", "380V/3Ph/60Hz", "415V/3Ph/50Hz", "460V/3Ph/60Hz", "480V/3Ph/60Hz"];
+  const POWER_SUPPLIES = ["230-240V/1Ph/50Hz", "400-415V/3Ph/50Hz", "230V/1Ph/60Hz", "230V/3Ph/60Hz", "380-400V/3Ph/60Hz", "460V/3Ph/60Hz"];
 
   const u = (field: string) => unitLabel(field, unitSystem);
 
@@ -213,7 +213,10 @@ export function DesignConditionsForm() {
                 required
                 placeholder="1"
                 defaultValue={projectInfo?.quantity ?? 1}
-                onChange={(e) => updateProjectInfo({ quantity: parseInt(e.target.value) || 1 })}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  updateProjectInfo({ quantity: val >= 1 ? val : 1 });
+                }}
                 className="mt-1.5"
               />
             </div>
@@ -328,7 +331,7 @@ export function DesignConditionsForm() {
 
             <div className="space-y-1.5">
               <Label>Power Supply <span className="text-destructive">*</span></Label>
-              <Select defaultValue="380V/3Ph/60Hz" onValueChange={(v) => setValue("powerSupply", v)}>
+              <Select defaultValue="380-400V/3Ph/60Hz" onValueChange={(v) => setValue("powerSupply", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {POWER_SUPPLIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}

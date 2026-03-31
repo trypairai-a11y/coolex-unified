@@ -7,6 +7,7 @@ import { z } from "zod";
 import { ArrowRight, Building2, Copy, Check } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { ProjectInfoFormData } from "@/types/selection";
+import { COUNTRIES } from "@/lib/mock-data/countries";
 
 function generateProjectId(): string {
   const now = new Date();
@@ -15,20 +16,6 @@ function generateProjectId(): string {
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `PRJ-${yy}${mm}-${rand}`;
 }
-
-const COUNTRIES = [
-  "Kuwait",
-  "Saudi Arabia",
-  "United Arab Emirates",
-  "Bahrain",
-  "Qatar",
-  "Oman",
-  "Iraq",
-  "Jordan",
-  "Egypt",
-  "Lebanon",
-  "Other",
-] as const;
 
 const projectInfoSchema = z.object({
   projectName: z.string().min(2, "Project name is required"),

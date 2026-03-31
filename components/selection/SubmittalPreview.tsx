@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/toast";
 import { NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
 import { buildOracleBOM } from "@/lib/nomenclature";
 import type { SubmittalOption } from "@/types/submittal";
-import type { Project, Unit, Revision } from "@/types/project";
+import type { Project, Unit, Revision, SubmittalSnapshot } from "@/types/project";
 
 const PDFViewer = dynamic(
   () => import("@/components/submittal/SubmittalPDF").then(m => m.SubmittalPDFViewer),
@@ -48,7 +48,7 @@ export function SubmittalPreview() {
     addUnitTargetProjectId,
     reset,
   } = useSelectionStore();
-  const { addProject, addUnit, addRevision } = useProjectsStore();
+  const { addProject, addUnit, addRevision, updateUnitSubmittal } = useProjectsStore();
   const { user } = useAuthStore();
   const showPricing = user?.role !== "dealer";
 
@@ -64,6 +64,20 @@ export function SubmittalPreview() {
 
     const now = new Date().toISOString();
     const createdBy = user?.name ?? "Unknown";
+
+    const bPrice = Math.round(selectedModel.nominalTons * 185);
+    const oTotal = chosenOptions.reduce((s, o) => s + o.priceAdderKWD, 0);
+    const dPct = 5;
+    const snapshot: SubmittalSnapshot = {
+      designConditions,
+      selectedOptions: chosenOptions,
+      basePriceKWD: bPrice,
+      optionsTotalKWD: oTotal,
+      discountPercent: dPct,
+      netTotalKWD: Math.round((bPrice + oTotal) * (1 - dPct / 100)),
+      oracleBOM: buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, selectedOptions).oracleBOM,
+      generatedBy: createdBy,
+    };
 
     if (revisionTargetProjectId && revisionTargetUnitId) {
       // Adding a revision to an existing unit
@@ -83,6 +97,7 @@ export function SubmittalPreview() {
       };
 
       addRevision(revisionTargetProjectId, revisionTargetUnitId, revision);
+      updateUnitSubmittal(revisionTargetProjectId, revisionTargetUnitId, snapshot);
       setSaving(false);
       setSaved(true);
       showToast(`Revision ${nextRevNum} saved - opening project...`, "success");
@@ -114,6 +129,7 @@ export function SubmittalPreview() {
         quantity: Number(projectInfo.quantity ?? 1),
         revisions: [revision],
         currentRevision: "001",
+        submittalData: snapshot,
       };
 
       addUnit(addUnitTargetProjectId, unit);
@@ -149,6 +165,7 @@ export function SubmittalPreview() {
         quantity: Number(projectInfo.quantity ?? 1),
         revisions: [revision],
         currentRevision: "001",
+        submittalData: snapshot,
       };
 
       const project: Project = {

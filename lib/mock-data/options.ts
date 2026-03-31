@@ -26,10 +26,10 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'dual-power', category: 'electrical', label: 'Dual Power Entry', description: 'Separate compressor and fan power entry points for split-metering', priceAdderKWD: 90, applicableSeriesIds: ['pac-r', 'pac-f', 'pac-g'] },
 
   // Refrigeration
-  { id: 'hgbp', category: 'refrigeration', label: 'Hot Gas Bypass', description: 'Capacity modulation via hot gas bypass for low-load stability', priceAdderKWD: 150, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs', 'ngw-scroll', 'acsc'] },
-  { id: 'suction-acc', category: 'refrigeration', label: 'Suction Accumulator', description: 'Suction line accumulator for liquid slug protection', priceAdderKWD: 80, applicableSeriesIds: ['ccu-std', 'ccu-lt'] },
-  { id: 'oil-sep', category: 'refrigeration', label: 'Oil Separator', description: 'In-line oil separator for long refrigerant line applications', priceAdderKWD: 125, applicableSeriesIds: ['ccu-std', 'ccu-lt', 'ngw-scroll'] },
-  { id: 'liquid-recv', category: 'refrigeration', label: 'Liquid Receiver', description: 'Field-selectable receiver size for extended piping runs', priceAdderKWD: 95, applicableSeriesIds: ['ccu-std', 'ccu-lt'] },
+  { id: 'hgbp', category: 'refrigeration', label: 'Hot Gas Bypass', description: 'Capacity modulation via hot gas bypass for low-load stability', priceAdderKWD: 150, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs', 'acsc', 'thac', 'dhac', 'acc-bp', 'acc-st'] },
+  { id: 'suction-acc', category: 'refrigeration', label: 'Suction Accumulator', description: 'Suction line accumulator for liquid slug protection', priceAdderKWD: 80, applicableSeriesIds: ['ccu-std'] },
+  { id: 'oil-sep', category: 'refrigeration', label: 'Oil Separator', description: 'In-line oil separator for long refrigerant line applications', priceAdderKWD: 125, applicableSeriesIds: ['ccu-std', 'thac', 'dhac', 'acc-bp', 'acc-st'] },
+  { id: 'liquid-recv', category: 'refrigeration', label: 'Liquid Receiver', description: 'Field-selectable receiver size for extended piping runs', priceAdderKWD: 95, applicableSeriesIds: ['ccu-std'] },
   { id: 'filter-dryer', category: 'refrigeration', label: 'Replaceable Filter Drier', description: 'Replaceable-core filter drier with sight glass and moisture indicator', priceAdderKWD: 40, applicableSeriesIds: 'all' },
 
   // Controls

@@ -144,6 +144,7 @@ export function ResultsTable() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>
+                    <th className="px-4 py-3"></th>
                     <TH label="Model" />
                     <TH label="Match %" sortable="matchPercent" />
                     <TH label="Total Cap." sortable="totalCapacityBtuh" />
@@ -152,7 +153,6 @@ export function ResultsTable() {
                     <TH label="EER" sortable="eer" />
                     <TH label="Airflow (CFM)" sortable="airflowCFM" />
                     <TH label="Leaving DB/WB" />
-                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,6 +172,16 @@ export function ResultsTable() {
                         onMouseEnter={() => setHoveredRow(model.id)}
                         onMouseLeave={() => setHoveredRow(null)}
                       >
+                        <td className="px-4 py-3">
+                          <Button
+                            size="sm"
+                            variant={isSelected ? "default" : "outline"}
+                            onClick={() => setSelectedModel(model)}
+                            className={isSelected ? "bg-[#0057B8] text-white" : ""}
+                          >
+                            {isSelected ? "Selected ✓" : "Select"}
+                          </Button>
+                        </td>
                         <td className="px-4 py-3 font-mono font-semibold text-foreground text-xs">{model.modelNumber}</td>
                         <td className="px-4 py-3">
                           <Badge
@@ -188,16 +198,6 @@ export function ResultsTable() {
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{model.airflowCFM.toLocaleString()}</td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">{model.leavingDBF}°F / {model.leavingWBF}°F</td>
-                        <td className="px-4 py-3 text-right">
-                          <Button
-                            size="sm"
-                            variant={isSelected ? "default" : "outline"}
-                            onClick={() => setSelectedModel(model)}
-                            className={isSelected ? "bg-[#0057B8] text-white" : ""}
-                          >
-                            {isSelected ? "Selected ✓" : "Select"}
-                          </Button>
-                        </td>
                       </tr>
                     );
                   })}
