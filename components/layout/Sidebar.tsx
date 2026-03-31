@@ -151,7 +151,7 @@ export function Sidebar() {
         )}
         {sidebarCollapsed && (
           /* eslint-disable-next-line @next/next/no-img-element */
-          <img src="/coolex-icon.svg" alt="CX" className="w-7 h-7 object-contain" />
+          <img src="/coolex-brand-logo.png" alt="COOLEX" className="w-8 h-8 object-contain" />
         )}
         {!sidebarCollapsed && (
           <button
