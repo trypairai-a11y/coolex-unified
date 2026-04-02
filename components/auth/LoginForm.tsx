@@ -68,7 +68,6 @@ export function LoginForm() {
               className="h-36 w-auto mix-blend-multiply"
             />
           </div>
-          <p className="text-gray-500 text-sm">Refrigeration Industries & Storage Co.</p>
           <h1 className="text-gray-900 text-xl font-semibold mt-3">Unified Selector</h1>
           <p className="text-gray-400 mt-1 text-sm">Sign in to access the equipment selection platform</p>
         </div>
