@@ -19,10 +19,8 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   // Electrical
   { id: 'nema4-ctrls', category: 'electrical', label: 'NEMA 4X Control Panel', description: 'NEMA 4X stainless steel control panel for wash-down environments', priceAdderKWD: 195, applicableSeriesIds: 'all' },
   { id: 'phase-mon', category: 'electrical', label: 'Phase Monitor Relay', description: 'Electronic phase failure, reversal, and voltage imbalance protection', priceAdderKWD: 35, applicableSeriesIds: 'all' },
-  { id: 'elec-heater-6kw', category: 'electrical', label: 'Electric Heater - 6 kW', description: 'Factory-installed electric resistance heater, 6 kW, 380V/3ph', priceAdderKWD: 110, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
-  { id: 'elec-heater-12kw', category: 'electrical', label: 'Electric Heater - 12 kW', description: 'Factory-installed electric resistance heater, 12 kW, 380V/3ph', priceAdderKWD: 175, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
-  { id: 'elec-heater-24kw', category: 'electrical', label: 'Electric Heater - 24 kW', description: 'Factory-installed electric resistance heater, 24 kW, 380V/3ph', priceAdderKWD: 280, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs'] },
   { id: 'gfci', category: 'electrical', label: 'GFCI Convenience Outlet', description: '115V GFCI convenience outlet in unit control panel', priceAdderKWD: 25, applicableSeriesIds: 'all' },
+  { id: 'electric-heater', category: 'electrical', label: 'Electric Heater', description: 'Factory-installed electric resistance heater for supplemental or primary heating', priceAdderKWD: 0, applicableSeriesIds: 'all' },
   { id: 'dual-power', category: 'electrical', label: 'Dual Power Entry', description: 'Separate compressor and fan power entry points for split-metering', priceAdderKWD: 90, applicableSeriesIds: ['pac-r', 'pac-f', 'pac-g'] },
 
   // Refrigeration

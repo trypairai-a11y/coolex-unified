@@ -20,7 +20,7 @@ export interface StandardDesignConditions {
   enteringDBF: number;
   enteringWBF: number;
   espInWG: number;
-  electricHeaterKW: number;
+
   altitudeFt: number;
   refrigerant?: string;
 }
@@ -40,6 +40,6 @@ export interface SelectionFlowState {
   selectedSeries: ProductSeries | null;
   projectInfo: ProjectInfoFormData | null;
   designConditions: DesignConditionsFormData | null;
-  selectedModel: Model | null;
+  selectedModels: Model[];
   selectedOptions: string[];
 }

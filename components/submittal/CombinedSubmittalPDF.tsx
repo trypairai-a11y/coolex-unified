@@ -50,9 +50,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerCompany: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: "Helvetica-Bold",
     color: "#FFFFFF",
+    letterSpacing: 2,
   },
   headerSub: {
     fontSize: 7,
@@ -219,18 +220,20 @@ function PdfLogoMark() {
   );
 }
 
-function PageHeader({ pageTitle }: { pageTitle: string }) {
+function PageHeader({ pageTitle, modelNumber }: { pageTitle: string; modelNumber?: string }) {
   return (
     <View style={styles.header} fixed>
       <View style={styles.headerLogo}>
         <PdfLogoMark />
         <View style={{ marginLeft: 8 }}>
           <Text style={styles.headerCompany}>COOLEX</Text>
-          <Text style={styles.headerSub}>Refrigeration Industries & Storage Co.</Text>
+          <Text style={styles.headerSub}>Refrigeration Industries &amp; Storage Co.</Text>
         </View>
       </View>
       <View style={styles.headerRight}>
-        <Text style={[styles.headerRightText, { fontFamily: "Helvetica-Bold", fontSize: 9 }]}>{pageTitle}</Text>
+        <Text style={[styles.headerRightText, { fontFamily: "Helvetica-Bold", fontSize: 9 }]}>
+          {pageTitle}{modelNumber ? ` — ${modelNumber}` : ""}
+        </Text>
         <Text style={styles.headerRightText}>Combined Technical Submittal</Text>
       </View>
     </View>
@@ -342,7 +345,7 @@ function CombinedSubmittalPDFDoc({ project, showPricing }: CombinedSubmittalPDFD
           <React.Fragment key={unit.id}>
             {/* Unit Cover + Performance */}
             <Page size="A4" style={styles.page}>
-              <PageHeader pageTitle={`UNIT ${unitIndex + 1} — ${unit.tag || unit.model.modelNumber}`} />
+              <PageHeader pageTitle={`UNIT ${unitIndex + 1} — ${unit.tag || unit.model.modelNumber}`} modelNumber={unit.model.modelNumber} />
               <PageFooter date={date} />
 
               <View style={{ marginTop: 20 }}>
@@ -401,7 +404,6 @@ function CombinedSubmittalPDFDoc({ project, showPricing }: CombinedSubmittalPDFD
                       </View>
                       <View style={styles.col}>
                         <KV label="ESP" value={`${conditions.espInWG ?? "0"} in. WG`} />
-                        <KV label="Electric Heater" value={`${conditions.electricHeaterKW ?? "0"} kW`} />
                         <KV label="Altitude" value={`${conditions.altitudeFt ?? "0"} ft`} />
                         {Boolean(conditions.enteringWaterTempF) && <KV label="EWT" value={`${conditions.enteringWaterTempF}°F`} />}
                         {Boolean(conditions.leavingWaterTempF) && <KV label="LWT" value={`${conditions.leavingWaterTempF}°F`} />}
@@ -414,7 +416,7 @@ function CombinedSubmittalPDFDoc({ project, showPricing }: CombinedSubmittalPDFD
 
             {/* Unit Technical Data + Dimensions */}
             <Page size="A4" style={styles.page}>
-              <PageHeader pageTitle={`UNIT ${unitIndex + 1} — TECHNICAL DATA`} />
+              <PageHeader pageTitle={`UNIT ${unitIndex + 1} — TECHNICAL DATA`} modelNumber={unit.model.modelNumber} />
               <PageFooter date={date} />
 
               <View style={{ marginTop: 20 }}>

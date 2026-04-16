@@ -32,9 +32,11 @@ export function RegisterForm() {
   const [submitted, setSubmitted] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("");
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<RegisterFormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitting } } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
   });
+
+  const w = watch();
 
   const onSubmit = async (_data: RegisterFormData) => {
     await new Promise(r => setTimeout(r, 1000));
@@ -90,33 +92,33 @@ export function RegisterForm() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5 col-span-2">
                   <Label>Full Name</Label>
-                  <Input placeholder="Ahmed Al-Rashidi" {...register("fullName")} />
+                  <Input placeholder="Ahmed Al-Rashidi" {...register("fullName")} className={!w.fullName ? "bg-red-50" : ""} />
                   {errors.fullName && <p className="text-xs text-destructive">{errors.fullName.message}</p>}
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>Work Email</Label>
-                  <Input type="email" placeholder="you@company.com" {...register("email")} />
+                  <Input type="email" placeholder="you@company.com" {...register("email")} className={!w.email ? "bg-red-50" : ""} />
                   {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>Company / Organization</Label>
-                  <Input placeholder="Al-Rashidi HVAC Trading" {...register("company")} />
+                  <Input placeholder="Al-Rashidi HVAC Trading" {...register("company")} className={!w.company ? "bg-red-50" : ""} />
                   {errors.company && <p className="text-xs text-destructive">{errors.company.message}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Phone</Label>
-                  <Input placeholder="+965 2XXX XXXX" {...register("phone")} />
+                  <Input placeholder="+965 2XXX XXXX" {...register("phone")} className={!w.phone ? "bg-red-50" : ""} />
                   {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Country</Label>
-                  <Input placeholder="Kuwait" {...register("country")} />
+                  <Input placeholder="Kuwait" {...register("country")} className={!w.country ? "bg-red-50" : ""} />
                   {errors.country && <p className="text-xs text-destructive">{errors.country.message}</p>}
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>Role</Label>
                   <Select onValueChange={(v) => { setSelectedRole(v); setValue("role", v as "dealer" | "engineer"); }}>
-                    <SelectTrigger>
+                    <SelectTrigger className={!selectedRole ? "bg-red-50" : ""}>
                       <SelectValue placeholder="Select your role..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -134,12 +136,12 @@ export function RegisterForm() {
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>Password</Label>
-                  <Input type="password" placeholder="Minimum 8 characters" {...register("password")} />
+                  <Input type="password" placeholder="Minimum 8 characters" {...register("password")} className={!w.password ? "bg-red-50" : ""} />
                   {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
                 </div>
                 <div className="space-y-1.5 col-span-2">
                   <Label>Confirm Password</Label>
-                  <Input type="password" placeholder="Re-enter password" {...register("confirmPassword")} />
+                  <Input type="password" placeholder="Re-enter password" {...register("confirmPassword")} className={!w.confirmPassword ? "bg-red-50" : ""} />
                   {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
                 </div>
               </div>

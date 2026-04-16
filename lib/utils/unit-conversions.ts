@@ -77,6 +77,7 @@ export function toDisplay(value: number, field: string, system: UnitSystem): num
     case 'enteringWBF':
     case 'enteringWaterTempF':
     case 'leavingWaterTempF':
+    case 'ambientTempF':
       return round(fToC(value), 1);
     case 'altitudeFt':
       return round(ftToM(value), 0);
@@ -101,6 +102,7 @@ export function toImperial(value: number, field: string, system: UnitSystem): nu
     case 'enteringWBF':
     case 'enteringWaterTempF':
     case 'leavingWaterTempF':
+    case 'ambientTempF':
       return round(cToF(value), 1);
     case 'altitudeFt':
       return round(mToFt(value), 0);
@@ -124,6 +126,7 @@ export function unitLabel(field: string, system: UnitSystem): string {
     enteringWBF: ['°F', '°C'],
     enteringWaterTempF: ['°F', '°C'],
     leavingWaterTempF: ['°F', '°C'],
+    ambientTempF: ['°F', '°C'],
     altitudeFt: ['ft', 'm'],
     espInWG: ['in. WG', 'Pa'],
     waterFlowRateGPM: ['GPM', 'L/s'],

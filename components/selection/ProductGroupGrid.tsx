@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -37,9 +36,9 @@ export function ProductGroupGrid() {
           <Skeleton className="h-7 w-48 mb-2" />
           <Skeleton className="h-4 w-64" />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 flex-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-2xl" />
+            <Skeleton key={i} className="h-52 rounded-2xl" />
           ))}
         </div>
       </div>
@@ -59,7 +58,7 @@ export function ProductGroupGrid() {
       </div>
 
       {/* Product Group Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 flex-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {(groups ?? []).map((group, i) => (
             <motion.button
               key={group.id}
@@ -69,15 +68,15 @@ export function ProductGroupGrid() {
               whileHover={{ y: -4 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => setSelectedGroup(group)}
-              className="relative group aspect-square rounded-2xl border border-gray-100 bg-white
-                flex flex-col items-center justify-center gap-3 cursor-pointer
+              className="relative group rounded-2xl border border-gray-100 bg-white
+                flex flex-col items-center gap-2 cursor-pointer p-4 pb-3
                 transition-all duration-300 hover:shadow-xl overflow-hidden"
             >
               {/* Gradient background glow on hover */}
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                 style={{
-                  background: `radial-gradient(circle at 50% 40%, ${group.gradientFrom}0A 0%, transparent 70%)`,
+                  background: `radial-gradient(circle at 50% 40%, #7C3AED0A 0%, transparent 70%)`,
                 }}
               />
 
@@ -86,37 +85,38 @@ export function ProductGroupGrid() {
                 className="absolute bottom-0 left-0 right-0 h-0.5 scale-x-0 group-hover:scale-x-100
                   transition-transform duration-300 origin-center"
                 style={{
-                  background: `linear-gradient(90deg, transparent, ${group.gradientFrom}, transparent)`,
+                  background: `linear-gradient(90deg, transparent, #7C3AED, transparent)`,
                 }}
               />
 
               {/* Product image */}
-              <div className="relative w-24 h-24 flex items-center justify-center
+              <div className="relative w-20 h-20 flex items-center justify-center shrink-0
                   transition-transform duration-300 group-hover:scale-110">
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={group.imageUrl}
                   alt={group.name}
-                  width={96}
-                  height={96}
+                  width={80}
+                  height={80}
                   className="object-contain drop-shadow-md"
                 />
               </div>
 
               {/* Name */}
-              <h3 className="relative font-semibold text-sm text-gray-800 text-center px-3 leading-tight">
+              <h3 className="relative font-semibold text-sm text-gray-800 text-center px-2 leading-tight">
                 {group.name}
               </h3>
 
               {/* Short description */}
-              <p className="relative text-[11px] text-gray-400 text-center px-4 leading-snug
-                line-clamp-2 group-hover:text-gray-500 transition-colors duration-300">
+              <p className="relative text-[11px] text-gray-400 text-center px-3 leading-snug
+                min-h-[2lh] group-hover:text-gray-500 transition-colors duration-300">
                 {group.shortDescription}
               </p>
 
-              {/* Series count badge */}
+              {/* Series count badge — purple on hover */}
               <span
                 className="relative text-[10px] font-medium px-2.5 py-0.5 rounded-full
-                  transition-colors duration-300"
+                  transition-colors duration-300 group-hover:!text-[#7C3AED] group-hover:!bg-[#7C3AED]/10"
                 style={{
                   color: group.gradientFrom,
                   background: `${group.gradientFrom}10`,

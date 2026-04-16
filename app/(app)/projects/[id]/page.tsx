@@ -24,6 +24,7 @@ import {
   Copy,
   Download,
   Loader2,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +151,7 @@ export default function ProjectDetailPage() {
 
   const handleDelete = () => {
     if (!project) return;
+    setDeleteOpen(false);
     deleteProject(project.id);
     router.push("/projects");
   };
@@ -365,6 +367,15 @@ export default function ProjectDetailPage() {
                 ) : (
                   <><Download className="w-3.5 h-3.5 mr-1.5" /> Combined Submittal</>
                 )}
+              </Button>
+            )}
+            {project.units.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {/* TODO: open quotation */}}
+              >
+                <Receipt className="w-3.5 h-3.5 mr-1.5" /> Quotation
               </Button>
             )}
             {project.units.length > 0 && (

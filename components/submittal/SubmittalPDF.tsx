@@ -17,6 +17,8 @@ import {
 import type { Model } from "@/types/product";
 import type { ProjectInfoFormData, DesignConditionsFormData } from "@/types/selection";
 import type { SubmittalOption } from "@/types/submittal";
+import type { UnitSystem } from "@/lib/stores/unit-store";
+import { btuhToKw, fToC, cfmToM3h, inWGToPa, ftToM, round } from "@/lib/utils/unit-conversions";
 
 // Register standard fonts
 Font.register({
@@ -58,23 +60,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  headerLogoBox: {
-    width: 28,
-    height: 28,
-    backgroundColor: COOLEX_BLUE,
-    borderRadius: 4,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerLogoText: {
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
-    color: "#FFFFFF",
-  },
   headerCompany: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: "Helvetica-Bold",
     color: "#FFFFFF",
+    letterSpacing: 2,
   },
   headerSub: {
     fontSize: 7,
@@ -254,18 +244,20 @@ function PdfLogoMark() {
 }
 
 // Page Header Component
-function PageHeader({ pageTitle }: { pageTitle: string }) {
+function PageHeader({ pageTitle, modelNumber }: { pageTitle: string; modelNumber?: string }) {
   return (
     <View style={styles.header} fixed>
       <View style={styles.headerLogo}>
         <PdfLogoMark />
         <View style={{ marginLeft: 8 }}>
           <Text style={styles.headerCompany}>COOLEX</Text>
-          <Text style={styles.headerSub}>Refrigeration Industries & Storage Co.</Text>
+          <Text style={styles.headerSub}>Refrigeration Industries &amp; Storage Co.</Text>
         </View>
       </View>
       <View style={styles.headerRight}>
-        <Text style={[styles.headerRightText, { fontFamily: "Helvetica-Bold", fontSize: 9 }]}>{pageTitle}</Text>
+        <Text style={[styles.headerRightText, { fontFamily: "Helvetica-Bold", fontSize: 9 }]}>
+          {pageTitle}{modelNumber ? ` — ${modelNumber}` : ""}
+        </Text>
         <Text style={styles.headerRightText}>Technical Submittal Document</Text>
       </View>
     </View>
@@ -314,6 +306,7 @@ interface SubmittalPDFDocProps {
   revisionNumber: string;
   generatedBy: string;
   oracleBOM?: string;
+  unitSystem?: UnitSystem;
 }
 
 function SubmittalPDFDoc({
@@ -329,15 +322,17 @@ function SubmittalPDFDoc({
   revisionNumber,
   generatedBy,
   oracleBOM,
+  unitSystem = "imperial",
 }: SubmittalPDFDocProps) {
   const date = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const conditions = designConditions as unknown as Record<string, unknown>;
+  const isMetric = unitSystem === "metric";
 
   return (
     <Document title={`${projectInfo.projectName} - ${model.modelNumber} - Rev.${revisionNumber}`}>
       {/* ── PAGE 1: COVER ─────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PageHeader pageTitle="COVER PAGE" />
+        <PageHeader pageTitle="COVER PAGE" modelNumber={model.modelNumber} />
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
@@ -345,13 +340,17 @@ function SubmittalPDFDoc({
             <Text style={styles.coverBadgeText}>TECHNICAL SUBMITTAL - REV. {revisionNumber}</Text>
           </View>
           <Text style={styles.coverTitle}>{projectInfo.projectName}</Text>
-          <Text style={styles.coverSubtitle}>{model.modelNumber} - {model.nominalTons} Tons</Text>
+          <Text style={styles.coverSubtitle}>
+            {model.modelNumber} - {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${model.nominalTons} Tons`}
+          </Text>
 
           <View style={[styles.highlightBox, { marginBottom: 16 }]}>
             <Text style={styles.highlightBoxTitle}>Selected Model</Text>
             <Text style={styles.highlightValue}>{model.modelNumber}</Text>
             <Text style={{ fontSize: 9, color: "#475569", marginTop: 2 }}>
-              {(model.totalCapacityBtuh / 12000).toFixed(1)} Tons · {model.eer} EER · {model.powerKW} kW · {model.compressorCount} Compressor{model.compressorCount > 1 ? "s" : ""}
+              {isMetric
+                ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW · ${round(model.eer / 3.412, 2)} COP · ${model.powerKW} kW · ${model.compressorCount} Compressor${model.compressorCount > 1 ? "s" : ""}`
+                : `${(model.totalCapacityBtuh / 12000).toFixed(1)} Tons · ${model.eer} EER · ${model.powerKW} kW · ${model.compressorCount} Compressor${model.compressorCount > 1 ? "s" : ""}`}
             </Text>
           </View>
 
@@ -389,24 +388,27 @@ function SubmittalPDFDoc({
 
       {/* ── PAGE 2: PERFORMANCE DATA ───────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PageHeader pageTitle="PERFORMANCE DATA" />
+        <PageHeader pageTitle="PERFORMANCE DATA" modelNumber={model.modelNumber} />
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
           <Text style={styles.sectionTitle}>Design Input Conditions</Text>
           <View style={styles.twoCol}>
             <View style={styles.col}>
-              <KV label="Required Cooling Cap." value={`${((conditions.requiredCoolingCapacityBtuh as number ?? 0) / 1000).toFixed(0)}k Btu/h`} />
+              <KV label="Required Cooling Cap." value={
+                isMetric
+                  ? `${round(btuhToKw(conditions.requiredCoolingCapacityBtuh as number ?? 0), 1)} kW`
+                  : `${((conditions.requiredCoolingCapacityBtuh as number ?? 0) / 1000).toFixed(0)}k Btu/h`
+              } />
               <KV label="Power Supply" value={String(conditions.powerSupply ?? "")} />
-              <KV label="Entering DB" value={`${conditions.enteringDBF ?? ""}°F`} />
-              <KV label="Entering WB" value={`${conditions.enteringWBF ?? ""}°F`} />
+              <KV label="Entering DB" value={isMetric ? `${round(fToC(conditions.enteringDBF as number ?? 0), 1)}°C` : `${conditions.enteringDBF ?? ""}°F`} />
+              <KV label="Entering WB" value={isMetric ? `${round(fToC(conditions.enteringWBF as number ?? 0), 1)}°C` : `${conditions.enteringWBF ?? ""}°F`} />
             </View>
             <View style={styles.col}>
-              <KV label="ESP" value={`${conditions.espInWG ?? "0"} in. WG`} />
-              <KV label="Electric Heater" value={`${conditions.electricHeaterKW ?? "0"} kW`} />
-              <KV label="Altitude" value={`${conditions.altitudeFt ?? "0"} ft`} />
-              {Boolean(conditions.enteringWaterTempF) && <KV label="EWT" value={`${conditions.enteringWaterTempF}°F`} />}
-              {Boolean(conditions.leavingWaterTempF) && <KV label="LWT" value={`${conditions.leavingWaterTempF}°F`} />}
+              <KV label="ESP" value={isMetric ? `${round(inWGToPa(conditions.espInWG as number ?? 0), 0)} Pa` : `${conditions.espInWG ?? "0"} in. WG`} />
+              <KV label="Altitude" value={isMetric ? `${round(ftToM(conditions.altitudeFt as number ?? 0), 0)} m` : `${conditions.altitudeFt ?? "0"} ft`} />
+              {Boolean(conditions.enteringWaterTempF) && <KV label="EWT" value={isMetric ? `${round(fToC(conditions.enteringWaterTempF as number), 1)}°C` : `${conditions.enteringWaterTempF}°F`} />}
+              {Boolean(conditions.leavingWaterTempF) && <KV label="LWT" value={isMetric ? `${round(fToC(conditions.leavingWaterTempF as number), 1)}°C` : `${conditions.leavingWaterTempF}°F`} />}
             </View>
           </View>
 
@@ -417,7 +419,17 @@ function SubmittalPDFDoc({
                 <Text key={h} style={styles.tableHeaderCell}>{h}</Text>
               ))}
             </View>
-            {[
+            {(isMetric ? [
+              ["Total Cooling Capacity", round(btuhToKw(model.totalCapacityBtuh), 1).toString(), "kW"],
+              ["Sensible Capacity", round(btuhToKw(model.sensibleCapacityBtuh), 1).toString(), "kW"],
+              ["Total Power Input", model.powerKW.toString(), "kW"],
+              ["COP", round(model.eer / 3.412, 2).toString(), "W/W"],
+              ["Airflow", round(cfmToM3h(model.airflowCFM), 0).toLocaleString(), "m³/h"],
+              ["Leaving DB", round(fToC(model.leavingDBF), 1).toString(), "°C"],
+              ["Leaving WB", round(fToC(model.leavingWBF), 1).toString(), "°C"],
+              ["# Compressors", model.compressorCount.toString(), "-"],
+              ["Match to Request", model.matchPercent.toString(), "%"],
+            ] : [
               ["Total Cooling Capacity", (model.totalCapacityBtuh / 1000).toFixed(0) + "k", "Btu/h"],
               ["Sensible Capacity", (model.sensibleCapacityBtuh / 1000).toFixed(0) + "k", "Btu/h"],
               ["Total Power Input", model.powerKW.toString(), "kW"],
@@ -427,7 +439,7 @@ function SubmittalPDFDoc({
               ["Leaving WB", model.leavingWBF.toString(), "°F"],
               ["# Compressors", model.compressorCount.toString(), "-"],
               ["Match to Request", model.matchPercent.toString(), "%"],
-            ].map(([param, val, unit], i) => (
+            ]).map(([param, val, unit], i) => (
               <View key={param} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
                 <Text style={styles.tableCellBold}>{param}</Text>
                 <Text style={[styles.tableCell, { color: COOLEX_BLUE, fontFamily: "Helvetica-Bold" }]}>{val}</Text>
@@ -440,7 +452,7 @@ function SubmittalPDFDoc({
 
       {/* ── PAGE 3: TECHNICAL DATA ─────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PageHeader pageTitle="TECHNICAL DATA" />
+        <PageHeader pageTitle="TECHNICAL DATA" modelNumber={model.modelNumber} />
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
@@ -479,7 +491,7 @@ function SubmittalPDFDoc({
 
       {/* ── PAGE 4: GENERAL & DIMENSIONS ──────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PageHeader pageTitle="GENERAL & DIMENSIONS" />
+        <PageHeader pageTitle="GENERAL & DIMENSIONS" modelNumber={model.modelNumber} />
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
@@ -488,10 +500,10 @@ function SubmittalPDFDoc({
               <Text style={styles.sectionTitle}>General Data</Text>
               <KV label="Model Number" value={model.modelNumber} />
               {oracleBOM && <KV label="Oracle BOM Code" value={oracleBOM} />}
-              <KV label="Nominal Capacity" value={`${model.nominalTons} Tons`} />
+              <KV label="Nominal Capacity" value={isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${model.nominalTons} Tons`} />
               <KV label="Refrigerant" value="R-410A" />
               <KV label="Cabinet Finish" value="Powder-Coated, RAL 7035" />
-              <KV label="Operating Ambient" value="59°F – 130°F" />
+              <KV label="Operating Ambient" value={isMetric ? `${round(fToC(59), 0)}°C – ${round(fToC(130), 0)}°C` : "59°F – 130°F"} />
               <KV label="Operating Voltage" value="380V / 3Ph / 60Hz" />
 
               <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Installation</Text>
@@ -501,13 +513,13 @@ function SubmittalPDFDoc({
             </View>
             <View style={styles.col}>
               <Text style={styles.sectionTitle}>Physical Dimensions</Text>
-              <KV label="Unit Weight" value={`${model.weightLbs} lbs (${Math.round(model.weightLbs * 0.453)} kg)`} />
-              <KV label="Length" value={`${model.lengthIn} in (${Math.round(model.lengthIn * 25.4)} mm)`} />
-              <KV label="Width" value={`${model.widthIn} in (${Math.round(model.widthIn * 25.4)} mm)`} />
-              <KV label="Height" value={`${model.heightIn} in (${Math.round(model.heightIn * 25.4)} mm)`} />
+              <KV label="Unit Weight" value={isMetric ? `${Math.round(model.weightLbs * 0.453)} kg` : `${model.weightLbs} lbs (${Math.round(model.weightLbs * 0.453)} kg)`} />
+              <KV label="Length" value={isMetric ? `${Math.round(model.lengthIn * 25.4)} mm` : `${model.lengthIn} in (${Math.round(model.lengthIn * 25.4)} mm)`} />
+              <KV label="Width" value={isMetric ? `${Math.round(model.widthIn * 25.4)} mm` : `${model.widthIn} in (${Math.round(model.widthIn * 25.4)} mm)`} />
+              <KV label="Height" value={isMetric ? `${Math.round(model.heightIn * 25.4)} mm` : `${model.heightIn} in (${Math.round(model.heightIn * 25.4)} mm)`} />
 
               <Text style={[styles.sectionTitle, { marginTop: 10 }]}>Sound Data</Text>
-              <KV label="Sound Pressure" value="≤ 72 dB(A) @ 10 ft" />
+              <KV label="Sound Pressure" value={isMetric ? "≤ 72 dB(A) @ 3 m" : "≤ 72 dB(A) @ 10 ft"} />
               <KV label="Sound Power" value="≤ 84 dB(A)" />
             </View>
           </View>
@@ -528,7 +540,9 @@ function SubmittalPDFDoc({
               UNIT DIMENSION DRAWING
             </Text>
             <Text style={{ fontSize: 8, color: "#94A3B8", marginTop: 4 }}>
-              {model.lengthIn}" (L) × {model.widthIn}" (W) × {model.heightIn}" (H)
+              {isMetric
+                ? `${Math.round(model.lengthIn * 25.4)} (L) × ${Math.round(model.widthIn * 25.4)} (W) × ${Math.round(model.heightIn * 25.4)} (H) mm`
+                : `${model.lengthIn}" (L) × ${model.widthIn}" (W) × ${model.heightIn}" (H)`}
             </Text>
             <Text style={{ fontSize: 7, color: "#CBD5E1", marginTop: 8 }}>
               [Three-view drawing: Top / Front / Side - engineering drawing to be inserted]
@@ -539,7 +553,7 @@ function SubmittalPDFDoc({
 
       {/* ── PAGE 5: OPTIONS & PRICING ─────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PageHeader pageTitle="OPTIONS & PRICING" />
+        <PageHeader pageTitle="OPTIONS & PRICING" modelNumber={model.modelNumber} />
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
@@ -588,7 +602,7 @@ function SubmittalPDFDoc({
 
       {/* ── PAGE 6: DRAWING ───────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PageHeader pageTitle="DIMENSIONAL DRAWING" />
+        <PageHeader pageTitle="DIMENSIONAL DRAWING" modelNumber={model.modelNumber} />
         <PageFooter revisionNumber={revisionNumber} date={date} />
 
         <View style={{ marginTop: 20 }}>
@@ -605,7 +619,9 @@ function SubmittalPDFDoc({
                 borderWidth: 2, borderColor: COOLEX_NAVY, width: model.lengthIn * 1.2, maxWidth: 300,
                 height: model.widthIn * 1.2, maxHeight: 80, justifyContent: "center", alignItems: "center",
               }}>
-                <Text style={{ fontSize: 7, color: COOLEX_NAVY }}>{model.lengthIn}" × {model.widthIn}"</Text>
+                <Text style={{ fontSize: 7, color: COOLEX_NAVY }}>
+                  {isMetric ? `${Math.round(model.lengthIn * 25.4)} × ${Math.round(model.widthIn * 25.4)} mm` : `${model.lengthIn}" × ${model.widthIn}"`}
+                </Text>
               </View>
             </View>
           </View>
@@ -623,7 +639,9 @@ function SubmittalPDFDoc({
                   width: Math.min(model.lengthIn * 0.8, 120), height: Math.min(model.heightIn * 0.8, 90),
                   justifyContent: "center", alignItems: "center",
                 }}>
-                  <Text style={{ fontSize: 7, color: COOLEX_NAVY }}>{model.lengthIn}" × {model.heightIn}"</Text>
+                  <Text style={{ fontSize: 7, color: COOLEX_NAVY }}>
+                    {isMetric ? `${Math.round(model.lengthIn * 25.4)} × ${Math.round(model.heightIn * 25.4)} mm` : `${model.lengthIn}" × ${model.heightIn}"`}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -639,23 +657,25 @@ function SubmittalPDFDoc({
                   width: Math.min(model.widthIn * 0.8, 80), height: Math.min(model.heightIn * 0.8, 90),
                   justifyContent: "center", alignItems: "center",
                 }}>
-                  <Text style={{ fontSize: 7, color: COOLEX_NAVY }}>{model.widthIn}" × {model.heightIn}"</Text>
+                  <Text style={{ fontSize: 7, color: COOLEX_NAVY }}>
+                    {isMetric ? `${Math.round(model.widthIn * 25.4)} × ${Math.round(model.heightIn * 25.4)} mm` : `${model.widthIn}" × ${model.heightIn}"`}
+                  </Text>
                 </View>
               </View>
             </View>
           </View>
 
           <View style={{ marginTop: 12 }}>
-            <Text style={styles.sectionTitle}>Key Dimensions (mm)</Text>
+            <Text style={styles.sectionTitle}>{isMetric ? "Key Dimensions (mm)" : "Key Dimensions"}</Text>
             <View style={styles.twoCol}>
               <View style={styles.col}>
-                <KV label="Length (L)" value={`${Math.round(model.lengthIn * 25.4)} mm`} />
-                <KV label="Width (W)" value={`${Math.round(model.widthIn * 25.4)} mm`} />
-                <KV label="Height (H)" value={`${Math.round(model.heightIn * 25.4)} mm`} />
+                <KV label="Length (L)" value={isMetric ? `${Math.round(model.lengthIn * 25.4)} mm` : `${model.lengthIn} in`} />
+                <KV label="Width (W)" value={isMetric ? `${Math.round(model.widthIn * 25.4)} mm` : `${model.widthIn} in`} />
+                <KV label="Height (H)" value={isMetric ? `${Math.round(model.heightIn * 25.4)} mm` : `${model.heightIn} in`} />
               </View>
               <View style={styles.col}>
-                <KV label="Operating Weight" value={`${Math.round(model.weightLbs * 0.453)} kg`} />
-                <KV label="Shipping Weight" value={`${Math.round(model.weightLbs * 0.453 * 1.08)} kg`} />
+                <KV label="Operating Weight" value={isMetric ? `${Math.round(model.weightLbs * 0.453)} kg` : `${model.weightLbs} lbs`} />
+                <KV label="Shipping Weight" value={isMetric ? `${Math.round(model.weightLbs * 0.453 * 1.08)} kg` : `${Math.round(model.weightLbs * 1.08)} lbs`} />
               </View>
             </View>
           </View>
@@ -680,6 +700,7 @@ interface SubmittalPDFViewerProps {
   revisionNumber: string;
   generatedBy: string;
   oracleBOM?: string;
+  unitSystem?: UnitSystem;
 }
 
 export function SubmittalPDFViewer(props: SubmittalPDFViewerProps) {

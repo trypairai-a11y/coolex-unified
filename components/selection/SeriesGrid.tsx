@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Snowflake } from "lucide-react";
+import { ArrowLeft, Snowflake, Gauge, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,21 +20,79 @@ export function SeriesGrid() {
     enabled: !!selectedGroup,
   });
 
-  // Group series by primary refrigerant
-  const seriesByRefrigerant = useMemo(() => {
+  const hasSpeedTypes = series?.some(s => s.speedType);
+
+  type RefrigerantSubGroup = { key: string; label: string; items: ProductSeries[] };
+  type SeriesGroup = {
+    key: string;
+    label: string;
+    icon: 'snowflake' | 'gauge' | 'zap';
+    items?: ProductSeries[];
+    subGroups?: RefrigerantSubGroup[];
+  };
+
+  const groupedSeries = useMemo((): SeriesGroup[] => {
     if (!series) return [];
+
+    if (hasSpeedTypes) {
+      // Primary: speed type (Fixed Speed / Variable Speed)
+      // Secondary: refrigerant sub-groups within each speed type
+      const speedGroups = new Map<string, ProductSeries[]>();
+      const order = ['fixed', 'variable'];
+      for (const s of series) {
+        const key = s.speedType || 'other';
+        if (!speedGroups.has(key)) speedGroups.set(key, []);
+        speedGroups.get(key)!.push(s);
+      }
+      return order
+        .filter(k => speedGroups.has(k))
+        .map(k => {
+          const items = speedGroups.get(k)!;
+          // Sub-group by refrigerant if there are multiple refrigerant types
+          const refGroups = new Map<string, ProductSeries[]>();
+          for (const s of items) {
+            const ref = s.primaryRefrigerant;
+            if (!refGroups.has(ref)) refGroups.set(ref, []);
+            refGroups.get(ref)!.push(s);
+          }
+          if (refGroups.size > 1) {
+            return {
+              key: k,
+              label: k === 'fixed' ? 'Fixed Speed' : 'Variable Speed',
+              icon: (k === 'fixed' ? 'gauge' : 'zap') as 'gauge' | 'zap',
+              subGroups: Array.from(refGroups.entries()).map(([ref, refItems]) => ({
+                key: ref,
+                label: ref,
+                items: refItems,
+              })),
+            };
+          }
+          return {
+            key: k,
+            label: k === 'fixed' ? 'Fixed Speed' : 'Variable Speed',
+            icon: (k === 'fixed' ? 'gauge' : 'zap') as 'gauge' | 'zap',
+            items,
+          };
+        });
+    }
+
+    // Fallback: group by refrigerant
     const groups = new Map<string, ProductSeries[]>();
     for (const s of series) {
       const ref = s.primaryRefrigerant;
       if (!groups.has(ref)) groups.set(ref, []);
       groups.get(ref)!.push(s);
     }
-    return Array.from(groups.entries());
-  }, [series]);
+    return Array.from(groups.entries()).map(([ref, items]) => ({
+      key: ref,
+      label: ref,
+      icon: 'snowflake' as const,
+      items,
+    }));
+  }, [series, hasSpeedTypes]);
+
 
   if (!selectedGroup) return null;
-
-  let animIndex = 0;
 
   return (
     <div>
@@ -52,34 +110,69 @@ export function SeriesGrid() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}
         </div>
-      ) : seriesByRefrigerant.length === 1 ? (
-        // Single refrigerant — no need for section headers
+      ) : groupedSeries.length === 1 ? (
+        // Single group — no section headers needed
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {seriesByRefrigerant[0][1].map((s, i) => (
+          {groupedSeries[0].items!.map((s, i) => (
             <SeriesCard key={s.id} series={s} index={i} onSelect={setSelectedSeries} />
           ))}
         </div>
       ) : (
-        // Multiple refrigerants — group with headers
+        // Multiple groups — each with a header and cards
         <div className="space-y-8">
-          {seriesByRefrigerant.map(([refrigerant, items]) => {
-            const startIndex = animIndex;
-            animIndex += items.length;
-            return (
-              <div key={refrigerant}>
-                <div className="flex items-center gap-2 mb-4">
-                  <Snowflake className="w-4 h-4 text-blue-500" />
-                  <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">{refrigerant}</h3>
-                  <div className="flex-1 h-px bg-gray-200" />
+          {(() => {
+            let animIdx = 0;
+            return groupedSeries.map((group) => {
+              const Icon = group.icon === 'gauge' ? Gauge : group.icon === 'zap' ? Zap : Snowflake;
+              const iconColor = group.icon === 'gauge' ? 'text-gray-500' : group.icon === 'zap' ? 'text-emerald-500' : 'text-blue-500';
+              return (
+                <div key={group.key}>
+                  {/* Main group header */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <Icon className={`w-4 h-4 ${iconColor}`} />
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">{group.label}</h3>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+
+                  {group.subGroups ? (
+                    // Refrigerant sub-groups within this speed type
+                    <div className="space-y-6">
+                      {group.subGroups.map((sub) => {
+                        const startIdx = animIdx;
+                        animIdx += sub.items.length;
+                        return (
+                          <div key={sub.key}>
+                            <div className="flex items-center gap-2 mb-3 ml-1">
+                              <Snowflake className="w-3.5 h-3.5 text-blue-500" />
+                              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{sub.label}</h4>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {sub.items.map((s, i) => (
+                                <SeriesCard key={s.id} series={s} index={startIdx + i} onSelect={setSelectedSeries} />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    // Flat items
+                    (() => {
+                      const startIdx = animIdx;
+                      animIdx += group.items!.length;
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {group.items!.map((s, i) => (
+                            <SeriesCard key={s.id} series={s} index={startIdx + i} onSelect={setSelectedSeries} />
+                          ))}
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {items.map((s, i) => (
-                    <SeriesCard key={s.id} series={s} index={startIndex + i} onSelect={setSelectedSeries} />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
       )}
     </div>
@@ -98,7 +191,11 @@ function SeriesCard({ series: s, index, onSelect }: { series: ProductSeries; ind
     >
       {/* Equipment illustration */}
       <div className="mb-3">
-        <EquipmentIllustration groupId={s.groupId} />
+        {s.imageUrl ? (
+          <img src={s.imageUrl} alt={s.name} className="w-full h-24 object-contain" />
+        ) : (
+          <EquipmentIllustration groupId={s.groupId} />
+        )}
       </div>
 
       {/* Header */}

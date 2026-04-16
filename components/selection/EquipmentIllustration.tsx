@@ -109,11 +109,7 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
       );
 
     // Air-cooled chiller - large unit with multiple fan circles on top
-    case "chiller-acsc":
-    case "chiller-thac":
-    case "chiller-dhac":
-    case "chiller-acc-bp":
-    case "chiller-acc-st":
+    case "chiller":
       return (
         <svg {...svgProps}>
           {/* Main chiller body */}
@@ -253,95 +249,6 @@ export function EquipmentIllustration({ groupId, className = "" }: Props) {
           {/* Airflow arrows */}
           <path d="M90 96 L90 106 L86 102" stroke="#00A3E0" strokeWidth="0.6" fill="none" opacity="0.4" />
           <path d="M110 96 L110 106 L106 102" stroke="#00A3E0" strokeWidth="0.6" fill="none" opacity="0.4" />
-        </svg>
-      );
-
-    // PNGF / PNGC / CIPK / SPU - generic packaged unit variants
-    case "pngf":
-    case "pngc":
-      return (
-        <svg {...svgProps}>
-          {/* Main cabinet */}
-          <rect x="30" y="30" width="140" height="65" rx="4" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
-          {/* Top vent section */}
-          <rect x="35" y="35" width="60" height="25" rx="2" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.6" />
-          {/* Vent lines */}
-          <line x1="40" y1="40" x2="90" y2="40" stroke="#0057B8" strokeWidth="0.5" opacity="0.3" />
-          <line x1="40" y1="44" x2="90" y2="44" stroke="#0057B8" strokeWidth="0.5" opacity="0.3" />
-          <line x1="40" y1="48" x2="90" y2="48" stroke="#0057B8" strokeWidth="0.5" opacity="0.3" />
-          <line x1="40" y1="52" x2="90" y2="52" stroke="#0057B8" strokeWidth="0.5" opacity="0.3" />
-          {/* Compressor section */}
-          <rect x="105" y="35" width="58" height="25" rx="2" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.6" />
-          <circle cx="134" cy="47" r="8" stroke="#0057B8" strokeWidth="0.8" fill="#E8F0FE" />
-          <circle cx="134" cy="47" r="2" fill="#0057B8" opacity="0.2" />
-          {/* Control panel */}
-          <rect x="40" y="68" width="45" height="18" rx="2" fill="#fff" stroke="#0057B8" strokeWidth="0.6" />
-          <circle cx="50" cy="75" r="2" fill="#00A3E0" />
-          <rect x="56" y="73" width="22" height="4" rx="1" fill="#E8F0FE" />
-          {/* Pipe connections */}
-          <circle cx="110" cy="88" r="3" stroke="#0057B8" strokeWidth="0.6" fill="#B8D4F0" />
-          <circle cx="124" cy="88" r="3" stroke="#00A3E0" strokeWidth="0.6" fill="#B8D4F0" />
-          {/* Base */}
-          <rect x="35" y="95" width="10" height="6" rx="1" fill="#B8D4F0" />
-          <rect x="155" y="95" width="10" height="6" rx="1" fill="#B8D4F0" />
-        </svg>
-      );
-
-    case "cipk":
-      return (
-        <svg {...svgProps}>
-          {/* Compact box unit */}
-          <rect x="50" y="25" width="100" height="70" rx="4" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
-          {/* Top vent */}
-          <rect x="55" y="30" width="90" height="20" rx="2" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.6" />
-          {/* Vent lines */}
-          <line x1="60" y1="35" x2="140" y2="35" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          <line x1="60" y1="39" x2="140" y2="39" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          <line x1="60" y1="43" x2="140" y2="43" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          {/* Digital display */}
-          <rect x="65" y="56" width="40" height="16" rx="2" fill="#fff" stroke="#0057B8" strokeWidth="0.6" />
-          <text x="72" y="67" fontSize="7" fill="#0057B8" fontFamily="monospace" opacity="0.6">±0.5°</text>
-          {/* Status LED */}
-          <circle cx="120" cy="62" r="3" fill="#22C55E" opacity="0.6" />
-          <circle cx="130" cy="62" r="3" fill="#00A3E0" opacity="0.6" />
-          {/* Pipe stubs */}
-          <rect x="60" y="88" width="6" height="10" rx="2" fill="#B8D4F0" stroke="#0057B8" strokeWidth="0.5" />
-          <rect x="78" y="88" width="6" height="10" rx="2" fill="#B8D4F0" stroke="#00A3E0" strokeWidth="0.5" />
-          {/* Feet */}
-          <rect x="55" y="95" width="8" height="4" rx="1" fill="#B8D4F0" />
-          <rect x="137" y="95" width="8" height="4" rx="1" fill="#B8D4F0" />
-        </svg>
-      );
-
-    case "spu":
-      return (
-        <svg {...svgProps}>
-          {/* Large outdoor section */}
-          <rect x="10" y="30" width="85" height="65" rx="4" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
-          {/* Two fans on top */}
-          <circle cx="35" cy="50" r="12" stroke="#0057B8" strokeWidth="0.8" fill="#D1E3FC" />
-          <circle cx="35" cy="50" r="2" fill="#0057B8" opacity="0.2" />
-          <circle cx="70" cy="50" r="12" stroke="#0057B8" strokeWidth="0.8" fill="#D1E3FC" />
-          <circle cx="70" cy="50" r="2" fill="#0057B8" opacity="0.2" />
-          {/* Compressor area */}
-          <rect x="18" y="70" width="68" height="18" rx="2" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.5" />
-          {/* Connecting pipes */}
-          <path d="M95 50 L110 50" stroke="#0057B8" strokeWidth="1.5" strokeDasharray="3 2" />
-          <path d="M95 60 L110 60" stroke="#00A3E0" strokeWidth="1" strokeDasharray="3 2" />
-          {/* Indoor section */}
-          <rect x="110" y="30" width="80" height="65" rx="4" fill="#E8F0FE" stroke="#0057B8" strokeWidth="1.5" />
-          {/* Air handler / coil lines */}
-          <rect x="118" y="38" width="64" height="30" rx="2" fill="#D1E3FC" stroke="#0057B8" strokeWidth="0.6" />
-          <line x1="123" y1="43" x2="177" y2="43" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          <line x1="123" y1="48" x2="177" y2="48" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          <line x1="123" y1="53" x2="177" y2="53" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          <line x1="123" y1="58" x2="177" y2="58" stroke="#0057B8" strokeWidth="0.4" opacity="0.3" />
-          {/* Control panel */}
-          <rect x="120" y="74" width="30" height="14" rx="2" fill="#fff" stroke="#0057B8" strokeWidth="0.6" />
-          <circle cx="128" cy="80" r="2" fill="#00A3E0" />
-          <rect x="134" y="78" width="12" height="3" rx="1" fill="#E8F0FE" />
-          {/* Base */}
-          <line x1="5" y1="95" x2="195" y2="95" stroke="#0057B8" strokeWidth="0.8" opacity="0.3" />
         </svg>
       );
 

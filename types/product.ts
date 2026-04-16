@@ -32,6 +32,8 @@ export interface ProductSeries {
   isCCU: boolean;
   hasDualRefrigerant: boolean;
   cfmRangeLabel?: string;
+  speedType?: 'fixed' | 'variable';
+  imageUrl?: string;
 }
 
 export interface Model {

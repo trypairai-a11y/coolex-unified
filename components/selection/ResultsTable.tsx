@@ -7,8 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useModels } from "@/hooks/useSelection";
-import { NomenclatureInline, NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
+import { NomenclatureInline } from "@/components/selection/NomenclatureBreakdown";
 import type { Model } from "@/types/product";
+import { UnitToggle } from "@/components/selection/UnitToggle";
+import { useUnitStore } from "@/lib/stores/unit-store";
+import { btuhToKw, fToC, cfmToM3h, round } from "@/lib/utils/unit-conversions";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
 
@@ -26,13 +29,24 @@ function ErrorState({ message }: { message: string }) {
 }
 
 export function ResultsTable() {
-  const { selectedSeries, designConditions, selectedModel, setSelectedModel, navigateBack } = useSelectionStore();
+  const { selectedSeries, designConditions, selectedModels, toggleModelSelection, navigateBack, selectionBasis } = useSelectionStore();
   const [sortKey, setSortKey] = useState<SortKey>("matchPercent");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
-  const capacityBtuh = (designConditions as { requiredCoolingCapacityBtuh?: number })?.requiredCoolingCapacityBtuh ?? null;
-  const { data: models, isLoading, isError } = useModels(selectedSeries?.id ?? null, capacityBtuh);
+  const unitSystem = useUnitStore((s) => s.unitSystem);
+  const isMetric = unitSystem === "metric";
+
+  const dc = designConditions as Record<string, number> | null;
+  const capacityBtuh = dc?.requiredCoolingCapacityBtuh ?? null;
+  const airflowCFM = dc?.requiredAirflowCFM ?? null;
+  const basis = selectionBasis ?? 'capacity';
+  const evapConditions = {
+    enteringDBF: dc?.enteringDBF,
+    enteringWBF: dc?.enteringWBF,
+    espInWG: dc?.espInWG,
+  };
+  const { data: models, isLoading, isError } = useModels(selectedSeries?.id ?? null, capacityBtuh, basis, airflowCFM, evapConditions);
 
   const sorted = [...(models ?? [])].sort((a, b) => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -67,16 +81,27 @@ export function ResultsTable() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="outline" size="sm" onClick={() => navigateBack(4)}>
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back
-        </Button>
-        <div>
-          <h2 className="text-xl font-bold">Model Results</h2>
-          <p className="text-muted-foreground text-sm">
-            {selectedSeries?.name} - {capacityBtuh ? `${(capacityBtuh / 1000).toFixed(0)}k Btu/h requested` : ""}
-          </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => navigateBack(4)}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold">Model Results</h2>
+            <p className="text-muted-foreground text-sm">
+              {selectedSeries?.name} - {basis === 'airflow' && airflowCFM
+                ? isMetric
+                  ? `${round(cfmToM3h(airflowCFM), 0).toLocaleString()} m³/h requested`
+                  : `${airflowCFM.toLocaleString()} CFM requested`
+                : capacityBtuh
+                  ? isMetric
+                    ? `${round(btuhToKw(capacityBtuh), 1)} kW requested`
+                    : `${(capacityBtuh / 1000).toFixed(0)}k Btu/h requested`
+                  : ""}
+            </p>
+          </div>
         </div>
+        <UnitToggle />
       </div>
 
       {isLoading ? (
@@ -90,7 +115,7 @@ export function ResultsTable() {
           {/* Mobile card view */}
           <div className="sm:hidden space-y-3">
             {sorted.map((model) => {
-              const isSelected = selectedModel?.id === model.id;
+              const isSelected = selectedModels.some(m => m.id === model.id);
               return (
                 <div
                   key={model.id}
@@ -110,26 +135,30 @@ export function ResultsTable() {
                   <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                     <div>
                       <div className="text-muted-foreground">Capacity</div>
-                      <div className="font-medium">{formatBtuh(model.totalCapacityBtuh)} Btu/h</div>
+                      <div className="font-medium">
+                        {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
+                      </div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Power</div>
                       <div className="font-medium">{model.powerKW} kW</div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground">EER</div>
-                      <div className="font-medium text-[#00A3E0]">{model.eer}</div>
+                      <div className="text-muted-foreground">{isMetric ? "COP" : "EER"}</div>
+                      <div className="font-medium">{isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
                     </div>
                     <div>
                       <div className="text-muted-foreground">Airflow</div>
-                      <div className="font-medium">{model.airflowCFM.toLocaleString()} CFM</div>
+                      <div className="font-medium">
+                        {isMetric ? `${round(cfmToM3h(model.airflowCFM), 0).toLocaleString()} m³/h` : `${model.airflowCFM.toLocaleString()} CFM`}
+                      </div>
                     </div>
                   </div>
                   <Button
                     size="sm"
                     variant={isSelected ? "default" : "outline"}
                     className={`w-full ${isSelected ? "bg-[#0057B8] text-white" : ""}`}
-                    onClick={() => setSelectedModel(model)}
+                    onClick={() => toggleModelSelection(model)}
                   >
                     {isSelected ? "Selected ✓" : "Select"}
                   </Button>
@@ -147,17 +176,17 @@ export function ResultsTable() {
                     <th className="px-4 py-3"></th>
                     <TH label="Model" />
                     <TH label="Match %" sortable="matchPercent" />
-                    <TH label="Total Cap." sortable="totalCapacityBtuh" />
-                    <TH label="Sensible Cap." sortable="sensibleCapacityBtuh" />
+                    <TH label={isMetric ? "Total Cap." : "Total Cap."} sortable="totalCapacityBtuh" />
+                    <TH label={isMetric ? "Sensible Cap." : "Sensible Cap."} sortable="sensibleCapacityBtuh" />
                     <TH label="Power (kW)" sortable="powerKW" />
-                    <TH label="EER" sortable="eer" />
-                    <TH label="Airflow (CFM)" sortable="airflowCFM" />
-                    <TH label="Leaving DB/WB" />
+                    <TH label={isMetric ? "COP" : "EER"} sortable="eer" />
+                    <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
+                    <TH label={isMetric ? "Leaving DB/WB" : "Leaving DB/WB"} />
                   </tr>
                 </thead>
                 <tbody>
                   {sorted.map((model) => {
-                    const isSelected = selectedModel?.id === model.id;
+                    const isSelected = selectedModels.some(m => m.id === model.id);
                     const isHovered = hoveredRow === model.id;
                     return (
                       <tr
@@ -176,7 +205,7 @@ export function ResultsTable() {
                           <Button
                             size="sm"
                             variant={isSelected ? "default" : "outline"}
-                            onClick={() => setSelectedModel(model)}
+                            onClick={() => toggleModelSelection(model)}
                             className={isSelected ? "bg-[#0057B8] text-white" : ""}
                           >
                             {isSelected ? "Selected ✓" : "Select"}
@@ -190,14 +219,24 @@ export function ResultsTable() {
                             {model.matchPercent}%
                           </Badge>
                         </td>
-                        <td className="px-4 py-3 text-foreground">{formatBtuh(model.totalCapacityBtuh)} Btu/h</td>
-                        <td className="px-4 py-3 text-muted-foreground">{formatBtuh(model.sensibleCapacityBtuh)} Btu/h</td>
-                        <td className="px-4 py-3 text-foreground">{model.powerKW}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-[#00A3E0] font-semibold">{model.eer}</span>
+                        <td className="px-4 py-3 text-black">
+                          {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">{model.airflowCFM.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs">{model.leavingDBF}°F / {model.leavingWBF}°F</td>
+                        <td className="px-4 py-3 text-black">
+                          {isMetric ? `${round(btuhToKw(model.sensibleCapacityBtuh), 1)} kW` : `${formatBtuh(model.sensibleCapacityBtuh)} Btu/h`}
+                        </td>
+                        <td className="px-4 py-3 text-black">{model.powerKW}</td>
+                        <td className="px-4 py-3">
+                          <span className="text-black">{isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
+                        </td>
+                        <td className="px-4 py-3 text-black">
+                          {isMetric ? round(cfmToM3h(model.airflowCFM), 0).toLocaleString() : model.airflowCFM.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-black text-xs">
+                          {isMetric
+                            ? `${round(fToC(model.leavingDBF), 1)}°C / ${round(fToC(model.leavingWBF), 1)}°C`
+                            : `${model.leavingDBF}°F / ${model.leavingWBF}°F`}
+                        </td>
                       </tr>
                     );
                   })}
@@ -208,24 +247,14 @@ export function ResultsTable() {
         </>
       )}
 
-      {/* Nomenclature breakdown for selected model */}
-      {selectedModel && selectedSeries && (
-        <div className="mt-6">
-          <NomenclatureBreakdown
-            modelNumber={selectedModel.modelNumber}
-            seriesId={selectedSeries.id}
-            showOracleBOM={true}
-          />
-        </div>
-      )}
 
       <div className="flex justify-end mt-6">
         <Button
-          disabled={!selectedModel}
-          onClick={() => selectedModel && useSelectionStore.getState().setStep(6)}
+          disabled={selectedModels.length === 0}
+          onClick={() => useSelectionStore.getState().setStep(6)}
           className="bg-[#0057B8] hover:bg-[#0057B8]/90"
         >
-          Continue with {selectedModel?.modelNumber ?? "Model"} <ArrowRight className="w-4 h-4 ml-1" />
+          Continue with {selectedModels[0]?.modelNumber} <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
     </div>

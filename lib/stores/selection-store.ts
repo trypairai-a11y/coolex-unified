@@ -10,7 +10,7 @@ interface SelectionState {
   selectedSeries: ProductSeries | null;
   projectInfo: ProjectInfoFormData | null;
   designConditions: DesignConditionsFormData | null;
-  selectedModel: Model | null;
+  selectedModels: Model[];
   selectedOptions: string[];
   revisionTargetProjectId: string | null;
   revisionTargetUnitId: string | null;
@@ -23,7 +23,7 @@ interface SelectionState {
   setProjectInfo: (info: ProjectInfoFormData) => void;
   updateProjectInfo: (partial: Partial<ProjectInfoFormData>) => void;
   setDesignConditions: (conditions: DesignConditionsFormData) => void;
-  setSelectedModel: (model: Model) => void;
+  toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
   navigateBack: (toStep: number) => void;
   setRevisionTarget: (projectId: string, unitId: string) => void;
@@ -32,12 +32,12 @@ interface SelectionState {
 
 const initialState = {
   step: 1,
-  selectionBasis: null as SelectionBasis | null,
+  selectionBasis: 'capacity' as SelectionBasis | null,
   selectedGroup: null,
   selectedSeries: null,
   projectInfo: null,
   designConditions: null,
-  selectedModel: null,
+  selectedModels: [],
   selectedOptions: [],
   revisionTargetProjectId: null,
   revisionTargetUnitId: null,
@@ -65,31 +65,32 @@ export const useSelectionStore = create<SelectionState>()(
 
       setSelectedGroup: (group) => set({
         selectedGroup: group,
-        // Reset subsequent steps but preserve projectInfo
         selectedSeries: null,
         designConditions: null,
-        selectedModel: null,
+        selectedModels: [],
         selectedOptions: [],
-        step: 3, // → Series
+        step: 3,
       }),
 
       setSelectedSeries: (series) => set({
         selectedSeries: series,
         designConditions: null,
-        selectedModel: null,
+        selectedModels: [],
         selectedOptions: [],
-        step: 4, // → Design Conditions
+        step: 4,
       }),
 
       setDesignConditions: (conditions) => set({
         designConditions: conditions,
-        selectedModel: null,
+        selectedModels: [],
         step: 5,
       }),
 
-      setSelectedModel: (model) => set({
-        selectedModel: model,
-        step: 6,
+      toggleModelSelection: (model) => set((state) => {
+        const exists = state.selectedModels.some(m => m.id === model.id);
+        return {
+          selectedModels: exists ? [] : [model],
+        };
       }),
 
       toggleOption: (optionId) => set((state) => ({
@@ -103,33 +104,34 @@ export const useSelectionStore = create<SelectionState>()(
         const updates: Partial<SelectionState> = { step: toStep };
         if (toStep <= 1) {
           // Back to Project Info - clear everything downstream
-          updates.selectionBasis = null;
+          updates.selectionBasis = 'capacity';
           updates.selectedGroup = null;
           updates.selectedSeries = null;
           updates.designConditions = null;
-          updates.selectedModel = null;
+          updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.addUnitTargetProjectId = null;
         } else if (toStep <= 2) {
           // Back to Group - keep projectInfo, clear group + downstream
-          updates.selectionBasis = null;
+          updates.selectionBasis = 'capacity';
           updates.selectedGroup = null;
           updates.selectedSeries = null;
           updates.designConditions = null;
-          updates.selectedModel = null;
+          updates.selectedModels = [];
           updates.selectedOptions = [];
         } else if (toStep <= 3) {
           // Back to Series - keep projectInfo + group, clear series + downstream
           updates.selectedSeries = null;
           updates.designConditions = null;
-          updates.selectedModel = null;
+          updates.selectedModels = [];
           updates.selectedOptions = [];
         } else if (toStep <= 4) {
           // Back to Design Conditions - keep through series, clear design+
           updates.designConditions = null;
-          updates.selectedModel = null;
+          updates.selectedModels = [];
           updates.selectedOptions = [];
         } else if (toStep <= 5) {
-          updates.selectedModel = null;
+          updates.selectedModels = [];
           updates.selectedOptions = [];
         } else if (toStep <= 6) {
           updates.selectedOptions = [];

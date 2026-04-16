@@ -33,10 +33,13 @@ export function LoginForm() {
   const { login } = useAuthStore();
   const router = useRouter();
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormData>({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "", rememberMe: false },
   });
+
+  const emailVal = watch("email");
+  const passwordVal = watch("password");
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null);
@@ -84,7 +87,7 @@ export function LoginForm() {
                   placeholder="you@coolex.com"
                   autoComplete="email"
                   {...register("email")}
-                  className={errors.email ? "border-destructive" : ""}
+                  className={errors.email ? "border-destructive" : !emailVal ? "bg-red-50" : ""}
                 />
                 {errors.email && (
                   <p className="text-xs text-destructive">{errors.email.message}</p>
@@ -100,7 +103,7 @@ export function LoginForm() {
                     placeholder="••••••••"
                     autoComplete="current-password"
                     {...register("password")}
-                    className={errors.password ? "border-destructive pr-10" : "pr-10"}
+                    className={errors.password ? "border-destructive pr-10" : !passwordVal ? "bg-red-50 pr-10" : "pr-10"}
                   />
                   <button
                     type="button"

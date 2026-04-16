@@ -1,14 +1,12 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Tag, AlertCircle, Wrench, Zap, Snowflake, Cpu } from "lucide-react";
+import { ArrowLeft, ArrowRight, AlertCircle, Wrench, Zap, Snowflake, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
 import { useOptions } from "@/hooks/useSelection";
-import { NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
 import type { EquipmentOption } from "@/lib/mock-data/options";
 
 const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon: React.ElementType; color: string; bgColor: string }> = {
@@ -43,9 +41,7 @@ const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon
 };
 
 export function OptionsConfigurator() {
-  const { selectedSeries, selectedModel, selectedOptions, toggleOption, setStep, navigateBack } = useSelectionStore();
-  const { user } = useAuthStore();
-  const showPricing = user?.role !== "dealer";
+  const { selectedSeries, selectedModels, selectedOptions, toggleOption, setStep, navigateBack } = useSelectionStore();
 
   const { data: options, isLoading, isError } = useOptions(selectedSeries?.id ?? null);
 
@@ -66,22 +62,12 @@ export function OptionsConfigurator() {
         </Button>
         <div>
           <h2 className="text-xl font-bold">Options & Accessories</h2>
-          <p className="text-muted-foreground text-sm">{selectedModel?.modelNumber} — Select additional options</p>
+          <p className="text-muted-foreground text-sm">
+            {selectedModels.map(m => m.modelNumber).join(", ")} — Select additional options
+          </p>
         </div>
       </div>
 
-      {/* Live nomenclature with option codes */}
-      {selectedModel && selectedSeries && (
-        <div className="mb-5">
-          <NomenclatureBreakdown
-            modelNumber={selectedModel.modelNumber}
-            seriesId={selectedSeries.id}
-            selectedOptionIds={selectedOptions}
-            showOracleBOM={true}
-            compact={false}
-          />
-        </div>
-      )}
 
       {isLoading ? (
         <div className="space-y-4">
@@ -149,11 +135,6 @@ export function OptionsConfigurator() {
                           </span>
                           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{opt.description}</p>
                         </div>
-                        {showPricing && (
-                          <span className={`text-xs font-medium shrink-0 tabular-nums ${isChecked ? "text-[#0057B8]" : "text-muted-foreground"}`}>
-                            +{opt.priceAdderKWD} KWD
-                          </span>
-                        )}
                       </div>
                     );
                   })}
@@ -165,20 +146,10 @@ export function OptionsConfigurator() {
           {/* Summary Footer */}
           {selectedCount > 0 && (
             <div className="flex items-center gap-3 p-4 rounded-xl border border-[#0057B8]/20 bg-[#0057B8]/[0.04]">
-              <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#0057B8]/10">
-                <Tag className="w-[18px] h-[18px] text-[#0057B8]" />
-              </div>
               <div className="flex-1">
                 <span className="text-sm font-semibold text-foreground">
                   {selectedCount} option{selectedCount !== 1 ? "s" : ""} selected
                 </span>
-                {showPricing && (
-                  <p className="text-xs text-muted-foreground">
-                    Options total: <span className="font-medium text-[#0057B8]">
-                      +{(options ?? []).filter(o => selectedOptions.includes(o.id)).reduce((s, o) => s + o.priceAdderKWD, 0)} KWD
-                    </span>
-                  </p>
-                )}
               </div>
             </div>
           )}

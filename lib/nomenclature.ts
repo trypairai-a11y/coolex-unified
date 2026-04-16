@@ -42,9 +42,6 @@ export const OPTION_BOM_CODES: Record<string, string> = {
   'cond-coil-coat':  'CCCD',
   'nema4-ctrls':     'N4CP',
   'phase-mon':       'PMRL',
-  'elec-heater-6kw': 'EH06',
-  'elec-heater-12kw':'EH12',
-  'elec-heater-24kw':'EH24',
   'gfci':            'GFOT',
   'dual-power':      'DPPE',
   'hgbp':            'HGBP',
@@ -224,7 +221,7 @@ const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
   'dhac':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'acc-bp':     { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'acc-st':     { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
-  'ccu-std':    { refrigerant: 'R404A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
+  'ccu-std':    { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
 
   'prec-dc':    { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'prec-tele':  { refrigerant: 'R410A', voltage: '220', phase: '1', frequency: '50', compressorType: 'IV' },

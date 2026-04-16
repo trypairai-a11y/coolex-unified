@@ -15,6 +15,7 @@ import type { SelectionBasis } from "@/types/selection";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
+import { UnitToggle } from "@/components/selection/UnitToggle";
 
 const standardSchema = z.object({
   requiredCoolingCapacityBtuh: z.coerce.number().min(0).max(100000000).optional(),
@@ -23,8 +24,8 @@ const standardSchema = z.object({
   enteringDBF: z.coerce.number(),
   enteringWBF: z.coerce.number(),
   espInWG: z.coerce.number().min(0),
-  electricHeaterKW: z.coerce.number().min(0).max(200),
   altitudeFt: z.coerce.number().min(0),
+  ambientTempF: z.coerce.number().optional(),
   refrigerant: z.string().optional(),
   // Chiller fields (optional)
   enteringWaterTempF: z.coerce.number().optional(),
@@ -35,9 +36,10 @@ const standardSchema = z.object({
 
 type FormData = z.infer<typeof standardSchema>;
 
-function FieldWithTooltip({ label, tooltip, required, children }: { label: string; tooltip: string; required?: boolean; children: React.ReactNode }) {
+function FieldWithTooltip({ label, tooltip, required, filled, children }: { label: string; tooltip: string; required?: boolean; filled?: boolean; children: React.ReactNode }) {
+  const showRed = required && !filled;
   return (
-    <div className="space-y-1.5">
+    <div className={`space-y-1.5 ${showRed ? "[&_input]:bg-red-50 [&_select]:bg-red-50 [&_input:focus]:bg-white [&_select:focus]:bg-white" : ""}`}>
       <div className="flex items-center gap-1.5">
         <Label>{label}{required && <span className="text-destructive ml-0.5">*</span>}</Label>
         <Tooltip>
@@ -76,30 +78,13 @@ const CONVERTIBLE_FIELDS = [
   'enteringDBF',
   'enteringWBF',
   'altitudeFt',
+  'ambientTempF',
   'espInWG',
   'enteringWaterTempF',
   'leavingWaterTempF',
   'waterFlowRateGPM',
 ] as const;
 
-function UnitToggle() {
-  const { unitSystem, toggleUnitSystem } = useUnitStore();
-  return (
-    <button
-      type="button"
-      onClick={toggleUnitSystem}
-      className="inline-flex items-center rounded-lg border bg-muted px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent shrink-0"
-    >
-      <span className={unitSystem === 'imperial' ? 'text-[#0057B8] font-semibold' : 'text-muted-foreground'}>
-        English
-      </span>
-      <span className="mx-1.5 text-muted-foreground/50">|</span>
-      <span className={unitSystem === 'metric' ? 'text-[#0057B8] font-semibold' : 'text-muted-foreground'}>
-        Metric
-      </span>
-    </button>
-  );
-}
 
 export function DesignConditionsForm() {
   const { selectedSeries, designConditions, setDesignConditions, navigateBack, selectionBasis, setSelectionBasis, projectInfo, updateProjectInfo } = useSelectionStore();
@@ -117,8 +102,8 @@ export function DesignConditionsForm() {
     enteringDBF: 80,
     enteringWBF: 67,
     espInWG: 0.5,
-    electricHeaterKW: 0,
     altitudeFt: 0,
+    ambientTempF: 95,
     ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24, glycolPercent: 0 } : {}),
   };
 
@@ -134,10 +119,15 @@ export function DesignConditionsForm() {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register, handleSubmit, setValue, getValues, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, getValues, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(standardSchema) as any,
     defaultValues: displayDefaults,
   });
+
+  const wAirflow = watch("requiredAirflowCFM");
+  const wCapacity = watch("requiredCoolingCapacityBtuh");
+  const wDB = watch("enteringDBF");
+  const wWB = watch("enteringWBF");
 
   // When unit system changes (from TopBar toggle), convert all visible values in-place
   useEffect(() => {
@@ -298,6 +288,7 @@ export function DesignConditionsForm() {
                 label={`Required Airflow (${u('requiredAirflowCFM')})`}
                 tooltip="Total airflow volume required at the design conditions. Used to rank model matches."
                 required
+                filled={!!wAirflow}
               >
                 <Input
                   type="number"
@@ -315,6 +306,7 @@ export function DesignConditionsForm() {
                 label={`Required Cooling Capacity (${u('requiredCoolingCapacityBtuh')})`}
                 tooltip="Total cooling capacity required at the design conditions. Used to rank model matches."
                 required
+                filled={!!wCapacity}
               >
                 <Input
                   type="number"
@@ -331,7 +323,10 @@ export function DesignConditionsForm() {
 
             <div className="space-y-1.5">
               <Label>Power Supply <span className="text-destructive">*</span></Label>
-              <Select defaultValue="380-400V/3Ph/60Hz" onValueChange={(v) => setValue("powerSupply", v)}>
+              <Select
+                value={getValues("powerSupply") || "380-400V/3Ph/60Hz"}
+                onValueChange={(v) => setValue("powerSupply", v)}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {POWER_SUPPLIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
@@ -351,6 +346,12 @@ export function DesignConditionsForm() {
             >
               <Input type="number" {...register("altitudeFt")} />
             </FieldWithTooltip>
+            <FieldWithTooltip
+              label={`Ambient Temperature (${u('ambientTempF')})`}
+              tooltip="Outdoor ambient dry-bulb temperature at design conditions. Affects condenser and chiller performance."
+            >
+              <Input type="number" step="0.1" {...register("ambientTempF")} />
+            </FieldWithTooltip>
           </div>
         </div>
 
@@ -363,6 +364,7 @@ export function DesignConditionsForm() {
                 label={`Entering Dry Bulb (${u('enteringDBF')})`}
                 tooltip="Room dry-bulb temperature at the evaporator inlet."
                 required
+                filled={wDB != null && String(wDB) !== ""}
               >
                 <Input type="number" step="0.1" {...register("enteringDBF")} />
                 {errors.enteringDBF && <p className="text-xs text-destructive">{errors.enteringDBF.message}</p>}
@@ -372,6 +374,7 @@ export function DesignConditionsForm() {
                 label={`Entering Wet Bulb (${u('enteringWBF')})`}
                 tooltip="Room wet-bulb temperature at the evaporator inlet. Used to calculate latent load."
                 required
+                filled={wWB != null && String(wWB) !== ""}
               >
                 <Input type="number" step="0.1" {...register("enteringWBF")} />
                 {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
@@ -386,10 +389,6 @@ export function DesignConditionsForm() {
                 <Input type="number" step={unitSystem === 'imperial' ? "0.05" : "1"} {...register("espInWG")} />
               </FieldWithTooltip>
 
-              <div className="space-y-1.5">
-                <Label>Electric Heater (kW)</Label>
-                <Input type="number" step="0.5" {...register("electricHeaterKW")} />
-              </div>
             </div>
           </div>
         )}

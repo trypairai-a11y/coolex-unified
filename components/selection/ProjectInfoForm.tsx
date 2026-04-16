@@ -42,18 +42,20 @@ function FieldError({ message }: { message?: string }) {
 interface FieldProps {
   label: string;
   required?: boolean;
+  filled?: boolean;
   error?: string;
   children: React.ReactNode;
   hint?: string;
 }
 
-function Field({ label, required, error, children, hint }: FieldProps) {
+function Field({ label, required, filled, error, children, hint }: FieldProps) {
+  const showRed = required && !filled;
   return (
-    <div>
+    <div className={showRed ? "[&_input]:border-red-400 [&_select]:border-red-400 [&_input]:bg-red-50/50 [&_select]:bg-red-50/50 [&_input:focus]:bg-white [&_select:focus]:bg-white [&_input:focus]:border-[#0057B8] [&_select:focus]:border-[#0057B8]" : ""}>
       <label className="block mb-1.5">
-        <span className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#6B7A99]">
+        <span className={`text-[10px] font-semibold tracking-[0.1em] uppercase ${showRed ? "text-red-500" : "text-[#6B7A99]"}`}>
           {label}
-          {required && <span className="text-[#0057B8] ml-0.5">*</span>}
+          {required && <span className={`${showRed ? "text-red-500" : "text-[#0057B8]"} ml-0.5`}>*</span>}
         </span>
         {hint && <span className="ml-2 text-[10px] text-[#9BA8C0] normal-case tracking-normal">{hint}</span>}
       </label>
@@ -123,7 +125,7 @@ export function ProjectInfoForm() {
   }, [projectId]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(projectInfoSchema) as any,
     defaultValues: projectInfo ?? {
       projectName: "",
@@ -132,6 +134,9 @@ export function ProjectInfoForm() {
       salesEngineer: "",
     },
   });
+
+  const projectName = watch("projectName");
+  const country = watch("country");
 
   const onSubmit = (data: FormData) => {
     setProjectInfo({ ...data, projectId } as ProjectInfoFormData);
@@ -166,11 +171,11 @@ export function ProjectInfoForm() {
               </Field>
             </div>
             <div className="md:col-span-2">
-              <Field label="Project Name" required error={errors.projectName?.message}>
+              <Field label="Project Name" required filled={!!projectName} error={errors.projectName?.message}>
                 <StyledInput placeholder="e.g. Al Hamra Village Phase 3" {...register("projectName")} />
               </Field>
             </div>
-            <Field label="Country" required error={errors.country?.message}>
+            <Field label="Country" required filled={!!country} error={errors.country?.message}>
               <select
                 {...register("country")}
                 className="w-full h-[42px] px-3.5 rounded-lg border border-[#DDE3EF] bg-[#FAFBFF] text-sm text-[#0D1626]
@@ -197,7 +202,7 @@ export function ProjectInfoForm() {
 
         <div className="flex items-center justify-between pt-3">
           <p className="text-xs text-[#9BA8C0]">
-            Fields marked <span className="text-[#0057B8] font-semibold">*</span> are required
+            Fields marked <span className="text-red-500 font-semibold">*</span> are required
           </p>
           <button
             type="submit"

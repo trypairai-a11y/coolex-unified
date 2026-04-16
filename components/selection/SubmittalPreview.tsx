@@ -12,7 +12,8 @@ import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useOptions } from "@/hooks/useSelection";
 import { useToast } from "@/components/ui/toast";
-import { NomenclatureBreakdown } from "@/components/selection/NomenclatureBreakdown";
+import { useUnitStore } from "@/lib/stores/unit-store";
+import { btuhToKw, round } from "@/lib/utils/unit-conversions";
 import { buildOracleBOM } from "@/lib/nomenclature";
 import type { SubmittalOption } from "@/types/submittal";
 import type { Project, Unit, Revision, SubmittalSnapshot } from "@/types/project";
@@ -37,7 +38,7 @@ export function SubmittalPreview() {
   const router = useRouter();
 
   const {
-    selectedModel,
+    selectedModels,
     selectedSeries,
     selectedOptions,
     projectInfo,
@@ -50,6 +51,8 @@ export function SubmittalPreview() {
   } = useSelectionStore();
   const { addProject, addUnit, addRevision, updateUnitSubmittal } = useProjectsStore();
   const { user } = useAuthStore();
+  const unitSystem = useUnitStore((s) => s.unitSystem);
+  const selectedModel = selectedModels[0] ?? null;
   const showPricing = user?.role !== "dealer";
 
   const { data: allOptions } = useOptions(selectedSeries?.id ?? null);
@@ -204,24 +207,30 @@ export function SubmittalPreview() {
   const optionsTotal = chosenOptions.reduce((s, o) => s + o.priceAdderKWD, 0);
   const discountPct = 5;
   const netTotal = Math.round((basePriceKWD + optionsTotal) * (1 - discountPct / 100));
+  const oracleBOM = selectedSeries ? buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, selectedOptions).oracleBOM : selectedModel.modelNumber;
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="outline" size="sm" onClick={() => navigateBack(6)}>
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back to Options
-        </Button>
-        <div>
-          <h2 className="text-xl font-bold">Submittal Preview</h2>
-          <p className="text-muted-foreground text-sm">{projectInfo.projectName} - {selectedModel.modelNumber}</p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => navigateBack(6)}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Options
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold">Submittal Preview</h2>
+            <p className="text-muted-foreground text-sm">{projectInfo.projectName}</p>
+          </div>
         </div>
+        <p className="text-sm font-mono font-semibold text-[#0057B8]">{oracleBOM}</p>
       </div>
 
       {/* Summary bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           { label: "Model", value: selectedModel.modelNumber, mono: true },
-          { label: "Total Capacity", value: `${(selectedModel.totalCapacityBtuh / 1000).toFixed(0)}k Btu/h` },
+          { label: "Total Capacity", value: unitSystem === "metric"
+            ? `${round(btuhToKw(selectedModel.totalCapacityBtuh), 1)} kW`
+            : `${(selectedModel.totalCapacityBtuh / 1000).toFixed(0)}k Btu/h` },
           { label: "Options Selected", value: `${chosenOptions.length} items` },
           ...(showPricing ? [{ label: "Net Total (KWD)", value: `${netTotal.toLocaleString()}` }] : []),
         ].map(item => (
@@ -232,17 +241,6 @@ export function SubmittalPreview() {
         ))}
       </div>
 
-      {/* Nomenclature & Oracle BOM */}
-      {selectedSeries && (
-        <div className="mb-6">
-          <NomenclatureBreakdown
-            modelNumber={selectedModel.modelNumber}
-            seriesId={selectedSeries.id}
-            selectedOptionIds={selectedOptions}
-            showOracleBOM={true}
-          />
-        </div>
-      )}
 
       {/* PDF Preview */}
       <div className="rounded-xl border overflow-hidden mb-6 bg-gray-50">
@@ -258,7 +256,8 @@ export function SubmittalPreview() {
           showPricing={showPricing}
           revisionNumber="001"
           generatedBy={user?.name ?? ""}
-          oracleBOM={selectedSeries ? buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, selectedOptions).oracleBOM : selectedModel.modelNumber}
+          oracleBOM={oracleBOM}
+          unitSystem={unitSystem}
         />
       </div>
 
