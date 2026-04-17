@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, AlertCircle, Wrench, Zap, Snowflake, Cpu } from "lucide-react";
+import { ArrowLeft, ArrowRight, AlertCircle, Wrench, Zap, Snowflake, Cpu, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,13 @@ const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon
     icon: Snowflake,
     color: "text-cyan-600",
     bgColor: "bg-cyan-50",
+  },
+  "air-side": {
+    label: "Air Side Options",
+    description: "Filtration, drive, and airflow accessories",
+    icon: Wind,
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-50",
   },
   controls: {
     label: "Controls & BAS",

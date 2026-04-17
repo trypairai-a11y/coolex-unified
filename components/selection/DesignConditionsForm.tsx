@@ -351,6 +351,22 @@ export function DesignConditionsForm() {
               tooltip="Outdoor ambient dry-bulb temperature at design conditions. Affects condenser and chiller performance."
             >
               <Input type="number" step="0.1" {...register("ambientTempF")} />
+              <div className="flex gap-2 pt-1">
+                {[
+                  { label: "T1", imperialF: 95 },
+                  { label: "T3", imperialF: 115 },
+                  { label: "T4", imperialF: 125 },
+                ].map(({ label, imperialF }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setValue("ambientTempF", toDisplay(imperialF, "ambientTempF", unitSystem), { shouldDirty: true })}
+                    className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </FieldWithTooltip>
           </div>
         </div>

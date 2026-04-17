@@ -1,11 +1,13 @@
 export interface EquipmentOption {
   id: string;
-  category: 'construction' | 'electrical' | 'refrigeration' | 'controls';
+  category: 'construction' | 'electrical' | 'refrigeration' | 'controls' | 'air-side';
   label: string;
   description: string;
   priceAdderKWD: number;
   applicableSeriesIds: string[] | 'all';
 }
+
+const ROOFTOP_PACKAGED_SERIES_IDS = ['pngf', 'pngc', 'cipk', 'rpuf', 'rpuc', 'spu'];
 
 export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   // Construction
@@ -35,9 +37,40 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'modbus', category: 'controls', label: 'Modbus RTU Interface', description: 'Factory-installed Modbus RTU interface for PLC integration', priceAdderKWD: 185, applicableSeriesIds: 'all' },
   { id: 'remote-mon', category: 'controls', label: 'Remote Monitoring Gateway', description: 'LTE/Wi-Fi gateway for remote monitoring via COOLEX cloud portal', priceAdderKWD: 350, applicableSeriesIds: 'all' },
   { id: 'econ-ctrl', category: 'controls', label: 'Economizer Control Module', description: 'Integrated economizer control with enthalpy sensor', priceAdderKWD: 275, applicableSeriesIds: ['pac-r', 'pac-g'] },
+
+  // ── Rooftop Packaged Series (PNGF / PNGC / CIPK / RPUF / RPUC / SPU) ──
+  // Construction
+  { id: 'rp-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan for corrosion-resistant condensate handling', priceAdderKWD: 45, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-evap-coat', category: 'construction', label: 'Evaporator Coil Protective Coating', description: 'Electrofin E-Coat on evaporator coil for corrosive environments', priceAdderKWD: 120, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-copper-evap', category: 'construction', label: 'Copper Fins - Evaporator', description: 'Copper fins on evaporator coil for enhanced durability in harsh environments', priceAdderKWD: 180, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+
+  // Refrigeration
+  { id: 'rp-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-rotalock', category: 'refrigeration', label: 'Rotalock Valve for Compressor', description: 'Rotalock service valves on compressor suction and discharge connections', priceAdderKWD: 65, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-pumpdown', category: 'refrigeration', label: 'Pump Down Kit', description: 'Solenoid valve kit for refrigerant pump-down and off-cycle isolation', priceAdderKWD: 95, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-manual-hlp', category: 'refrigeration', label: 'Manual High & Low Pressure Switch', description: 'Manual-reset high and low pressure cut-out switches for compressor protection', priceAdderKWD: 75, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+
+  // Electrical
+  { id: 'rp-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-mild-ambient', category: 'electrical', label: 'Mild Ambient Control Kit', description: 'Low-ambient head pressure control kit extending operation below 15°C', priceAdderKWD: 160, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-overload-fan', category: 'electrical', label: 'Overload Relay - Condenser Fan Motor', description: 'Thermal overload relay for condenser fan motor protection', priceAdderKWD: 45, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-ctrl-disconnect', category: 'electrical', label: 'Control Circuit Disconnect Switch', description: 'Dedicated disconnect switch for safe control circuit isolation', priceAdderKWD: 55, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-electric-heater', category: 'electrical', label: 'Electric Heater', description: 'Factory-installed electric resistance heater for supplemental or primary heating', priceAdderKWD: 0, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+
+  // Air Side
+  { id: 'rp-bag-filter', category: 'air-side', label: 'Bag Filter Section', description: 'High-efficiency bag filter section for improved supply air quality', priceAdderKWD: 185, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-high-static', category: 'air-side', label: 'High Static Drive Kit', description: 'High-static pressure drive kit for long or restrictive duct runs', priceAdderKWD: 135, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+  { id: 'rp-airflow-switch', category: 'air-side', label: 'Airflow Switch', description: 'Differential pressure airflow switch for filter and fan status monitoring', priceAdderKWD: 40, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
 ];
 
 export function getOptionsForSeries(seriesId: string): EquipmentOption[] {
+  if (ROOFTOP_PACKAGED_SERIES_IDS.includes(seriesId)) {
+    return EQUIPMENT_OPTIONS.filter(opt =>
+      Array.isArray(opt.applicableSeriesIds) && opt.applicableSeriesIds.includes(seriesId)
+    );
+  }
   return EQUIPMENT_OPTIONS.filter(opt =>
     opt.applicableSeriesIds === 'all' || opt.applicableSeriesIds.includes(seriesId)
   );
