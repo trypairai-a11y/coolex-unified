@@ -244,7 +244,9 @@ export function decodeNomenclature(modelNumber: string, seriesId: string): Nomen
     case 'pngc': return decodePNGC(modelNumber);
     case 'pngf': return decodePNGF(modelNumber);
     case 'ngcc': return decodeNGCC(modelNumber);
+    case 'ngcf': return decodeNGCC(modelNumber);
     case 'chcc': return decodeCHCC(modelNumber);
+    case 'chcf': return decodeCHCC(modelNumber);
     default:     return decodeGeneric(modelNumber, seriesId);
   }
 }

@@ -213,6 +213,9 @@ function SeriesCard({ series: s, index, onSelect }: { series: ProductSeries; ind
       {s.cfmRangeLabel && (
         <div className="text-sm font-medium text-gray-500">{s.cfmRangeLabel}</div>
       )}
+      {s.subtitle && (
+        <div className="mt-2 text-sm font-medium text-gray-600">{s.subtitle}</div>
+      )}
 
     </motion.button>
   );

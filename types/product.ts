@@ -34,6 +34,7 @@ export interface ProductSeries {
   cfmRangeLabel?: string;
   speedType?: 'fixed' | 'variable';
   imageUrl?: string;
+  subtitle?: string;
 }
 
 export interface Model {

@@ -27,6 +27,9 @@ const standardSchema = z.object({
   altitudeFt: z.coerce.number().min(0),
   ambientTempF: z.coerce.number().optional(),
   refrigerant: z.string().optional(),
+  freshAirPercent: z.coerce.number().min(0).max(100).optional(),
+  freshAirDBF: z.coerce.number().optional(),
+  freshAirWBF: z.coerce.number().optional(),
   // Chiller fields (optional)
   enteringWaterTempF: z.coerce.number().optional(),
   leavingWaterTempF: z.coerce.number().optional(),
@@ -83,6 +86,8 @@ const CONVERTIBLE_FIELDS = [
   'enteringWaterTempF',
   'leavingWaterTempF',
   'waterFlowRateGPM',
+  'freshAirDBF',
+  'freshAirWBF',
 ] as const;
 
 
@@ -93,6 +98,7 @@ export function DesignConditionsForm() {
   const prevUnitRef = useRef(unitSystem);
   const isChiller = selectedSeries?.isChiller ?? false;
   const isCCU = selectedSeries?.isCCU ?? false;
+  const isNGW = selectedSeries?.id === 'ngw';
 
   // Default values - always stored in Imperial internally
   const imperialDefaults: FormData = {
@@ -105,6 +111,7 @@ export function DesignConditionsForm() {
     altitudeFt: 0,
     ambientTempF: 95,
     ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24, glycolPercent: 0 } : {}),
+    ...(isNGW ? { enteringWaterTempF: 54, leavingWaterTempF: 44 } : {}),
   };
 
   // Merge saved conditions (imperial) with defaults
@@ -371,8 +378,8 @@ export function DesignConditionsForm() {
           </div>
         </div>
 
-        {/* Evaporator (not CCU) */}
-        {!isCCU && (
+        {/* Evaporator (not CCU, not chiller) */}
+        {!isCCU && !isChiller && (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Evaporator Conditions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -405,6 +412,50 @@ export function DesignConditionsForm() {
                 <Input type="number" step={unitSystem === 'imperial' ? "0.05" : "1"} {...register("espInWG")} />
               </FieldWithTooltip>
 
+              {isNGW && (
+                <>
+                  <FieldWithTooltip
+                    label={`Entering Water Temp (${u('enteringWaterTempF')})`}
+                    tooltip="Chilled water return temperature entering the coil."
+                  >
+                    <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
+                  </FieldWithTooltip>
+                  <FieldWithTooltip
+                    label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
+                    tooltip="Chilled water supply temperature leaving the coil."
+                  >
+                    <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
+                  </FieldWithTooltip>
+                </>
+              )}
+
+            </div>
+          </div>
+        )}
+
+        {/* Fresh Air Requirements */}
+        {!isCCU && !isChiller && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground border-b pb-2">Fresh Air Requirements</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FieldWithTooltip
+                label="Airflow Rate (%)"
+                tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Typical: 10–30%."
+              >
+                <Input type="number" step="1" min={0} max={100} placeholder="0" {...register("freshAirPercent")} />
+              </FieldWithTooltip>
+              <FieldWithTooltip
+                label={`Dry Bulb (${u('freshAirDBF')})`}
+                tooltip="Outdoor air dry-bulb temperature entering the mixing box."
+              >
+                <Input type="number" step="0.1" {...register("freshAirDBF")} />
+              </FieldWithTooltip>
+              <FieldWithTooltip
+                label={`Wet Bulb (${u('freshAirWBF')})`}
+                tooltip="Outdoor air wet-bulb temperature entering the mixing box. Used for latent load on the mixed-air coil."
+              >
+                <Input type="number" step="0.1" {...register("freshAirWBF")} />
+              </FieldWithTooltip>
             </div>
           </div>
         )}

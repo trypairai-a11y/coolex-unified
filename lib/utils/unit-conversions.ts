@@ -78,6 +78,8 @@ export function toDisplay(value: number, field: string, system: UnitSystem): num
     case 'enteringWaterTempF':
     case 'leavingWaterTempF':
     case 'ambientTempF':
+    case 'freshAirDBF':
+    case 'freshAirWBF':
       return round(fToC(value), 1);
     case 'altitudeFt':
       return round(ftToM(value), 0);
@@ -103,6 +105,8 @@ export function toImperial(value: number, field: string, system: UnitSystem): nu
     case 'enteringWaterTempF':
     case 'leavingWaterTempF':
     case 'ambientTempF':
+    case 'freshAirDBF':
+    case 'freshAirWBF':
       return round(cToF(value), 1);
     case 'altitudeFt':
       return round(mToFt(value), 0);
@@ -132,6 +136,8 @@ export function unitLabel(field: string, system: UnitSystem): string {
     waterFlowRateGPM: ['GPM', 'L/s'],
     requiredCoolingCapacityBtuh: ['Btu/h', 'kW'],
     requiredAirflowCFM: ['CFM', 'm³/h'],
+    freshAirDBF: ['°F', '°C'],
+    freshAirWBF: ['°F', '°C'],
   };
   const pair = labels[field];
   if (!pair) return '';

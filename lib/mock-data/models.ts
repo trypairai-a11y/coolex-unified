@@ -55,7 +55,9 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'acc-st': generateModels('acc-st', 'ACC', [20, 25, 30, 40, 50, 60, 70, 80, 100]),
   'pngc': PNGC_MODELS,
   'ngcc': NGCC_MODELS,
+  'ngcf': NGCC_MODELS,
   'chcc': CHCC_MODELS,
+  'chcf': CHCC_MODELS,
   'ccu-std': generateModels('ccu-std', 'CCCU', [1, 1.5, 2, 3, 4, 5, 7.5, 10, 12.5, 15]),
 
   'phe': generateModels('phe', 'PHE', [3.5, 5, 7.5, 10, 12, 15]),
