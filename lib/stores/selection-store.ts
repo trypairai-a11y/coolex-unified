@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
-import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis } from '@/types/selection';
+import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType } from '@/types/selection';
 
 interface SelectionState {
   step: number;
@@ -12,6 +12,7 @@ interface SelectionState {
   designConditions: DesignConditionsFormData | null;
   selectedModels: Model[];
   selectedOptions: string[];
+  vrfLayout: VRFLayout | null;
   revisionTargetProjectId: string | null;
   revisionTargetUnitId: string | null;
   addUnitTargetProjectId: string | null;
@@ -23,6 +24,9 @@ interface SelectionState {
   setProjectInfo: (info: ProjectInfoFormData) => void;
   updateProjectInfo: (partial: Partial<ProjectInfoFormData>) => void;
   setDesignConditions: (conditions: DesignConditionsFormData) => void;
+  setVRFLayout: (layout: VRFLayout) => void;
+  setVRFRoomIndoorType: (roomId: string, indoorType: VRFIndoorType) => void;
+  confirmVRFDesign: () => void;
   toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
   navigateBack: (toStep: number) => void;
@@ -39,6 +43,7 @@ const initialState = {
   designConditions: null,
   selectedModels: [],
   selectedOptions: [],
+  vrfLayout: null,
   revisionTargetProjectId: null,
   revisionTargetUnitId: null,
   addUnitTargetProjectId: null,
@@ -69,8 +74,29 @@ export const useSelectionStore = create<SelectionState>()(
         designConditions: null,
         selectedModels: [],
         selectedOptions: [],
+        vrfLayout: null,
         step: 3,
       }),
+
+      setVRFLayout: (layout) => set({
+        vrfLayout: layout,
+        step: 4,
+      }),
+
+      setVRFRoomIndoorType: (roomId, indoorType) => set((state) => {
+        if (!state.vrfLayout) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            floors: state.vrfLayout.floors.map((f) => ({
+              ...f,
+              rooms: f.rooms.map((r) => (r.id === roomId ? { ...r, indoorType } : r)),
+            })),
+          },
+        };
+      }),
+
+      confirmVRFDesign: () => set({ step: 5 }),
 
       setSelectedSeries: (series) => set({
         selectedSeries: series,
@@ -110,6 +136,7 @@ export const useSelectionStore = create<SelectionState>()(
           updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfLayout = null;
           updates.addUnitTargetProjectId = null;
         } else if (toStep <= 2) {
           // Back to Group - keep projectInfo, clear group + downstream
@@ -119,12 +146,14 @@ export const useSelectionStore = create<SelectionState>()(
           updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfLayout = null;
         } else if (toStep <= 3) {
-          // Back to Series - keep projectInfo + group, clear series + downstream
+          // Back to Series/Layout - keep projectInfo + group, clear series + downstream
           updates.selectedSeries = null;
           updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfLayout = null;
         } else if (toStep <= 4) {
           // Back to Design Conditions - keep through series, clear design+
           updates.designConditions = null;

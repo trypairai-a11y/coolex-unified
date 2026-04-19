@@ -98,6 +98,7 @@ export function DesignConditionsForm() {
   const isChiller = selectedSeries?.isChiller ?? false;
   const isCCU = selectedSeries?.isCCU ?? false;
   const isNGW = selectedSeries?.id === 'ngw';
+  const isFanCoil = selectedSeries?.groupId === 'fan-coil';
 
   // Chillers are always selected by capacity — never expose the airflow basis.
   useEffect(() => {
@@ -361,28 +362,34 @@ export function DesignConditionsForm() {
             >
               <Input type="number" {...register("altitudeFt")} />
             </FieldWithTooltip>
-            <FieldWithTooltip
-              label={`Ambient Temperature (${u('ambientTempF')})`}
-              tooltip="Outdoor ambient dry-bulb temperature at design conditions. Affects condenser and chiller performance."
-            >
-              <Input type="number" step="0.1" {...register("ambientTempF")} />
-              <div className="flex gap-2 pt-1">
-                {[
-                  { label: "T1", imperialF: 95 },
-                  { label: "T3", imperialF: 115 },
-                  { label: "T4", imperialF: 125 },
-                ].map(({ label, imperialF }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => setValue("ambientTempF", toDisplay(imperialF, "ambientTempF", unitSystem), { shouldDirty: true })}
-                    className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </FieldWithTooltip>
+            {!isFanCoil && (
+              <FieldWithTooltip
+                label={`Ambient Temperature (${u('ambientTempF')})`}
+                tooltip="Outdoor ambient dry-bulb temperature at design conditions. Affects condenser and chiller performance."
+              >
+                <Input type="number" step="0.1" {...register("ambientTempF")} />
+                <div className="flex gap-2 pt-1">
+                  {[
+                    { label: "T1", ambientF: 95, dbF: 80, wbF: 67 },
+                    { label: "T3", ambientF: 115, dbF: 84, wbF: 67 },
+                    { label: "T4", ambientF: 118, dbF: 80, wbF: 67 },
+                  ].map(({ label, ambientF, dbF, wbF }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        setValue("ambientTempF", toDisplay(ambientF, "ambientTempF", unitSystem), { shouldDirty: true });
+                        setValue("enteringDBF", toDisplay(dbF, "enteringDBF", unitSystem), { shouldDirty: true });
+                        setValue("enteringWBF", toDisplay(wbF, "enteringWBF", unitSystem), { shouldDirty: true });
+                      }}
+                      className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </FieldWithTooltip>
+            )}
           </div>
         </div>
 

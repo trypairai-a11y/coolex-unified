@@ -33,6 +33,31 @@ export interface ChillerDesignConditions extends StandardDesignConditions {
 
 export type DesignConditionsFormData = StandardDesignConditions | ChillerDesignConditions;
 
+export type VRFIndoorType =
+  | 'ducted-split-low-static'
+  | 'ducted-split-high-static'
+  | 'ducted-split-inverter'
+  | 'cassette'
+  | 'wall-mounted';
+
+export interface VRFRoom {
+  id: string;
+  number: number;
+  name: string;
+  indoorType?: VRFIndoorType;
+}
+
+export interface VRFFloor {
+  id: string;
+  number: number;
+  name: string;
+  rooms: VRFRoom[];
+}
+
+export interface VRFLayout {
+  floors: VRFFloor[];
+}
+
 export interface SelectionFlowState {
   step: number;
   selectedGroup: ProductGroup | null;

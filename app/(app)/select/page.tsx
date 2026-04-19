@@ -4,6 +4,8 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { SelectionStepper } from "@/components/selection/SelectionStepper";
 import { ProductGroupGrid } from "@/components/selection/ProductGroupGrid";
 import { SeriesGrid } from "@/components/selection/SeriesGrid";
+import { VRFLayoutBuilder } from "@/components/selection/VRFLayoutBuilder";
+import { VRFDesignConditions } from "@/components/selection/VRFDesignConditions";
 import { ProjectInfoForm } from "@/components/selection/ProjectInfoForm";
 import { DesignConditionsForm } from "@/components/selection/DesignConditionsForm";
 import { ResultsTable } from "@/components/selection/ResultsTable";
@@ -14,7 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 const STEP_COMPONENTS = [
   ProjectInfoForm,     // 1 - Project Info
   ProductGroupGrid,    // 2 - Group
-  SeriesGrid,          // 3 - Series
+  SeriesGrid,          // 3 - Series (or Layout for VRF)
   DesignConditionsForm, // 4 - Design Conditions
   ResultsTable,        // 5 - Results
   OptionsConfigurator, // 6 - Options
@@ -22,8 +24,14 @@ const STEP_COMPONENTS = [
 ];
 
 export default function SelectPage() {
-  const { step } = useSelectionStore();
-  const StepComponent = STEP_COMPONENTS[step - 1] ?? ProductGroupGrid;
+  const { step, selectedGroup } = useSelectionStore();
+  const isVRF = selectedGroup?.id === 'vrf';
+  const StepComponent =
+    isVRF && step === 3
+      ? VRFLayoutBuilder
+      : isVRF && step === 4
+      ? VRFDesignConditions
+      : (STEP_COMPONENTS[step - 1] ?? ProductGroupGrid);
 
   return (
     <div className="min-h-full flex flex-col">
