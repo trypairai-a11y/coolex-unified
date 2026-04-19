@@ -25,8 +25,12 @@ const STEPS = [
 ];
 
 export function SelectionStepper() {
-  const { step, navigateBack, setStep, selectedSeries } = useSelectionStore();
+  const { step, navigateBack, setStep, selectedSeries, selectedGroup } = useSelectionStore();
   const [pendingStep, setPendingStep] = useState<number | null>(null);
+
+  const stepsForGroup = selectedGroup?.id === 'vrf'
+    ? STEPS.map(s => (s.id === 3 ? { ...s, label: 'Layout' } : s))
+    : STEPS;
 
   const handleStepClick = (targetStep: number) => {
     if (targetStep === step) return; // already on this step
@@ -49,7 +53,7 @@ export function SelectionStepper() {
                 {selectedSeries.name}
               </span>
             )}
-            {STEPS.map((s, i) => {
+            {stepsForGroup.map((s, i) => {
               const isCompleted = step > s.id;
               const isActive = step === s.id;
               const isFuture = s.id > step;
@@ -82,7 +86,7 @@ export function SelectionStepper() {
                     </span>
                   </div>
 
-                  {i < STEPS.length - 1 && (
+                  {i < stepsForGroup.length - 1 && (
                     <div className={cn(
                       "flex-1 h-px mx-2 rounded-full transition-colors duration-300",
                       isCompleted ? "bg-gray-300" : "bg-gray-100"

@@ -34,7 +34,6 @@ const standardSchema = z.object({
   enteringWaterTempF: z.coerce.number().optional(),
   leavingWaterTempF: z.coerce.number().optional(),
   waterFlowRateGPM: z.coerce.number().min(0).optional(),
-  glycolPercent: z.coerce.number().min(0).max(50).optional(),
 });
 
 type FormData = z.infer<typeof standardSchema>;
@@ -100,6 +99,13 @@ export function DesignConditionsForm() {
   const isCCU = selectedSeries?.isCCU ?? false;
   const isNGW = selectedSeries?.id === 'ngw';
 
+  // Chillers are always selected by capacity — never expose the airflow basis.
+  useEffect(() => {
+    if (isChiller && selectionBasis !== 'capacity') {
+      setSelectionBasis('capacity');
+    }
+  }, [isChiller, selectionBasis, setSelectionBasis]);
+
   // Default values - always stored in Imperial internally
   const imperialDefaults: FormData = {
     requiredCoolingCapacityBtuh: 120000,
@@ -110,7 +116,7 @@ export function DesignConditionsForm() {
     espInWG: 0.5,
     altitudeFt: 0,
     ambientTempF: 95,
-    ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24, glycolPercent: 0 } : {}),
+    ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
     ...(isNGW ? { enteringWaterTempF: 54, leavingWaterTempF: 44 } : {}),
   };
 
@@ -221,7 +227,8 @@ export function DesignConditionsForm() {
         </div>
       </div>
 
-      {/* Selection Basis */}
+      {/* Selection Basis — chillers are always capacity-based, so hide the toggle. */}
+      {!isChiller && (
       <div className="bg-white rounded-2xl border border-[#E2E8F4] shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,87,184,0.04)] overflow-hidden mb-6">
         <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#F0F4FB]">
           <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#0057B8] mb-0.5">Selection Basis</p>
@@ -282,6 +289,7 @@ export function DesignConditionsForm() {
           </div>
         </div>
       </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmitWrapped)} className="space-y-6">
         {/* Capacity or Airflow Requirements */}
@@ -482,9 +490,6 @@ export function DesignConditionsForm() {
                 tooltip="Chilled water flow rate through the evaporator."
               >
                 <Input type="number" step="0.01" {...register("waterFlowRateGPM")} />
-              </FieldWithTooltip>
-              <FieldWithTooltip label="Glycol (%)" tooltip="Ethylene or propylene glycol concentration for freeze protection.">
-                <Input type="number" {...register("glycolPercent")} />
               </FieldWithTooltip>
             </div>
           </div>

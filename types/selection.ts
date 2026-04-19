@@ -29,7 +29,6 @@ export interface ChillerDesignConditions extends StandardDesignConditions {
   enteringWaterTempF: number;
   leavingWaterTempF: number;
   waterFlowRateGPM: number;
-  glycolPercent: number;
 }
 
 export type DesignConditionsFormData = StandardDesignConditions | ChillerDesignConditions;

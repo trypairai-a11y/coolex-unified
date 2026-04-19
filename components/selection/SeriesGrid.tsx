@@ -102,7 +102,9 @@ export function SeriesGrid() {
         </Button>
         <div>
           <h2 className="text-xl font-bold text-foreground tracking-tight">{selectedGroup.name}</h2>
-          <p className="text-muted-foreground text-sm">Select the specific equipment series</p>
+          <p className="text-muted-foreground text-sm">
+            {selectedGroup.id === 'vrf' ? 'Select the system layout' : 'Select the specific equipment series'}
+          </p>
         </div>
       </div>
 
