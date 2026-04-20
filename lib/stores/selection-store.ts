@@ -26,6 +26,7 @@ interface SelectionState {
   setDesignConditions: (conditions: DesignConditionsFormData) => void;
   setVRFLayout: (layout: VRFLayout) => void;
   setVRFRoomIndoorType: (roomId: string, indoorType: VRFIndoorType) => void;
+  setVRFRoomCapacity: (roomId: string, capacity: number) => void;
   confirmVRFDesign: () => void;
   toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
@@ -90,7 +91,24 @@ export const useSelectionStore = create<SelectionState>()(
             ...state.vrfLayout,
             floors: state.vrfLayout.floors.map((f) => ({
               ...f,
-              rooms: f.rooms.map((r) => (r.id === roomId ? { ...r, indoorType } : r)),
+              rooms: f.rooms.map((r) =>
+                r.id === roomId
+                  ? { ...r, indoorType, capacity: r.indoorType === indoorType ? r.capacity : undefined }
+                  : r
+              ),
+            })),
+          },
+        };
+      }),
+
+      setVRFRoomCapacity: (roomId, capacity) => set((state) => {
+        if (!state.vrfLayout) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            floors: state.vrfLayout.floors.map((f) => ({
+              ...f,
+              rooms: f.rooms.map((r) => (r.id === roomId ? { ...r, capacity } : r)),
             })),
           },
         };

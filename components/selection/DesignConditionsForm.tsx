@@ -99,13 +99,15 @@ export function DesignConditionsForm() {
   const isCCU = selectedSeries?.isCCU ?? false;
   const isNGW = selectedSeries?.id === 'ngw';
   const isFanCoil = selectedSeries?.groupId === 'fan-coil';
+  const isSplit = selectedSeries?.groupId === 'split';
+  const isCRAC = selectedSeries?.groupId === 'crac';
 
-  // Chillers are always selected by capacity — never expose the airflow basis.
+  // Chillers and condensing units are always selected by capacity — never expose the airflow basis.
   useEffect(() => {
-    if (isChiller && selectionBasis !== 'capacity') {
+    if ((isChiller || isCCU) && selectionBasis !== 'capacity') {
       setSelectionBasis('capacity');
     }
-  }, [isChiller, selectionBasis, setSelectionBasis]);
+  }, [isChiller, isCCU, selectionBasis, setSelectionBasis]);
 
   // Default values - always stored in Imperial internally
   const imperialDefaults: FormData = {
@@ -142,6 +144,8 @@ export function DesignConditionsForm() {
   const wCapacity = watch("requiredCoolingCapacityBtuh");
   const wDB = watch("enteringDBF");
   const wWB = watch("enteringWBF");
+  const wEWT = watch("enteringWaterTempF");
+  const wLWT = watch("leavingWaterTempF");
 
   // When unit system changes (from TopBar toggle), convert all visible values in-place
   useEffect(() => {
@@ -239,8 +243,8 @@ export function DesignConditionsForm() {
           </h3>
         </div>
         <div className="px-5 sm:px-6 py-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {BASIS_OPTIONS.map(({ value, label, sublabel, description, icon: Icon }) => {
+          <div className={`grid grid-cols-1 gap-3 ${isCCU ? '' : 'sm:grid-cols-2'}`}>
+            {BASIS_OPTIONS.filter(({ value }) => !(isCCU && value === 'airflow')).map(({ value, label, sublabel, description, icon: Icon }) => {
               const selected = selectionBasis === value;
               const colorMap = {
                 capacity: {
@@ -418,6 +422,27 @@ export function DesignConditionsForm() {
                 {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
               </FieldWithTooltip>
 
+              {isNGW && (
+                <>
+                  <FieldWithTooltip
+                    label={`Entering Water Temp (${u('enteringWaterTempF')})`}
+                    tooltip="Chilled water return temperature entering the coil."
+                    required
+                    filled={wEWT != null && String(wEWT) !== ""}
+                  >
+                    <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
+                  </FieldWithTooltip>
+                  <FieldWithTooltip
+                    label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
+                    tooltip="Chilled water supply temperature leaving the coil."
+                    required
+                    filled={wLWT != null && String(wLWT) !== ""}
+                  >
+                    <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
+                  </FieldWithTooltip>
+                </>
+              )}
+
               <FieldWithTooltip
                 label={`External Static Pressure (${u('espInWG')})`}
                 tooltip={unitSystem === 'imperial'
@@ -427,29 +452,12 @@ export function DesignConditionsForm() {
                 <Input type="number" step={unitSystem === 'imperial' ? "0.05" : "1"} {...register("espInWG")} />
               </FieldWithTooltip>
 
-              {isNGW && (
-                <>
-                  <FieldWithTooltip
-                    label={`Entering Water Temp (${u('enteringWaterTempF')})`}
-                    tooltip="Chilled water return temperature entering the coil."
-                  >
-                    <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
-                  </FieldWithTooltip>
-                  <FieldWithTooltip
-                    label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
-                    tooltip="Chilled water supply temperature leaving the coil."
-                  >
-                    <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
-                  </FieldWithTooltip>
-                </>
-              )}
-
             </div>
           </div>
         )}
 
         {/* Fresh Air Requirements */}
-        {!isCCU && !isChiller && (
+        {!isCCU && !isChiller && !isFanCoil && !isSplit && !isCRAC && (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Fresh Air Requirements</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -483,12 +491,16 @@ export function DesignConditionsForm() {
               <FieldWithTooltip
                 label={`Entering Water Temp (${u('enteringWaterTempF')})`}
                 tooltip="Chilled water return temperature entering the evaporator."
+                required
+                filled={wEWT != null && String(wEWT) !== ""}
               >
                 <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
               </FieldWithTooltip>
               <FieldWithTooltip
                 label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
                 tooltip="Chilled water supply temperature leaving the evaporator."
+                required
+                filled={wLWT != null && String(wLWT) !== ""}
               >
                 <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
               </FieldWithTooltip>

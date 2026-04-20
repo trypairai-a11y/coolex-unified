@@ -216,6 +216,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: false,
     isCCU: true,
     hasDualRefrigerant: false,
+    imageUrl: '/images/ccu.png',
   },
   // CRAC – PHE Precision Cooling Unit
   {

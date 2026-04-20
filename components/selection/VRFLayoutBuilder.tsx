@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Plus, Minus, Building2, DoorClosed } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Minus, Building2, DoorClosed, Thermometer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSelectionStore } from "@/lib/stores/selection-store";
+import { useUnitStore } from "@/lib/stores/unit-store";
+import { toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
+import { UnitToggle } from "@/components/selection/UnitToggle";
 import type { VRFFloor, VRFLayout, VRFRoom } from "@/types/selection";
 
 const MAX_FLOORS = 50;
@@ -28,13 +31,22 @@ function makeFloor(floorNumber: number, roomCount = 1): VRFFloor {
   };
 }
 
+const AMBIENT_PRESETS: { label: string; ambientF: number; description: string }[] = [
+  { label: "T1", ambientF: 95, description: "Moderate · 35°C" },
+  { label: "T3", ambientF: 115, description: "Hot · 46°C" },
+  { label: "T4", ambientF: 118, description: "Extreme · 48°C" },
+];
+
 export function VRFLayoutBuilder() {
   const { selectedGroup, vrfLayout, setVRFLayout, navigateBack } = useSelectionStore();
+  const { unitSystem } = useUnitStore();
 
   const [floors, setFloors] = useState<VRFFloor[]>(() => {
     if (vrfLayout?.floors?.length) return vrfLayout.floors;
     return [makeFloor(1, 1)];
   });
+
+  const [ambientTempF, setAmbientTempF] = useState<number>(vrfLayout?.ambientTempF ?? 95);
 
   const setFloorCount = (count: number) => {
     const next = Math.max(1, Math.min(MAX_FLOORS, Math.floor(count) || 1));
@@ -82,9 +94,12 @@ export function VRFLayoutBuilder() {
   const totalRooms = floors.reduce((sum, f) => sum + f.rooms.length, 0);
 
   const onContinue = () => {
-    const layout: VRFLayout = { floors };
+    const layout: VRFLayout = { floors, ambientTempF };
     setVRFLayout(layout);
   };
+
+  const ambientDisplayValue = toDisplay(ambientTempF, "ambientTempF", unitSystem);
+  const ambientUnitLabel = unitLabel("ambientTempF", unitSystem);
 
   if (!selectedGroup) return null;
 
@@ -99,6 +114,68 @@ export function VRFLayoutBuilder() {
           <p className="text-muted-foreground text-sm">
             Define the building structure — floors and rooms — to size the VRF system.
           </p>
+        </div>
+
+        <UnitToggle />
+      </div>
+
+      {/* Ambient temperature card */}
+      <div className="bg-white rounded-2xl border border-[#E2E8F4] shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,87,184,0.04)] overflow-hidden mb-6">
+        <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#F0F4FB] flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-[#FEF4E6] text-[#B45309]">
+            <Thermometer className="w-4 h-4" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#B45309] mb-0.5">Climate</p>
+            <h3 className="text-sm font-semibold text-[#0D1626]">Ambient Temperature</h3>
+          </div>
+        </div>
+        <div className="px-5 sm:px-6 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,240px)_1fr] gap-5 items-start">
+            <div>
+              <Label htmlFor="vrf-ambient-temp" className="text-xs text-muted-foreground">
+                Outdoor design temp ({ambientUnitLabel}) <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="vrf-ambient-temp"
+                type="number"
+                step="0.1"
+                value={ambientDisplayValue}
+                onChange={(e) => {
+                  const raw = parseFloat(e.target.value);
+                  if (!Number.isFinite(raw)) return;
+                  setAmbientTempF(toImperial(raw, "ambientTempF", unitSystem));
+                }}
+                className="mt-1.5 font-semibold"
+              />
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB] mb-2">
+                Climate preset
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {AMBIENT_PRESETS.map(({ label, ambientF }) => {
+                  const selected = ambientTempF === ambientF;
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => setAmbientTempF(ambientF)}
+                      className={`px-3 py-2 rounded-lg border-2 text-center transition-colors ${
+                        selected
+                          ? "border-[#0057B8] bg-[#EBF3FF]"
+                          : "border-[#E2E8F4] bg-white hover:border-[#B8D4F0] hover:bg-[#F8FBFF]"
+                      }`}
+                    >
+                      <span className={`text-xs font-bold ${selected ? "text-[#0057B8]" : "text-[#0D1626]"}`}>
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

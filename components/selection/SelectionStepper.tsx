@@ -29,7 +29,13 @@ export function SelectionStepper() {
   const [pendingStep, setPendingStep] = useState<number | null>(null);
 
   const stepsForGroup = selectedGroup?.id === 'vrf'
-    ? STEPS.map(s => (s.id === 3 ? { ...s, label: 'Layout' } : s))
+    ? STEPS.map(s =>
+        s.id === 3
+          ? { ...s, label: 'Layout' }
+          : s.id === 4
+          ? { ...s, label: 'Indoor/Outdoor' }
+          : s
+      )
     : STEPS;
 
   const handleStepClick = (targetStep: number) => {

@@ -45,6 +45,7 @@ export interface VRFRoom {
   number: number;
   name: string;
   indoorType?: VRFIndoorType;
+  capacity?: number;
 }
 
 export interface VRFFloor {
@@ -56,6 +57,7 @@ export interface VRFFloor {
 
 export interface VRFLayout {
   floors: VRFFloor[];
+  ambientTempF?: number;
 }
 
 export interface SelectionFlowState {

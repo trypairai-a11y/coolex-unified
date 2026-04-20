@@ -76,7 +76,7 @@ export function ProductGroupGrid() {
               <div
                 className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                 style={{
-                  background: `radial-gradient(circle at 50% 40%, #7C3AED0A 0%, transparent 70%)`,
+                  background: `radial-gradient(circle at 50% 40%, ${group.gradientFrom}0A 0%, transparent 70%)`,
                 }}
               />
 
@@ -85,7 +85,7 @@ export function ProductGroupGrid() {
                 className="absolute bottom-0 left-0 right-0 h-0.5 scale-x-0 group-hover:scale-x-100
                   transition-transform duration-300 origin-center"
                 style={{
-                  background: `linear-gradient(90deg, transparent, #7C3AED, transparent)`,
+                  background: `linear-gradient(90deg, transparent, ${group.gradientFrom}, transparent)`,
                 }}
               />
 
@@ -113,13 +113,13 @@ export function ProductGroupGrid() {
                 {group.shortDescription}
               </p>
 
-              {/* Series count badge — purple on hover */}
+              {/* Series count badge — colored on hover */}
               <span
                 className="relative text-[10px] font-medium px-2.5 py-0.5 rounded-full
-                  transition-colors duration-300 group-hover:!text-[#7C3AED] group-hover:!bg-[#7C3AED]/10"
+                  transition-all duration-300"
                 style={{
                   color: group.gradientFrom,
-                  background: `${group.gradientFrom}10`,
+                  background: `${group.gradientFrom}1A`,
                 }}
               >
                 {group.seriesCount} {group.seriesCount === 1 ? "series" : "series"}
