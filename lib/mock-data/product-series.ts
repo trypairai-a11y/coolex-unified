@@ -94,6 +94,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: false,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/ngw.png',
   },
   // Chiller Group 1: ACSC – Air Cooled Screw Chiller, 80–500 TR, R-134a
   {
@@ -113,6 +114,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: true,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/acsc.png',
   },
   // Chiller Group 2: THAC – Air Cooled, Brazed Plate HX, 3–50 TR, R-410A
   {
@@ -132,6 +134,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: true,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/thac.png',
   },
   // Chiller Group 3: DHAC – Air Cooled, Shell & Tube HX, 20–100 TR, R-410A
   {
@@ -151,6 +154,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: true,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/dhac.png',
   },
   // Chiller Group 4: ACC (Brazed Plate) – Air Cooled, Brazed Plate HX, 3–17 TR, R-407C
   {
@@ -171,6 +175,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isCCU: false,
     hasDualRefrigerant: false,
     subtitle: 'Brazed Plate Heat Exchanger',
+    imageUrl: '/images/acc-bp.png',
   },
   // Chiller Group 5: ACC (Shell & Tube) – Air Cooled, Shell & Tube HX, 20–100 TR, R-407C
   {
@@ -191,6 +196,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isCCU: false,
     hasDualRefrigerant: false,
     subtitle: 'Shell & Tube Heat Exchanger',
+    imageUrl: '/images/acc-st.png',
   },
   // CCU group
   {
@@ -286,6 +292,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: false,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/fch.png',
   },
   // FCL Fan Coil Units
   {
@@ -306,6 +313,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: false,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/fcl.png',
   },
   // PNGF / PNGC / CIPK / SPU - Rooftop Packaged
   // NGCC / CHCC / NGCF / CHCF - Split (concealed ducted)
