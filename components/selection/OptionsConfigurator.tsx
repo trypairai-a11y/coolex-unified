@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useOptions } from "@/hooks/useSelection";
 import type { EquipmentOption } from "@/lib/mock-data/options";
+import { PerformanceDataPanel } from "@/components/selection/PerformanceDataPanel";
 
 const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon: React.ElementType; color: string; bgColor: string }> = {
   construction: {
@@ -48,9 +49,14 @@ const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon
 };
 
 export function OptionsConfigurator() {
-  const { selectedSeries, selectedModels, selectedOptions, toggleOption, setStep, navigateBack } = useSelectionStore();
+  const { selectedSeries, selectedModels, selectedOptions, designConditions, toggleOption, setStep, navigateBack } = useSelectionStore();
 
   const { data: options, isLoading, isError } = useOptions(selectedSeries?.id ?? null);
+
+  const primaryModel = selectedModels[0] ?? null;
+  const dc = designConditions as Record<string, number> | null;
+  const designLwtF = dc?.leavingWaterTempF ?? null;
+  const designAmbientF = dc?.ambientTempF ?? null;
 
   const grouped = (options ?? []).reduce<Record<string, EquipmentOption[]>>((acc, opt) => {
     if (!acc[opt.category]) acc[opt.category] = [];
@@ -75,6 +81,15 @@ export function OptionsConfigurator() {
         </div>
       </div>
 
+      {primaryModel && (
+        <div className="mb-6">
+          <PerformanceDataPanel
+            model={primaryModel}
+            designLcwtF={designLwtF}
+            designAmbientF={designAmbientF}
+          />
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-4">

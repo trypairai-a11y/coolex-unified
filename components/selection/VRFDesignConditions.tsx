@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Wind, Zap, Square, Box, Home, Sun } from "lucide-react";
+import { ArrowLeft, ArrowRight, Wind, Zap, Square, Box, Home, Sun, Sparkles, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,7 +127,17 @@ export function VRFDesignConditions() {
   return (
     <div className="w-full">
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="outline" size="sm" onClick={() => navigateBack(3)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (view === "outdoor") {
+              setView("indoor");
+            } else {
+              navigateBack(3);
+            }
+          }}
+        >
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
         </Button>
         <div className="flex-1">
@@ -164,10 +174,14 @@ export function VRFDesignConditions() {
         </button>
         <button
           type="button"
-          onClick={() => setView("outdoor")}
+          onClick={() => allConfigured && setView("outdoor")}
+          disabled={!allConfigured}
+          title={!allConfigured ? "Finish configuring all indoor units first" : undefined}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
             view === "outdoor"
               ? "bg-white text-[#B45309] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+              : !allConfigured
+              ? "text-[#B8C2D4] cursor-not-allowed"
               : "text-[#64748B] hover:text-[#0D1626]"
           }`}
         >
@@ -397,7 +411,13 @@ export function VRFDesignConditions() {
       <div className="flex justify-end pt-6">
         <Button
           type="button"
-          onClick={confirmVRFDesign}
+          onClick={() => {
+            if (view === "indoor") {
+              setView("outdoor");
+            } else {
+              confirmVRFDesign();
+            }
+          }}
           disabled={!allConfigured}
           className="bg-[#0057B8] hover:bg-[#0057B8]/90"
         >
@@ -429,107 +449,159 @@ function OutdoorPanel({
   unitSystem: "imperial" | "metric";
   isMetric: boolean;
 }) {
-  const outdoorModel = `VRF-OU-${String(recommendedOutdoorTons).padStart(3, "0")}`;
+  const OUTDOOR_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 48];
+  const [selectionMode, setSelectionMode] = useState<"auto" | "manual">("auto");
+  const [manualTons, setManualTons] = useState<number>(recommendedOutdoorTons);
+
+  const effectiveTons = selectionMode === "auto" ? recommendedOutdoorTons : manualTons;
+  const effectiveCombinationRatio =
+    effectiveTons > 0 ? (totalCapacityTons / effectiveTons) * 100 : 0;
+  const outdoorModel = `VRF-OU-${String(effectiveTons).padStart(3, "0")}`;
   const displayAmbient = toDisplay(ambientTempF, "ambientTempF", unitSystem);
   const ambientUnit = unitLabel("ambientTempF", unitSystem);
   const totalCapacityDisplay = isMetric
     ? `${round(btuhToKw(totalCapacityKbtuh * 1000), 1)} kW`
     : `${totalCapacityKbtuh.toFixed(0)} kBTU/h`;
-  const recommendedCapacityDisplay = isMetric
-    ? `${round(btuhToKw(recommendedOutdoorTons * 12000), 1)} kW`
-    : `${(recommendedOutdoorTons * 12).toFixed(0)} kBTU/h`;
+  const effectiveCapacityDisplay = isMetric
+    ? `${round(btuhToKw(effectiveTons * 12000), 1)} kW`
+    : `${(effectiveTons * 12).toFixed(0)} kBTU/h`;
+  // suppress unused-var lint for prop we now derive locally
+  void combinationRatio;
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E2E8F4] shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,87,184,0.04)] overflow-hidden">
-      <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-[#F0F4FB] flex items-center gap-3">
-        <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#FEF4E6] text-[#B45309]">
-          <Sun className="w-4 h-4" strokeWidth={2} />
-        </span>
-        <div>
-          <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#B45309]">Outdoor Condensing Unit</p>
-          <h3 className="text-sm font-semibold text-[#0D1626]">
-            Auto-sized from {indoorCount} indoor unit{indoorCount === 1 ? "" : "s"}
-          </h3>
-        </div>
+    <div className="space-y-4">
+      <div className="inline-flex p-1 rounded-xl bg-[#F0F4FB] border border-[#E2E8F4]">
+        <button
+          type="button"
+          onClick={() => setSelectionMode("auto")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            selectionMode === "auto"
+              ? "bg-white text-[#B45309] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+              : "text-[#64748B] hover:text-[#0D1626]"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" strokeWidth={2} />
+          Auto Selection
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectionMode("manual")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            selectionMode === "manual"
+              ? "bg-white text-[#B45309] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+              : "text-[#64748B] hover:text-[#0D1626]"
+          }`}
+        >
+          <SlidersHorizontal className="w-4 h-4" strokeWidth={2} />
+          Manual Selection
+        </button>
       </div>
 
-      <div className="px-5 sm:px-6 py-5 space-y-5">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Total Indoor Load</p>
-            <p className="text-[14px] font-bold text-[#0D1626] mt-1">{totalCapacityDisplay}</p>
-            <p className="text-[11px] text-[#8894AB] mt-0.5">{round(totalCapacityTons, 1)} tons</p>
-          </div>
-          <div className="rounded-lg border-2 border-[#B45309]/30 bg-[#FEF8F0] p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#B45309]">Recommended ODU</p>
-            <p className="text-[14px] font-bold text-[#0D1626] mt-1">{outdoorModel}</p>
-            <p className="text-[11px] text-[#B45309] mt-0.5">{recommendedCapacityDisplay}</p>
-          </div>
-          <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Combination Ratio</p>
-            <p className="text-[14px] font-bold text-[#0D1626] mt-1">{combinationRatio.toFixed(0)}%</p>
-            <p className="text-[11px] text-[#8894AB] mt-0.5">
-              {combinationRatio > 130 ? "Over-connected" : combinationRatio < 50 ? "Under-connected" : "Within range"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Indoor Units</p>
-            <p className="text-[14px] font-bold text-[#0D1626] mt-1">{indoorCount}</p>
-            <p className="text-[11px] text-[#8894AB] mt-0.5">connected</p>
+      <div className="bg-white rounded-2xl border border-[#E2E8F4] shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,87,184,0.04)] overflow-hidden">
+        <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-[#F0F4FB] flex items-center gap-3">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#FEF4E6] text-[#B45309]">
+            <Sun className="w-4 h-4" strokeWidth={2} />
+          </span>
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#B45309]">Outdoor Condensing Unit</p>
+            <h3 className="text-sm font-semibold text-[#0D1626]">
+              {selectionMode === "auto"
+                ? `Auto-sized from ${indoorCount} indoor unit${indoorCount === 1 ? "" : "s"}`
+                : `Manually selected · ${indoorCount} indoor unit${indoorCount === 1 ? "" : "s"} connected`}
+            </h3>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#F0F4FB]">
-          <div>
-            <Label htmlFor="outdoor-ambient" className="text-xs font-semibold text-[#0D1626]">
-              Design Ambient Temperature ({ambientUnit})
-            </Label>
-            <Input
-              id="outdoor-ambient"
-              type="number"
-              step="0.1"
-              className="mt-1.5"
-              value={displayAmbient}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (Number.isNaN(v)) return;
-                onAmbientChange(unitSystem === "metric" ? round(v * 9 / 5 + 32, 1) : v);
-              }}
-            />
-            <div className="flex gap-2 pt-2">
-              {[
-                { label: "T1", f: 95 },
-                { label: "T3", f: 115 },
-                { label: "T4", f: 118 },
-              ].map(({ label, f }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => onAmbientChange(f)}
-                  className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
+        <div className="px-5 sm:px-6 py-5 space-y-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Total Indoor Load</p>
+              <p className="text-[14px] font-bold text-[#0D1626] mt-1">{totalCapacityDisplay}</p>
+              <p className="text-[11px] text-[#8894AB] mt-0.5">{round(totalCapacityTons, 1)} tons</p>
+            </div>
+            <div className="rounded-lg border-2 border-[#B45309]/30 bg-[#FEF8F0] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#B45309]">
+                {selectionMode === "auto" ? "Recommended ODU" : "Selected ODU"}
+              </p>
+              <p className="text-[14px] font-bold text-[#0D1626] mt-1">{outdoorModel}</p>
+              <p className="text-[11px] text-[#B45309] mt-0.5">{effectiveCapacityDisplay}</p>
+            </div>
+            <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Combination Ratio</p>
+              <p className="text-[14px] font-bold text-[#0D1626] mt-1">{effectiveCombinationRatio.toFixed(0)}%</p>
+              <p className="text-[11px] text-[#8894AB] mt-0.5">
+                {effectiveCombinationRatio > 130
+                  ? "Over-connected"
+                  : effectiveCombinationRatio < 50
+                  ? "Under-connected"
+                  : "Within range"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Indoor Units</p>
+              <p className="text-[14px] font-bold text-[#0D1626] mt-1">{indoorCount}</p>
+              <p className="text-[11px] text-[#8894AB] mt-0.5">connected</p>
             </div>
           </div>
-          <div>
-            <Label className="text-xs font-semibold text-[#0D1626]">Outdoor Unit Model</Label>
-            <Select value={String(recommendedOutdoorTons)} onValueChange={() => { /* read-only for now */ }}>
-              <SelectTrigger className="mt-1.5 bg-white border-[#B8D4F0]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 48].map((t) => (
-                  <SelectItem key={t} value={String(t)}>
-                    VRF-OU-{String(t).padStart(3, "0")} · {t} tons
-                  </SelectItem>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#F0F4FB]">
+            <div>
+              <Label htmlFor="outdoor-ambient" className="text-xs font-semibold text-[#0D1626]">
+                Design Ambient Temperature ({ambientUnit})
+              </Label>
+              <Input
+                id="outdoor-ambient"
+                type="number"
+                step="0.1"
+                className="mt-1.5"
+                value={displayAmbient}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (Number.isNaN(v)) return;
+                  onAmbientChange(unitSystem === "metric" ? round((v * 9) / 5 + 32, 1) : v);
+                }}
+              />
+              <div className="flex gap-2 pt-2">
+                {[
+                  { label: "T1", f: 95 },
+                  { label: "T3", f: 115 },
+                  { label: "T4", f: 118 },
+                ].map(({ label, f }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => onAmbientChange(f)}
+                    className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
+                  >
+                    {label}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-[#8894AB] mt-2 leading-snug">
-              Auto-selected based on total indoor capacity. Override if you need a larger unit for future expansion.
-            </p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs font-semibold text-[#0D1626]">Outdoor Unit Model</Label>
+              <Select
+                value={String(effectiveTons)}
+                onValueChange={(v) => setManualTons(parseInt(v, 10))}
+                disabled={selectionMode === "auto"}
+              >
+                <SelectTrigger className="mt-1.5 bg-white border-[#B8D4F0] disabled:opacity-70 disabled:cursor-not-allowed">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OUTDOOR_SIZES.map((t) => (
+                    <SelectItem key={t} value={String(t)}>
+                      VRF-OU-{String(t).padStart(3, "0")} · {t} tons
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-[#8894AB] mt-2 leading-snug">
+                {selectionMode === "auto"
+                  ? "Auto-sized to the smallest outdoor unit that covers the total indoor capacity. Switch to Manual to override."
+                  : "Pick any outdoor unit size. Useful when you need headroom for future expansion or a specific model."}
+              </p>
+            </div>
           </div>
         </div>
       </div>

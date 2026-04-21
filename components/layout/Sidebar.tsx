@@ -41,7 +41,7 @@ export function Sidebar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { sidebarCollapsed, toggleSidebar, setMobileMenuOpen } = useUIStore();
-  const { step, selectedGroup } = useSelectionStore();
+  const { step, selectedGroup, reset: resetSelection } = useSelectionStore();
   const selectionInProgress = step > 1 && !!selectedGroup;
 
   const handleLogout = () => {
@@ -68,13 +68,18 @@ export function Sidebar() {
     const badgeLabel = inProgress ? "Active" : "New";
     const badgeBg = inProgress ? "bg-amber-500" : "bg-[#00A3E0]";
 
+    const handleClick = () => {
+      setMobileMenuOpen(false);
+      if (isSelectLink) resetSelection();
+    };
+
     if (sidebarCollapsed) {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
               href={href}
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={handleClick}
               className={cn(
                 "relative flex items-center justify-center w-8 h-8 rounded-md transition-all duration-150 mx-auto",
                 active
@@ -101,7 +106,7 @@ export function Sidebar() {
     return (
       <Link
         href={href}
-        onClick={() => setMobileMenuOpen(false)}
+        onClick={handleClick}
         className={cn(
           "group flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-all duration-150",
           active

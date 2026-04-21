@@ -35,6 +35,7 @@ export interface ProductSeries {
   speedType?: 'fixed' | 'variable';
   imageUrl?: string;
   subtitle?: string;
+  highlights?: string[];
 }
 
 export interface Model {

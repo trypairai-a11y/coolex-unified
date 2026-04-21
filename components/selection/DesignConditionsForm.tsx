@@ -34,6 +34,8 @@ const standardSchema = z.object({
   enteringWaterTempF: z.coerce.number().optional(),
   leavingWaterTempF: z.coerce.number().optional(),
   waterFlowRateGPM: z.coerce.number().min(0).optional(),
+  // CCU-only
+  saturatedSuctionTempF: z.coerce.number().optional(),
 });
 
 type FormData = z.infer<typeof standardSchema>;
@@ -87,6 +89,7 @@ const CONVERTIBLE_FIELDS = [
   'waterFlowRateGPM',
   'freshAirDBF',
   'freshAirWBF',
+  'saturatedSuctionTempF',
 ] as const;
 
 
@@ -97,7 +100,6 @@ export function DesignConditionsForm() {
   const prevUnitRef = useRef(unitSystem);
   const isChiller = selectedSeries?.isChiller ?? false;
   const isCCU = selectedSeries?.isCCU ?? false;
-  const isNGW = selectedSeries?.id === 'ngw';
   const isFanCoil = selectedSeries?.groupId === 'fan-coil';
   const isSplit = selectedSeries?.groupId === 'split';
   const isCRAC = selectedSeries?.groupId === 'crac';
@@ -113,14 +115,15 @@ export function DesignConditionsForm() {
   const imperialDefaults: FormData = {
     requiredCoolingCapacityBtuh: 120000,
     requiredAirflowCFM: 4000,
-    powerSupply: "380-400V/3Ph/60Hz",
+    powerSupply: isCCU ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
     enteringDBF: 80,
     enteringWBF: 67,
     espInWG: 0.5,
     altitudeFt: 0,
     ambientTempF: 95,
     ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
-    ...(isNGW ? { enteringWaterTempF: 54, leavingWaterTempF: 44 } : {}),
+    ...(isFanCoil ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
+    ...(isCCU ? { saturatedSuctionTempF: 45 } : {}),
   };
 
   // Merge saved conditions (imperial) with defaults
@@ -172,7 +175,9 @@ export function DesignConditionsForm() {
     setDesignConditions(data);
   };
 
-  const POWER_SUPPLIES = ["230-240V/1Ph/50Hz", "400-415V/3Ph/50Hz", "230V/1Ph/60Hz", "230V/3Ph/60Hz", "380-400V/3Ph/60Hz", "460V/3Ph/60Hz"];
+  const POWER_SUPPLIES = isCCU
+    ? ["400-415V/3Ph/50Hz"]
+    : ["230-240V/1Ph/50Hz", "400-415V/3Ph/50Hz", "230V/1Ph/60Hz", "230V/3Ph/60Hz", "380-400V/3Ph/60Hz", "460V/3Ph/60Hz"];
 
   const u = (field: string) => unitLabel(field, unitSystem);
 
@@ -344,7 +349,7 @@ export function DesignConditionsForm() {
             <div className="space-y-1.5">
               <Label>Power Supply <span className="text-destructive">*</span></Label>
               <Select
-                value={getValues("powerSupply") || "380-400V/3Ph/60Hz"}
+                value={getValues("powerSupply") || (isCCU ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz")}
                 onValueChange={(v) => setValue("powerSupply", v)}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -394,6 +399,14 @@ export function DesignConditionsForm() {
                 </div>
               </FieldWithTooltip>
             )}
+            {isCCU && (
+              <FieldWithTooltip
+                label={`Saturated Suction Temperature (${u('saturatedSuctionTempF')})`}
+                tooltip="Evaporator saturated suction temperature (SST). Typical range: 20–50 °F depending on application (comfort cooling, medium temp, etc.)."
+              >
+                <Input type="number" step="0.1" {...register("saturatedSuctionTempF")} />
+              </FieldWithTooltip>
+            )}
           </div>
         </div>
 
@@ -422,7 +435,7 @@ export function DesignConditionsForm() {
                 {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
               </FieldWithTooltip>
 
-              {isNGW && (
+              {isFanCoil && (
                 <>
                   <FieldWithTooltip
                     label={`Entering Water Temp (${u('enteringWaterTempF')})`}
@@ -439,6 +452,12 @@ export function DesignConditionsForm() {
                     filled={wLWT != null && String(wLWT) !== ""}
                   >
                     <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
+                  </FieldWithTooltip>
+                  <FieldWithTooltip
+                    label={`Water Flow Rate (${u('waterFlowRateGPM')})`}
+                    tooltip="Chilled water flow rate through the coil."
+                  >
+                    <Input type="number" step="0.01" {...register("waterFlowRateGPM")} />
                   </FieldWithTooltip>
                 </>
               )}

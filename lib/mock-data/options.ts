@@ -63,10 +63,29 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'rp-bag-filter', category: 'air-side', label: 'Bag Filter Section', description: 'High-efficiency bag filter section for improved supply air quality', priceAdderKWD: 185, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
   { id: 'rp-high-static', category: 'air-side', label: 'High Static Drive Kit', description: 'High-static pressure drive kit for long or restrictive duct runs', priceAdderKWD: 135, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
   { id: 'rp-airflow-switch', category: 'air-side', label: 'Airflow Switch', description: 'Differential pressure airflow switch for filter and fan status monitoring', priceAdderKWD: 40, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
+
+  // ── CCU — Standard Condensing Unit Series ──
+  // Construction
+  { id: 'ccu-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-heresite-cond', category: 'construction', label: 'Heresite Coating - Condenser', description: 'Heresite phenolic baked-on coating on condenser coil for severe corrosive environments', priceAdderKWD: 260, applicableSeriesIds: ['ccu-std'] },
+
+  // Refrigeration
+  { id: 'ccu-pumpdown', category: 'refrigeration', label: 'Pump Down Kit', description: 'Solenoid valve kit for refrigerant pump-down and off-cycle isolation', priceAdderKWD: 95, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-manual-hlp', category: 'refrigeration', label: 'Manual High & Low Pressure Switch', description: 'Manual-reset high and low pressure cut-out switches for compressor protection', priceAdderKWD: 75, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-rotalock', category: 'refrigeration', label: 'Rotalock Valve for Compressor', description: 'Rotalock service valves on compressor suction and discharge connections', priceAdderKWD: 65, applicableSeriesIds: ['ccu-std'] },
+
+  // Electrical
+  { id: 'ccu-overload-fan', category: 'electrical', label: 'Overload Relay - Condenser Fan Motor', description: 'Thermal overload relay for condenser fan motor protection', priceAdderKWD: 45, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-mild-ambient', category: 'electrical', label: 'Mild Ambient Control Kit', description: 'Low-ambient head pressure control kit extending operation below 15°C', priceAdderKWD: 160, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-ctrl-disconnect', category: 'electrical', label: 'Control Circuit Disconnect Switch', description: 'Dedicated disconnect switch for safe control circuit isolation', priceAdderKWD: 55, applicableSeriesIds: ['ccu-std'] },
+  { id: 'ccu-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['ccu-std'] },
 ];
 
+const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, 'ccu-std'];
+
 export function getOptionsForSeries(seriesId: string): EquipmentOption[] {
-  if (ROOFTOP_PACKAGED_SERIES_IDS.includes(seriesId)) {
+  if (CURATED_ONLY_SERIES_IDS.includes(seriesId)) {
     return EQUIPMENT_OPTIONS.filter(opt =>
       Array.isArray(opt.applicableSeriesIds) && opt.applicableSeriesIds.includes(seriesId)
     );

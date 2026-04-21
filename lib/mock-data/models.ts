@@ -5,6 +5,9 @@ import { PNGC_MODELS } from './pngc-models';
 import { NGCC_MODELS } from './ngcc-models';
 import { CHCC_MODELS } from './chcc-models';
 import { PNGF_MODELS } from './pngf-models';
+import { ACC_BP_MODELS } from './acc-bp-models';
+import { ACC_ST_MODELS } from './acc-st-models';
+import { CCU_MODELS } from './ccu-models';
 
 // Helper to generate realistic mock models for a series
 function generateModels(seriesId: string, prefix: string, capacities: number[]): Model[] {
@@ -51,14 +54,14 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'acsc': ACSC_MODELS,
   'thac': generateModels('thac', 'THAC', [3, 5, 7.5, 10, 15, 20, 25, 30, 40, 50]),
   'dhac': generateModels('dhac', 'DHAC', [20, 25, 30, 40, 50, 60, 70, 80, 100]),
-  'acc-bp': generateModels('acc-bp', 'ACC', [3, 4, 5, 6, 7.5, 8, 10, 12, 15, 17]),
-  'acc-st': generateModels('acc-st', 'ACC', [20, 25, 30, 40, 50, 60, 70, 80, 100]),
+  'acc-bp': ACC_BP_MODELS,
+  'acc-st': ACC_ST_MODELS,
   'pngc': PNGC_MODELS,
   'ngcc': NGCC_MODELS,
   'ngcf': NGCC_MODELS,
   'chcc': CHCC_MODELS,
   'chcf': CHCC_MODELS,
-  'ccu-std': generateModels('ccu-std', 'CCCU', [1, 1.5, 2, 3, 4, 5, 7.5, 10, 12.5, 15]),
+  'ccu-std': CCU_MODELS,
 
   'phe': generateModels('phe', 'PHE', [3.5, 5, 7.5, 10, 12, 15]),
   'prec-dc': generateModels('prec-dc', 'CPDU', [5, 7.5, 10, 12.5, 15, 20, 25, 30]),

@@ -218,6 +218,16 @@ function SeriesCard({ series: s, index, onSelect }: { series: ProductSeries; ind
       {s.subtitle && (
         <div className="mt-2 text-sm font-medium text-gray-600">{s.subtitle}</div>
       )}
+      {s.highlights && s.highlights.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {s.highlights.map((h) => (
+            <li key={h} className="flex items-start gap-2 text-sm text-gray-600">
+              <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-gray-400" />
+              <span>{h}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
     </motion.button>
   );

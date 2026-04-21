@@ -11,7 +11,7 @@ import { NomenclatureInline } from "@/components/selection/NomenclatureBreakdown
 import type { Model } from "@/types/product";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { btuhToKw, fToC, cfmToM3h, round } from "@/lib/utils/unit-conversions";
+import { btuhToKw, fToC, cfmToM3h, gpmToLps, round } from "@/lib/utils/unit-conversions";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
 
@@ -36,10 +36,18 @@ export function ResultsTable() {
 
   const unitSystem = useUnitStore((s) => s.unitSystem);
   const isMetric = unitSystem === "metric";
+  const isChiller = selectedSeries?.isChiller ?? false;
+  const isCCU = selectedSeries?.isCCU ?? false;
 
   const dc = designConditions as Record<string, number> | null;
   const capacityBtuh = dc?.requiredCoolingCapacityBtuh ?? null;
   const airflowCFM = dc?.requiredAirflowCFM ?? null;
+  const ewtF = dc?.enteringWaterTempF ?? null;
+  const lwtF = dc?.leavingWaterTempF ?? null;
+  const flowGPM = dc?.waterFlowRateGPM ?? null;
+  const sstF = dc?.saturatedSuctionTempF ?? null;
+  const ambientF = dc?.ambientTempF ?? null;
+  const sctF = ambientF != null ? ambientF + 25 : null;
   const basis = selectionBasis ?? 'capacity';
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
@@ -147,12 +155,60 @@ export function ResultsTable() {
                       <div className="text-muted-foreground">{isMetric ? "COP" : "EER"}</div>
                       <div className="font-medium">{isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Airflow</div>
-                      <div className="font-medium">
-                        {isMetric ? `${round(cfmToM3h(model.airflowCFM), 0).toLocaleString()} m³/h` : `${model.airflowCFM.toLocaleString()} CFM`}
+                    {isChiller ? (
+                      <>
+                        <div>
+                          <div className="text-muted-foreground">Water In/Out</div>
+                          <div className="font-medium">
+                            {ewtF != null && lwtF != null
+                              ? isMetric
+                                ? `${round(fToC(ewtF), 1)} / ${round(fToC(lwtF), 1)} °C`
+                                : `${ewtF} / ${lwtF} °F`
+                              : "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Flow</div>
+                          <div className="font-medium">
+                            {flowGPM != null
+                              ? isMetric
+                                ? `${round(gpmToLps(flowGPM), 2)} L/s`
+                                : `${flowGPM.toLocaleString()} GPM`
+                              : "—"}
+                          </div>
+                        </div>
+                      </>
+                    ) : isCCU ? (
+                      <>
+                        <div>
+                          <div className="text-muted-foreground">Evap. Temp</div>
+                          <div className="font-medium">
+                            {sstF != null
+                              ? isMetric
+                                ? `${round(fToC(sstF), 1)} °C`
+                                : `${sstF} °F`
+                              : "—"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Cond. Temp</div>
+                          <div className="font-medium">
+                            {sctF != null
+                              ? isMetric
+                                ? `${round(fToC(sctF), 1)} °C`
+                                : `${sctF} °F`
+                              : "—"}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <div className="text-muted-foreground">Airflow</div>
+                        <div className="font-medium">
+                          {isMetric ? `${round(cfmToM3h(model.airflowCFM), 0).toLocaleString()} m³/h` : `${model.airflowCFM.toLocaleString()} CFM`}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   <Button
                     size="sm"
@@ -176,12 +232,28 @@ export function ResultsTable() {
                     <th className="px-4 py-3"></th>
                     <TH label="Model" />
                     <TH label="Match %" sortable="matchPercent" />
-                    <TH label={isMetric ? "Total Cap." : "Total Cap."} sortable="totalCapacityBtuh" />
-                    <TH label={isMetric ? "Sensible Cap." : "Sensible Cap."} sortable="sensibleCapacityBtuh" />
+                    <TH label="Total Cap." sortable="totalCapacityBtuh" />
+                    {isChiller ? (
+                      <>
+                        <TH label={isMetric ? "Water In/Out (°C)" : "Water In/Out (°F)"} />
+                        <TH label={isMetric ? "Flow (L/s)" : "Flow (GPM)"} />
+                      </>
+                    ) : isCCU ? (
+                      <>
+                        <TH label={isMetric ? "Evap. Temp (°C)" : "Evap. Temp (°F)"} />
+                        <TH label={isMetric ? "Cond. Temp (°C)" : "Cond. Temp (°F)"} />
+                      </>
+                    ) : (
+                      <TH label="Sensible Cap." sortable="sensibleCapacityBtuh" />
+                    )}
                     <TH label="Power (kW)" sortable="powerKW" />
                     <TH label={isMetric ? "COP" : "EER"} sortable="eer" />
-                    <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
-                    <TH label={isMetric ? "Leaving DB/WB" : "Leaving DB/WB"} />
+                    {!isChiller && !isCCU && (
+                      <>
+                        <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
+                        <TH label="Leaving DB/WB" />
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -222,21 +294,61 @@ export function ResultsTable() {
                         <td className="px-4 py-3 text-black">
                           {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
                         </td>
-                        <td className="px-4 py-3 text-black">
-                          {isMetric ? `${round(btuhToKw(model.sensibleCapacityBtuh), 1)} kW` : `${formatBtuh(model.sensibleCapacityBtuh)} Btu/h`}
-                        </td>
+                        {isChiller ? (
+                          <>
+                            <td className="px-4 py-3 text-black text-xs">
+                              {ewtF != null && lwtF != null
+                                ? isMetric
+                                  ? `${round(fToC(ewtF), 1)} / ${round(fToC(lwtF), 1)}`
+                                  : `${ewtF} / ${lwtF}`
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-black">
+                              {flowGPM != null
+                                ? isMetric
+                                  ? round(gpmToLps(flowGPM), 2)
+                                  : flowGPM.toLocaleString()
+                                : "—"}
+                            </td>
+                          </>
+                        ) : isCCU ? (
+                          <>
+                            <td className="px-4 py-3 text-black">
+                              {sstF != null
+                                ? isMetric
+                                  ? round(fToC(sstF), 1)
+                                  : sstF
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-black">
+                              {sctF != null
+                                ? isMetric
+                                  ? round(fToC(sctF), 1)
+                                  : sctF
+                                : "—"}
+                            </td>
+                          </>
+                        ) : (
+                          <td className="px-4 py-3 text-black">
+                            {isMetric ? `${round(btuhToKw(model.sensibleCapacityBtuh), 1)} kW` : `${formatBtuh(model.sensibleCapacityBtuh)} Btu/h`}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-black">{model.powerKW}</td>
                         <td className="px-4 py-3">
                           <span className="text-black">{isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
                         </td>
-                        <td className="px-4 py-3 text-black">
-                          {isMetric ? round(cfmToM3h(model.airflowCFM), 0).toLocaleString() : model.airflowCFM.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 text-black text-xs">
-                          {isMetric
-                            ? `${round(fToC(model.leavingDBF), 1)}°C / ${round(fToC(model.leavingWBF), 1)}°C`
-                            : `${model.leavingDBF}°F / ${model.leavingWBF}°F`}
-                        </td>
+                        {!isChiller && !isCCU && (
+                          <>
+                            <td className="px-4 py-3 text-black">
+                              {isMetric ? round(cfmToM3h(model.airflowCFM), 0).toLocaleString() : model.airflowCFM.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-black text-xs">
+                              {isMetric
+                                ? `${round(fToC(model.leavingDBF), 1)}°C / ${round(fToC(model.leavingWBF), 1)}°C`
+                                : `${model.leavingDBF}°F / ${model.leavingWBF}°F`}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}
