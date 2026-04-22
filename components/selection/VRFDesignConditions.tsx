@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Wind, Zap, Square, Box, Home, Sun, Sparkles, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, Home, Sun, Sparkles, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +55,7 @@ const INDOOR_TYPES: {
     value: "ducted-split-low-static",
     label: "Ducted Split (Low Static)",
     description: "Concealed indoor for short duct runs",
-    icon: Wind,
+    image: "/images/vrf-ducted-split.png",
     accent: "#0057B8",
     bg: "#EBF3FF",
     capacities: [18, 24, 30, 36],
@@ -64,7 +64,7 @@ const INDOOR_TYPES: {
     value: "ducted-split-high-static",
     label: "Ducted Split (High Static)",
     description: "Concealed indoor for long duct runs",
-    image: "/images/fch.png",
+    image: "/images/vrf-ducted-split.png",
     accent: "#0057B8",
     bg: "#EBF3FF",
     capacities: [16, 18, 24, 30, 36, 42, 48, 60],
@@ -73,7 +73,7 @@ const INDOOR_TYPES: {
     value: "ducted-split-inverter",
     label: "Ducted Split Inverter",
     description: "Variable-capacity ducted indoor",
-    icon: Zap,
+    image: "/images/vrf-ducted-split-inverter.png",
     accent: "#7C3AED",
     bg: "#F3EBFF",
     capacities: [12, 16, 18, 22, 24, 30, 36, 42, 48, 60],
@@ -82,7 +82,7 @@ const INDOOR_TYPES: {
     value: "cassette",
     label: "Cassette",
     description: "Ceiling-recessed 4-way grille",
-    icon: Square,
+    image: "/images/vrf-cassette.png",
     accent: "#0F766E",
     bg: "#E6F7F4",
     capacities: [18, 24, 36, 48],
@@ -91,7 +91,7 @@ const INDOOR_TYPES: {
     value: "wall-mounted",
     label: "Wall Mounted",
     description: "Surface-mount on the wall",
-    icon: Box,
+    image: "/images/vrf-wall-mounted.png",
     accent: "#B45309",
     bg: "#FEF4E6",
     capacities: [12, 18, 24, 30],
