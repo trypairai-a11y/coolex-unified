@@ -239,6 +239,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isChiller: false,
     isCCU: false,
     hasDualRefrigerant: false,
+    imageUrl: '/images/phe.png',
   },
   // Precision cooling
   {
