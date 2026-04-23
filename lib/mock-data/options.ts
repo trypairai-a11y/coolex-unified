@@ -7,7 +7,7 @@ export interface EquipmentOption {
   applicableSeriesIds: string[] | 'all';
 }
 
-const ROOFTOP_PACKAGED_SERIES_IDS = ['pngf', 'pngc', 'cipk', 'rpuf', 'rpuc', 'spu'];
+const ROOFTOP_PACKAGED_SERIES_IDS = ['pngf', 'pngc', 'rpui', 'rpuf', 'rpuc', 'spu'];
 
 export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   // Construction
@@ -26,9 +26,9 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'dual-power', category: 'electrical', label: 'Dual Power Entry', description: 'Separate compressor and fan power entry points for split-metering', priceAdderKWD: 90, applicableSeriesIds: ['pac-r', 'pac-f', 'pac-g'] },
 
   // Refrigeration
-  { id: 'hgbp', category: 'refrigeration', label: 'Hot Gas Bypass', description: 'Capacity modulation via hot gas bypass for low-load stability', priceAdderKWD: 150, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs', 'acsc', 'thac', 'dhac', 'acc-bp', 'acc-st'] },
+  { id: 'hgbp', category: 'refrigeration', label: 'Hot Gas Bypass', description: 'Capacity modulation via hot gas bypass for low-load stability', priceAdderKWD: 150, applicableSeriesIds: ['pac-r', 'pac-f', 'split-cs', 'dhac', 'acc-bp', 'acc-st'] },
   { id: 'suction-acc', category: 'refrigeration', label: 'Suction Accumulator', description: 'Suction line accumulator for liquid slug protection', priceAdderKWD: 80, applicableSeriesIds: ['ccu-std'] },
-  { id: 'oil-sep', category: 'refrigeration', label: 'Oil Separator', description: 'In-line oil separator for long refrigerant line applications', priceAdderKWD: 125, applicableSeriesIds: ['ccu-std', 'thac', 'dhac', 'acc-bp', 'acc-st'] },
+  { id: 'oil-sep', category: 'refrigeration', label: 'Oil Separator', description: 'In-line oil separator for long refrigerant line applications', priceAdderKWD: 125, applicableSeriesIds: ['ccu-std', 'dhac', 'acc-bp', 'acc-st'] },
   { id: 'liquid-recv', category: 'refrigeration', label: 'Liquid Receiver', description: 'Field-selectable receiver size for extended piping runs', priceAdderKWD: 95, applicableSeriesIds: ['ccu-std'] },
   { id: 'filter-dryer', category: 'refrigeration', label: 'Replaceable Filter Drier', description: 'Replaceable-core filter drier with sight glass and moisture indicator', priceAdderKWD: 40, applicableSeriesIds: 'all' },
 
@@ -38,7 +38,7 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'remote-mon', category: 'controls', label: 'Remote Monitoring Gateway', description: 'LTE/Wi-Fi gateway for remote monitoring via COOLEX cloud portal', priceAdderKWD: 350, applicableSeriesIds: 'all' },
   { id: 'econ-ctrl', category: 'controls', label: 'Economizer Control Module', description: 'Integrated economizer control with enthalpy sensor', priceAdderKWD: 275, applicableSeriesIds: ['pac-r', 'pac-g'] },
 
-  // ── Rooftop Packaged Series (PNGF / PNGC / CIPK / RPUF / RPUC / SPU) ──
+  // ── Rooftop Packaged Series (PNGF / PNGC / RPUI / RPUF / RPUC / SPU) ──
   // Construction
   { id: 'rp-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan for corrosion-resistant condensate handling', priceAdderKWD: 45, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
   { id: 'rp-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
@@ -80,9 +80,58 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'ccu-mild-ambient', category: 'electrical', label: 'Mild Ambient Control Kit', description: 'Low-ambient head pressure control kit extending operation below 15°C', priceAdderKWD: 160, applicableSeriesIds: ['ccu-std'] },
   { id: 'ccu-ctrl-disconnect', category: 'electrical', label: 'Control Circuit Disconnect Switch', description: 'Dedicated disconnect switch for safe control circuit isolation', priceAdderKWD: 55, applicableSeriesIds: ['ccu-std'] },
   { id: 'ccu-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['ccu-std'] },
+
+  // ── ACSC — Air-Cooled Screw Chiller Series ──
+  // Construction
+  { id: 'acsc-protection-guard', category: 'construction', label: 'Compressor & Cooler Unit Protection Guard', description: 'Heavy-duty protective guard enclosing compressor and cooler sections from impact and debris', priceAdderKWD: 175, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-spring-isolator', category: 'construction', label: 'Unit Mounting Spring Isolator', description: 'Spring-type vibration isolators for reduced structural noise and vibration transmission', priceAdderKWD: 210, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-comp-enclosure', category: 'construction', label: 'Compressor Enclosure Box', description: 'Acoustic enclosure box around compressor for reduced sound emissions', priceAdderKWD: 340, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-copper-cond', category: 'construction', label: 'Copper Fins – Condenser Coil', description: 'Copper fins on condenser coil for enhanced durability in corrosive environments', priceAdderKWD: 380, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM / Heresite coating on condenser coil for salt air and industrial environments', priceAdderKWD: 260, applicableSeriesIds: ['acsc'] },
+
+  // Refrigeration
+  { id: 'acsc-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-asme-cooler', category: 'refrigeration', label: 'ASME Code Stamped (S&T Cooler)', description: 'Shell & tube cooler constructed and stamped per ASME Section VIII pressure vessel code', priceAdderKWD: 420, applicableSeriesIds: ['acsc'] },
+
+  // Electrical
+  { id: 'acsc-cooler-heater', category: 'electrical', label: 'Cooler Heater Tape', description: 'Freeze protection heater tape on evaporator cooler for low-ambient operation', priceAdderKWD: 95, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-overload-fan', category: 'electrical', label: 'Overload Relay - Condenser Fan Motor', description: 'Thermal overload relay for condenser fan motor protection', priceAdderKWD: 45, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-bms', category: 'electrical', label: 'Building Management System (BMS)', description: 'BACnet / Modbus interface for integration with site building management system', priceAdderKWD: 285, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-touchscreen', category: 'electrical', label: 'Touchscreens / Graphics', description: 'Color touchscreen HMI with graphical unit status, trending, and alarm history', priceAdderKWD: 320, applicableSeriesIds: ['acsc'] },
+  { id: 'acsc-wireless-mon', category: 'electrical', label: 'Wireless Remote Monitoring & Control of Chiller', description: 'LTE/Wi-Fi gateway for remote monitoring and control via COOLEX cloud portal', priceAdderKWD: 450, applicableSeriesIds: ['acsc'] },
+
+  // ── DHAC — Air-Cooled Chiller Series ──
+  // Construction
+  { id: 'dhac-spring-isolator', category: 'construction', label: 'Unit Mounting Spring Isolator', description: 'Spring-type vibration isolators for reduced structural noise and vibration transmission', priceAdderKWD: 195, applicableSeriesIds: ['dhac'] },
+  { id: 'dhac-copper-cond', category: 'construction', label: 'Copper Fins – Condenser Coil', description: 'Copper fins on condenser coil for enhanced durability in corrosive environments', priceAdderKWD: 350, applicableSeriesIds: ['dhac'] },
+  { id: 'dhac-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM / Heresite coating on condenser coil for salt air and industrial environments', priceAdderKWD: 240, applicableSeriesIds: ['dhac'] },
+
+  // Refrigeration
+  { id: 'dhac-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['dhac'] },
+  { id: 'dhac-asme-cooler', category: 'refrigeration', label: 'ASME Code Stamped (S&T Cooler)', description: 'Shell & tube cooler constructed and stamped per ASME Section VIII pressure vessel code', priceAdderKWD: 400, applicableSeriesIds: ['dhac'] },
+
+  // Electrical
+  { id: 'dhac-cooler-heater', category: 'electrical', label: 'Cooler Heater Tape', description: 'Freeze protection heater tape on evaporator cooler for low-ambient operation', priceAdderKWD: 95, applicableSeriesIds: ['dhac'] },
+  { id: 'dhac-overload-fan', category: 'electrical', label: 'Overload Relay - Condenser Fan Motor', description: 'Thermal overload relay for condenser fan motor protection', priceAdderKWD: 45, applicableSeriesIds: ['dhac'] },
+  { id: 'dhac-bms', category: 'electrical', label: 'Building Management System (BMS)', description: 'BACnet / Modbus interface for integration with site building management system', priceAdderKWD: 285, applicableSeriesIds: ['dhac'] },
+  { id: 'dhac-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['dhac'] },
+
+  // ── THAC — Air-Cooled Chiller (Brazed Plate HX) Series ──
+  // Construction
+  { id: 'thac-spring-isolator', category: 'construction', label: 'Unit Mounting Spring Isolator', description: 'Spring-type vibration isolators for reduced structural noise and vibration transmission', priceAdderKWD: 175, applicableSeriesIds: ['thac'] },
+  { id: 'thac-copper-cond', category: 'construction', label: 'Copper Fins – Condenser Coil', description: 'Copper fins on condenser coil for enhanced durability in corrosive environments', priceAdderKWD: 320, applicableSeriesIds: ['thac'] },
+  { id: 'thac-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM / Heresite coating on condenser coil for salt air and industrial environments', priceAdderKWD: 220, applicableSeriesIds: ['thac'] },
+
+  // Refrigeration
+  { id: 'thac-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['thac'] },
+
+  // Electrical
+  { id: 'thac-overload-fan', category: 'electrical', label: 'Overload Relay - Condenser Fan Motor', description: 'Thermal overload relay for condenser fan motor protection', priceAdderKWD: 45, applicableSeriesIds: ['thac'] },
+  { id: 'thac-bms', category: 'electrical', label: 'Building Management System (BMS)', description: 'BACnet / Modbus interface for integration with site building management system', priceAdderKWD: 285, applicableSeriesIds: ['thac'] },
+  { id: 'thac-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['thac'] },
 ];
 
-const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, 'ccu-std'];
+const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac'];
 
 export function getOptionsForSeries(seriesId: string): EquipmentOption[] {
   if (CURATED_ONLY_SERIES_IDS.includes(seriesId)) {

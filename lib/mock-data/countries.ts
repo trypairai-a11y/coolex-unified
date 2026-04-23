@@ -8,6 +8,8 @@ export const COUNTRIES = [
   "Qatar",
   "Oman",
   "Iraq",
+  "Pakistan",
+  "Djibouti",
   "Jordan",
   "Egypt",
   "Lebanon",
@@ -15,3 +17,23 @@ export const COUNTRIES = [
 ] as const;
 
 export type Country = (typeof COUNTRIES)[number];
+
+export const COUNTRY_PROJECT_PREFIX: Record<string, string> = {
+  Kuwait: "KW",
+  "Saudi Arabia": "SA",
+  "United Arab Emirates": "UA",
+  Bahrain: "BH",
+  Qatar: "QR",
+  Oman: "OM",
+  Iraq: "IQ",
+  Pakistan: "PK",
+  Djibouti: "DJ",
+  Jordan: "JO",
+  Egypt: "EG",
+  Lebanon: "LB",
+};
+
+export function getCountryProjectPrefix(country?: string): string {
+  if (!country) return "PRJ";
+  return COUNTRY_PROJECT_PREFIX[country] ?? "PRJ";
+}

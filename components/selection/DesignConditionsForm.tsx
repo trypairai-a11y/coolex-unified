@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,7 +14,7 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { SelectionBasis } from "@/types/selection";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
+import { round, toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 
 const standardSchema = z.object({
@@ -103,6 +103,9 @@ export function DesignConditionsForm() {
   const isFanCoil = selectedSeries?.groupId === 'fan-coil';
   const isSplit = selectedSeries?.groupId === 'split';
   const isCRAC = selectedSeries?.groupId === 'crac';
+  const isTHAC = selectedSeries?.id === 'thac';
+  const isDHAC = selectedSeries?.id === 'dhac';
+  const is50HzOnly = isCCU || isTHAC || isDHAC;
 
   // Chillers and condensing units are always selected by capacity — never expose the airflow basis.
   useEffect(() => {
@@ -115,7 +118,7 @@ export function DesignConditionsForm() {
   const imperialDefaults: FormData = {
     requiredCoolingCapacityBtuh: 120000,
     requiredAirflowCFM: 4000,
-    powerSupply: isCCU ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
+    powerSupply: is50HzOnly ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
     enteringDBF: 80,
     enteringWBF: 67,
     espInWG: 0.5,
@@ -150,6 +153,43 @@ export function DesignConditionsForm() {
   const wEWT = watch("enteringWaterTempF");
   const wLWT = watch("leavingWaterTempF");
 
+  // Tonnage sync (chillers only): 1 TR = 12,000 Btu/h = 3.51685 kW.
+  // Local string state lets the user type partial numbers (e.g. "10.") without
+  // the derived sync overwriting the decimal while they're typing.
+  const KW_PER_TR = 3.51685;
+  const [tonsInput, setTonsInput] = useState<string>(() => {
+    const initialCap = displayDefaults.requiredCoolingCapacityBtuh;
+    if (initialCap == null) return "";
+    const tr = unitSystem === "imperial" ? initialCap / 12000 : initialCap / KW_PER_TR;
+    return String(round(tr, 2));
+  });
+
+  useEffect(() => {
+    if (wCapacity == null || (wCapacity as unknown as string) === "") return;
+    const capNum = Number(wCapacity);
+    if (isNaN(capNum)) return;
+    const tr = unitSystem === "imperial" ? capNum / 12000 : capNum / KW_PER_TR;
+    const inputNum = parseFloat(tonsInput);
+    if (isNaN(inputNum) || Math.abs(inputNum - tr) > 0.01) {
+      setTonsInput(String(round(tr, 2)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wCapacity, unitSystem]);
+
+  const handleTonsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setTonsInput(raw);
+    if (raw === "") return;
+    const tr = parseFloat(raw);
+    if (isNaN(tr)) return;
+    const newCap = unitSystem === "imperial" ? tr * 12000 : tr * KW_PER_TR;
+    setValue(
+      "requiredCoolingCapacityBtuh",
+      round(newCap, unitSystem === "imperial" ? 0 : 2) as never,
+      { shouldDirty: true, shouldValidate: true }
+    );
+  };
+
   // When unit system changes (from TopBar toggle), convert all visible values in-place
   useEffect(() => {
     const prevSystem = prevUnitRef.current;
@@ -175,9 +215,24 @@ export function DesignConditionsForm() {
     setDesignConditions(data);
   };
 
-  const POWER_SUPPLIES = isCCU
+  const isThreePhaseOnly = selectedSeries?.id === 'acsc' || selectedSeries?.id === 'acc-bp';
+  const isSaudiArabia = projectInfo?.country === 'Saudi Arabia';
+  const basePowerSupplies = is50HzOnly
     ? ["400-415V/3Ph/50Hz"]
+    : isThreePhaseOnly
+    ? ["400-415V/3Ph/50Hz", "380-400V/3Ph/60Hz"]
     : ["230-240V/1Ph/50Hz", "400-415V/3Ph/50Hz", "230V/1Ph/60Hz", "230V/3Ph/60Hz", "380-400V/3Ph/60Hz", "460V/3Ph/60Hz"];
+  const filtered60Hz = basePowerSupplies.filter(p => p.includes("60Hz"));
+  const POWER_SUPPLIES = isSaudiArabia && filtered60Hz.length > 0 ? filtered60Hz : basePowerSupplies;
+
+  // Reset the selected power supply if the current value is no longer valid (e.g., after switching to Saudi Arabia).
+  useEffect(() => {
+    const current = getValues("powerSupply");
+    if (current && !POWER_SUPPLIES.includes(current)) {
+      setValue("powerSupply", POWER_SUPPLIES[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSaudiArabia, is50HzOnly, isThreePhaseOnly]);
 
   const u = (field: string) => unitLabel(field, unitSystem);
 
@@ -327,29 +382,49 @@ export function DesignConditionsForm() {
                 )}
               </FieldWithTooltip>
             ) : (
-              <FieldWithTooltip
-                label={`Required Cooling Capacity (${u('requiredCoolingCapacityBtuh')})`}
-                tooltip="Total cooling capacity required at the design conditions. Used to rank model matches."
-                required
-                filled={!!wCapacity}
-              >
-                <Input
-                  type="number"
-                  step={unitSystem === 'metric' ? "0.01" : "1"}
-                  placeholder={unitSystem === 'imperial' ? "120000" : "35.17"}
-                  {...register("requiredCoolingCapacityBtuh")}
-                  className={errors.requiredCoolingCapacityBtuh ? "border-destructive" : ""}
-                />
-                {errors.requiredCoolingCapacityBtuh && (
-                  <p className="text-xs text-destructive">{errors.requiredCoolingCapacityBtuh.message}</p>
+              <>
+                <FieldWithTooltip
+                  label={`Required Cooling Capacity (${u('requiredCoolingCapacityBtuh')})`}
+                  tooltip={isChiller
+                    ? `Total cooling capacity required at the design conditions. Synced with Tons (1 TR = 12,000 Btu/h ≈ 3.517 kW).`
+                    : "Total cooling capacity required at the design conditions. Used to rank model matches."}
+                  required
+                  filled={!!wCapacity}
+                >
+                  <Input
+                    type="number"
+                    step={unitSystem === 'metric' ? "0.01" : "1"}
+                    placeholder={unitSystem === 'imperial' ? "120000" : "35.17"}
+                    {...register("requiredCoolingCapacityBtuh")}
+                    className={errors.requiredCoolingCapacityBtuh ? "border-destructive" : ""}
+                  />
+                  {errors.requiredCoolingCapacityBtuh && (
+                    <p className="text-xs text-destructive">{errors.requiredCoolingCapacityBtuh.message}</p>
+                  )}
+                </FieldWithTooltip>
+                {isChiller && (
+                  <FieldWithTooltip
+                    label="Required Cooling Capacity (Tons)"
+                    tooltip="Tons of refrigeration. Automatically synced with the Btu/h (or kW) field — edit either one."
+                    required
+                    filled={!!tonsInput && tonsInput !== "0"}
+                  >
+                    <Input
+                      type="number"
+                      step="0.1"
+                      placeholder="10"
+                      value={tonsInput}
+                      onChange={handleTonsChange}
+                    />
+                  </FieldWithTooltip>
                 )}
-              </FieldWithTooltip>
+              </>
             )}
 
             <div className="space-y-1.5">
               <Label>Power Supply <span className="text-destructive">*</span></Label>
               <Select
-                value={getValues("powerSupply") || (isCCU ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz")}
+                value={getValues("powerSupply") || (is50HzOnly ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz")}
                 onValueChange={(v) => setValue("powerSupply", v)}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -382,7 +457,7 @@ export function DesignConditionsForm() {
                     { label: "T1", ambientF: 95, dbF: 80, wbF: 67 },
                     { label: "T3", ambientF: 115, dbF: 84, wbF: 67 },
                     { label: "T4", ambientF: 118, dbF: 80, wbF: 67 },
-                  ].map(({ label, ambientF, dbF, wbF }) => (
+                  ].filter(({ label }) => projectInfo?.country === "Kuwait" || label !== "T4").map(({ label, ambientF, dbF, wbF }) => (
                     <button
                       key={label}
                       type="button"

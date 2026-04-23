@@ -1,20 +1,20 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { ArrowRight, Building2, Copy, Check } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { ProjectInfoFormData } from "@/types/selection";
-import { COUNTRIES } from "@/lib/mock-data/countries";
+import { COUNTRIES, getCountryProjectPrefix } from "@/lib/mock-data/countries";
 
-function generateProjectId(): string {
+function generateIdSuffix(): string {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `PRJ-${yy}${mm}-${rand}`;
+  return `${yy}${mm}-${rand}`;
 }
 
 const projectInfoSchema = z.object({
@@ -112,18 +112,6 @@ StyledInput.displayName = "StyledInput";
 export function ProjectInfoForm() {
   const { projectInfo, setProjectInfo } = useSelectionStore();
 
-  const projectId = useMemo(
-    () => projectInfo?.projectId || generateProjectId(),
-    [projectInfo?.projectId]
-  );
-
-  const [copied, setCopied] = useState(false);
-  const handleCopyId = useCallback(() => {
-    navigator.clipboard.writeText(projectId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [projectId]);
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(projectInfoSchema) as any,
@@ -137,6 +125,22 @@ export function ProjectInfoForm() {
 
   const projectName = watch("projectName");
   const country = watch("country");
+
+  const suffixRef = useRef<string>(
+    projectInfo?.projectId ? projectInfo.projectId.split("-").slice(1).join("-") : generateIdSuffix()
+  );
+
+  const projectId = useMemo(
+    () => `${getCountryProjectPrefix(country)}-${suffixRef.current}`,
+    [country]
+  );
+
+  const [copied, setCopied] = useState(false);
+  const handleCopyId = useCallback(() => {
+    navigator.clipboard.writeText(projectId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [projectId]);
 
   const onSubmit = (data: FormData) => {
     setProjectInfo({ ...data, projectId } as ProjectInfoFormData);

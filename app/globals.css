@@ -175,3 +175,15 @@ h1, h2, h3, h4, h5 {
   letter-spacing: -0.03em;
   line-height: 1;
 }
+
+/* Animated refrigerant flow for pipe schematics */
+@keyframes pipe-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+.pipe-flow {
+  stroke-dasharray: 4 28;
+  stroke-linecap: round;
+  animation: pipe-flow 1.4s linear infinite;
+}

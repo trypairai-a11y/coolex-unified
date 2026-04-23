@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { ArrowLeft, ArrowRight, ArrowUpDown, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +30,7 @@ function ErrorState({ message }: { message: string }) {
 }
 
 export function ResultsTable() {
-  const { selectedSeries, designConditions, selectedModels, toggleModelSelection, navigateBack, selectionBasis } = useSelectionStore();
+  const { selectedSeries, designConditions, selectedModels, toggleModelSelection, navigateBack, selectionBasis, projectInfo } = useSelectionStore();
   const [sortKey, setSortKey] = useState<SortKey>("matchPercent");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
@@ -49,6 +50,7 @@ export function ResultsTable() {
   const ambientF = dc?.ambientTempF ?? null;
   const sctF = ambientF != null ? ambientF + 25 : null;
   const basis = selectionBasis ?? 'capacity';
+  const showMewApproval = projectInfo?.country === "Kuwait" && ambientF === 118;
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,
@@ -109,7 +111,19 @@ export function ResultsTable() {
             </p>
           </div>
         </div>
-        <UnitToggle />
+        <div className="flex items-center gap-3">
+          {showMewApproval && (
+            <Image
+              src="/images/mew-logo.png"
+              alt="Kuwait Ministry of Electricity & Water"
+              width={120}
+              height={48}
+              className="h-10 w-auto object-contain"
+              priority
+            />
+          )}
+          <UnitToggle />
+        </div>
       </div>
 
       {isLoading ? (
@@ -360,7 +374,14 @@ export function ResultsTable() {
       )}
 
 
-      <div className="flex justify-end mt-6">
+      <div className="flex justify-between items-center gap-4 mt-6">
+        {showMewApproval ? (
+          <div className="rounded-lg border border-[#B8D4F0] bg-[#F0F7FF] px-4 py-3">
+            <p className="text-xs sm:text-sm font-medium text-[#0057B8] leading-snug">
+              Total Cooling Capacities Shown are Gross Rated as per MEW Approval
+            </p>
+          </div>
+        ) : <div />}
         <Button
           disabled={selectedModels.length === 0}
           onClick={() => useSelectionStore.getState().setStep(6)}

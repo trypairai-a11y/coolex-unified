@@ -6,6 +6,7 @@ import { ProductGroupGrid } from "@/components/selection/ProductGroupGrid";
 import { SeriesGrid } from "@/components/selection/SeriesGrid";
 import { VRFLayoutBuilder } from "@/components/selection/VRFLayoutBuilder";
 import { VRFDesignConditions } from "@/components/selection/VRFDesignConditions";
+import { VRFSystemDiagram } from "@/components/selection/VRFSystemDiagram";
 import { ProjectInfoForm } from "@/components/selection/ProjectInfoForm";
 import { DesignConditionsForm } from "@/components/selection/DesignConditionsForm";
 import { ResultsTable } from "@/components/selection/ResultsTable";
@@ -31,6 +32,8 @@ export default function SelectPage() {
       ? VRFLayoutBuilder
       : isVRF && step === 4
       ? VRFDesignConditions
+      : isVRF && step === 5
+      ? VRFSystemDiagram
       : (STEP_COMPONENTS[step - 1] ?? ProductGroupGrid);
 
   return (

@@ -155,7 +155,6 @@ export function OptionsConfigurator() {
                           <span className={`text-sm font-medium ${isChecked ? "text-[#0057B8]" : "text-foreground"}`}>
                             {opt.label}
                           </span>
-                          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{opt.description}</p>
                         </div>
                       </div>
                     );

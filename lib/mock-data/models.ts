@@ -3,7 +3,6 @@ import { NGW_MODELS } from './ngw-models';
 import { ACSC_MODELS } from './acsc-models';
 import { PNGC_MODELS } from './pngc-models';
 import { NGCC_MODELS } from './ngcc-models';
-import { CHCC_MODELS } from './chcc-models';
 import { PNGF_MODELS } from './pngf-models';
 import { ACC_BP_MODELS } from './acc-bp-models';
 import { ACC_ST_MODELS } from './acc-st-models';
@@ -59,8 +58,8 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'pngc': PNGC_MODELS,
   'ngcc': NGCC_MODELS,
   'ngcf': NGCC_MODELS,
-  'chcc': CHCC_MODELS,
-  'chcf': CHCC_MODELS,
+  'dstc': generateModels('dstc', 'DSTC', [5, 6, 7.5, 8.5, 10]),
+  'dstf': generateModels('dstf', 'DSTF', [5, 6, 7.5, 8.5, 10]),
   'ccu-std': CCU_MODELS,
 
   'phe': generateModels('phe', 'PHE', [3.5, 5, 7.5, 10, 12, 15]),

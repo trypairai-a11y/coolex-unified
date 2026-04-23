@@ -128,17 +128,6 @@ function decodeNGCC(modelNumber: string): NomenclatureSegment[] {
   ];
 }
 
-function decodeCHCC(modelNumber: string): NomenclatureSegment[] {
-  // CHCC-024  →  CHCC | 024
-  const match = modelNumber.match(/^(CHCC)-(\d{3})$/);
-  if (!match) return fallback(modelNumber);
-  const [, series, cap] = match;
-  return [
-    { code: series, label: 'Series', meaning: 'Compact High-Efficiency Concealed Ceiling — Ducted Split', color: C.series },
-    { code: cap, label: 'Capacity Code', meaning: `${parseInt(cap, 10)} MBH nominal`, color: C.capacity },
-  ];
-}
-
 // Generic decoder for series without real model data yet
 function decodeGeneric(modelNumber: string, seriesId: string): NomenclatureSegment[] {
   const SERIES_MEANINGS: Record<string, string> = {
@@ -155,9 +144,10 @@ function decodeGeneric(modelNumber: string, seriesId: string): NomenclatureSegme
     'prec-dc':    'Precision Data Center Cooling',
     'prec-tele':  'Precision Telecom Cooling',
     'fcu':        'Chilled Water Fan Coil Unit',
-    'cipk':       'CIPK Compact Packaged Unit',
+    'rpui':       'RPUI Rooftop Packaged Unit',
     'spu':        'SPU Split Packaged Unit',
-    'chcf':       'CHCF Concealed Ducted Split (R-410A)',
+    'dstc':       'DSTC Ducted Split Tropical (R-407C)',
+    'dstf':       'DSTF Ducted Split Tropical (R-410A)',
     'ngcf':       'NGCF New Generation Ducted Split (R-410A)',
   };
 
@@ -212,7 +202,8 @@ const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
   'pngc':       { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'pngf':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'ngcc':       { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
-  'chcc':       { refrigerant: 'R407C', voltage: '220', phase: '1', frequency: '50', compressorType: 'SL' },
+  'dstc':       { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
+  'dstf':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'split-cs':   { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'split-ds':   { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'IV' },
   'ms-wall':    { refrigerant: 'R32',   voltage: '220', phase: '1', frequency: '50', compressorType: 'IV' },
@@ -226,9 +217,8 @@ const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
   'prec-dc':    { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'prec-tele':  { refrigerant: 'R410A', voltage: '220', phase: '1', frequency: '50', compressorType: 'IV' },
   'fcu':        { refrigerant: '',      voltage: '220', phase: '1', frequency: '50', compressorType: '' },
-  'cipk':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
+  'rpui':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'spu':        { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
-  'chcf':       { refrigerant: 'R410A', voltage: '220', phase: '1', frequency: '50', compressorType: 'SL' },
   'ngcf':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
 };
 
@@ -245,8 +235,6 @@ export function decodeNomenclature(modelNumber: string, seriesId: string): Nomen
     case 'pngf': return decodePNGF(modelNumber);
     case 'ngcc': return decodeNGCC(modelNumber);
     case 'ngcf': return decodeNGCC(modelNumber);
-    case 'chcc': return decodeCHCC(modelNumber);
-    case 'chcf': return decodeCHCC(modelNumber);
     default:     return decodeGeneric(modelNumber, seriesId);
   }
 }

@@ -275,9 +275,6 @@ export function VRFDesignConditions() {
                               >
                                 {label}
                               </p>
-                              <p className="text-[11px] text-[#8894AB] leading-snug mt-0.5">
-                                {description}
-                              </p>
                             </div>
 
                             <div
