@@ -514,6 +514,6 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isCCU: false,
     hasDualRefrigerant: false,
     speedType: 'fixed',
-    imageUrl: '/images/rooftop-pac-4fan.png',
+    imageUrl: '/images/spu.png',
   },
 ];
