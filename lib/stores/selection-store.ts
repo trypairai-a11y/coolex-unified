@@ -143,38 +143,31 @@ export const useSelectionStore = create<SelectionState>()(
           : [...state.selectedOptions, optionId],
       })),
 
-      navigateBack: (toStep) => set((state) => {
+      navigateBack: (toStep) => set(() => {
         // Step order: 1=ProjectInfo, 2=Group, 3=Series, 4=Design, 5=Results, 6=Options, 7=Submittal
+        // Preserve user-entered data (projectInfo, designConditions, selectionBasis).
+        // setSelectedGroup / setSelectedSeries already clear designConditions if the
+        // user actually picks a different group or series after going back.
         const updates: Partial<SelectionState> = { step: toStep };
         if (toStep <= 1) {
-          // Back to Project Info - clear everything downstream
-          updates.selectionBasis = 'capacity';
           updates.selectedGroup = null;
           updates.selectedSeries = null;
-          updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
           updates.vrfLayout = null;
           updates.addUnitTargetProjectId = null;
         } else if (toStep <= 2) {
-          // Back to Group - keep projectInfo, clear group + downstream
-          updates.selectionBasis = 'capacity';
           updates.selectedGroup = null;
           updates.selectedSeries = null;
-          updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
           updates.vrfLayout = null;
         } else if (toStep <= 3) {
-          // Back to Series/Layout - keep projectInfo + group, clear series + downstream
           updates.selectedSeries = null;
-          updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
           updates.vrfLayout = null;
         } else if (toStep <= 4) {
-          // Back to Design Conditions - keep through series, clear design+
-          updates.designConditions = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
         } else if (toStep <= 5) {

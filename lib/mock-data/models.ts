@@ -4,9 +4,10 @@ import { ACSC_MODELS } from './acsc-models';
 import { PNGC_MODELS } from './pngc-models';
 import { NGCC_MODELS } from './ngcc-models';
 import { PNGF_MODELS } from './pngf-models';
-import { ACC_BP_MODELS } from './acc-bp-models';
-import { ACC_ST_MODELS } from './acc-st-models';
+import { ACC_BP_MODELS, getACCBPPerformance } from './acc-bp-models';
+import { ACC_ST_MODELS, getACCSTPerformance } from './acc-st-models';
 import { CCU_MODELS } from './ccu-models';
+import { fToC } from '@/lib/utils/unit-conversions';
 
 // Helper to generate realistic mock models for a series
 function generateModels(seriesId: string, prefix: string, capacities: number[]): Model[] {
@@ -85,6 +86,48 @@ export interface EvaporatorConditions {
   enteringDBF?: number;
   enteringWBF?: number;
   espInWG?: number;
+  // Chiller-only: design-point lookup keys for tabulated performance matrices
+  leavingWaterTempF?: number;
+  ambientTempF?: number;
+}
+
+const BTUH_PER_KW = 3412.142;
+const KW_PER_TON = 3.51685;
+
+/**
+ * For tabulated chiller series (ACC-BP, ACC-ST), recompute capacity / power / EER
+ * at the user's design point (LCWT + ambient) instead of the catalogue T1 rating.
+ * Snaps to the nearest tabulated grid point in each axis.
+ */
+function applyChillerDesignPoint(
+  seriesId: string,
+  models: Model[],
+  cond?: EvaporatorConditions,
+): Model[] {
+  if (cond?.leavingWaterTempF == null || cond?.ambientTempF == null) return models;
+  const lookup =
+    seriesId === 'acc-bp' ? getACCBPPerformance :
+    seriesId === 'acc-st' ? getACCSTPerformance :
+    null;
+  if (!lookup) return models;
+
+  const lcwtC = fToC(cond.leavingWaterTempF);
+  const ambientC = fToC(cond.ambientTempF);
+
+  return models.map(m => {
+    const perf = lookup(m.modelNumber, lcwtC, ambientC);
+    if (!perf) return m;
+    const totalCapacityBtuh = Math.round(perf.capacityKW * BTUH_PER_KW);
+    const eer = Math.round((totalCapacityBtuh / (perf.compressorKW * 1000)) * 100) / 100;
+    return {
+      ...m,
+      totalCapacityBtuh,
+      sensibleCapacityBtuh: totalCapacityBtuh,
+      powerKW: perf.compressorKW,
+      eer,
+      nominalTons: Math.round((perf.capacityKW / KW_PER_TON) * 100) / 100,
+    };
+  });
 }
 
 /**
@@ -123,7 +166,7 @@ export function getModelsMatchingCapacity(
   requestedBtuh: number,
   conditions?: EvaporatorConditions,
 ): Model[] {
-  const models = getModelsForSeries(seriesId);
+  const models = applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), conditions);
   if (models.length === 0) return [];
 
   const corrFactor = capacityCorrectionFactor(conditions ?? {});

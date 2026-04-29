@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { btuhToKw, fToC, cfmToM3h, round, toDisplay, unitLabel } from "@/lib/utils/unit-conversions";
+import { btuhToKw, fToC, cfmToM3h, round } from "@/lib/utils/unit-conversions";
 import type { VRFIndoorType } from "@/types/selection";
 
 const INDOOR_SPEC_PROFILE: Record<
@@ -105,7 +105,6 @@ export function VRFDesignConditions() {
   const unitSystem = useUnitStore((s) => s.unitSystem);
   const isMetric = unitSystem === "metric";
   const [view, setView] = useState<VRFView>("indoor");
-  const [ambientTempF, setAmbientTempF] = useState<number>(95);
 
   if (!vrfLayout) {
     return (
@@ -197,9 +196,6 @@ export function VRFDesignConditions() {
           recommendedOutdoorTons={recommendedOutdoorTons}
           combinationRatio={combinationRatio}
           indoorCount={allRooms.length}
-          ambientTempF={ambientTempF}
-          onAmbientChange={setAmbientTempF}
-          unitSystem={unitSystem}
           isMetric={isMetric}
         />
       ) : (
@@ -318,10 +314,6 @@ export function VRFDesignConditions() {
                           },
                           { label: "Power", value: s ? `${s.powerKW} kW` : "—" },
                           {
-                            label: isMetric ? "COP" : "EER",
-                            value: s ? (isMetric ? String(round(s.eer / 3.412, 2)) : String(s.eer)) : "—",
-                          },
-                          {
                             label: "Airflow",
                             value: s
                               ? isMetric
@@ -431,9 +423,6 @@ function OutdoorPanel({
   recommendedOutdoorTons,
   combinationRatio,
   indoorCount,
-  ambientTempF,
-  onAmbientChange,
-  unitSystem,
   isMetric,
 }: {
   totalCapacityKbtuh: number;
@@ -441,9 +430,6 @@ function OutdoorPanel({
   recommendedOutdoorTons: number;
   combinationRatio: number;
   indoorCount: number;
-  ambientTempF: number;
-  onAmbientChange: (v: number) => void;
-  unitSystem: "imperial" | "metric";
   isMetric: boolean;
 }) {
   const OUTDOOR_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 48];
@@ -454,14 +440,16 @@ function OutdoorPanel({
   const effectiveCombinationRatio =
     effectiveTons > 0 ? (totalCapacityTons / effectiveTons) * 100 : 0;
   const outdoorModel = `VRF-OU-${String(effectiveTons).padStart(3, "0")}`;
-  const displayAmbient = toDisplay(ambientTempF, "ambientTempF", unitSystem);
-  const ambientUnit = unitLabel("ambientTempF", unitSystem);
   const totalCapacityDisplay = isMetric
     ? `${round(btuhToKw(totalCapacityKbtuh * 1000), 1)} kW`
     : `${totalCapacityKbtuh.toFixed(0)} kBTU/h`;
   const effectiveCapacityDisplay = isMetric
     ? `${round(btuhToKw(effectiveTons * 12000), 1)} kW`
     : `${(effectiveTons * 12).toFixed(0)} kBTU/h`;
+  const totalEer = Math.max(8, 11.8 - Math.abs(effectiveCombinationRatio - 100) * 0.02);
+  const totalCop = totalEer / 3.412;
+  const eerDisplayValue = isMetric ? totalCop.toFixed(2) : totalEer.toFixed(1);
+  const eerDisplayUnit = isMetric ? "COP (W/W)" : "Btu/Wh";
   // suppress unused-var lint for prop we now derive locally
   void combinationRatio;
 
@@ -510,7 +498,7 @@ function OutdoorPanel({
         </div>
 
         <div className="px-5 sm:px-6 py-5 space-y-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Total Indoor Load</p>
               <p className="text-[14px] font-bold text-[#0D1626] mt-1">{totalCapacityDisplay}</p>
@@ -539,43 +527,15 @@ function OutdoorPanel({
               <p className="text-[14px] font-bold text-[#0D1626] mt-1">{indoorCount}</p>
               <p className="text-[11px] text-[#8894AB] mt-0.5">connected</p>
             </div>
+            <div className="rounded-lg border border-[#E2E8F4] bg-white p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB]">Total EER</p>
+              <p className="text-[14px] font-bold text-[#0D1626] mt-1">{eerDisplayValue}</p>
+              <p className="text-[11px] text-[#8894AB] mt-0.5">{eerDisplayUnit}</p>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[#F0F4FB]">
-            <div>
-              <Label htmlFor="outdoor-ambient" className="text-xs font-semibold text-[#0D1626]">
-                Design Ambient Temperature ({ambientUnit})
-              </Label>
-              <Input
-                id="outdoor-ambient"
-                type="number"
-                step="0.1"
-                className="mt-1.5"
-                value={displayAmbient}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (Number.isNaN(v)) return;
-                  onAmbientChange(unitSystem === "metric" ? round((v * 9) / 5 + 32, 1) : v);
-                }}
-              />
-              <div className="flex gap-2 pt-2">
-                {[
-                  { label: "T1", f: 95 },
-                  { label: "T3", f: 115 },
-                  { label: "T4", f: 118 },
-                ].map(({ label, f }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => onAmbientChange(f)}
-                    className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
+          <div className="pt-2 border-t border-[#F0F4FB]">
+            <div className="max-w-md">
               <Label className="text-xs font-semibold text-[#0D1626]">Outdoor Unit Model</Label>
               <Select
                 value={String(effectiveTons)}

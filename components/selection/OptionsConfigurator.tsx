@@ -49,9 +49,10 @@ const CATEGORY_CONFIG: Record<string, { label: string; description: string; icon
 };
 
 export function OptionsConfigurator() {
-  const { selectedSeries, selectedModels, selectedOptions, designConditions, toggleOption, setStep, navigateBack } = useSelectionStore();
+  const { selectedGroup, selectedSeries, selectedModels, selectedOptions, designConditions, toggleOption, setStep, navigateBack } = useSelectionStore();
 
-  const { data: options, isLoading, isError } = useOptions(selectedSeries?.id ?? null);
+  const optionsSeriesId = selectedGroup?.id === 'vrf' ? 'vrf' : selectedSeries?.id ?? null;
+  const { data: options, isLoading, isError } = useOptions(optionsSeriesId);
 
   const primaryModel = selectedModels[0] ?? null;
   const dc = designConditions as Record<string, number> | null;

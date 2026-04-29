@@ -116,6 +116,17 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'dhac-bms', category: 'electrical', label: 'Building Management System (BMS)', description: 'BACnet / Modbus interface for integration with site building management system', priceAdderKWD: 285, applicableSeriesIds: ['dhac'] },
   { id: 'dhac-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['dhac'] },
 
+  // ── VRF — Variable Refrigerant Flow Series ──
+  // Construction
+  { id: 'vrf-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan with 1" NPT drain connection', priceAdderKWD: 45, applicableSeriesIds: ['vrf'] },
+  { id: 'vrf-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: ['vrf'] },
+  { id: 'vrf-evap-coat', category: 'construction', label: 'Evaporator Coil Protective Coating', description: 'Electrofin E-Coat on evaporator coil for corrosive environments', priceAdderKWD: 120, applicableSeriesIds: ['vrf'] },
+  { id: 'vrf-copper-evap', category: 'construction', label: 'Copper Fins - Evaporator', description: 'Copper fins on evaporator coil for enhanced durability in harsh environments', priceAdderKWD: 180, applicableSeriesIds: ['vrf'] },
+  { id: 'vrf-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: ['vrf'] },
+
+  // Refrigeration
+  { id: 'vrf-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['vrf'] },
+
   // ── THAC — Air-Cooled Chiller (Brazed Plate HX) Series ──
   // Construction
   { id: 'thac-spring-isolator', category: 'construction', label: 'Unit Mounting Spring Isolator', description: 'Spring-type vibration isolators for reduced structural noise and vibration transmission', priceAdderKWD: 175, applicableSeriesIds: ['thac'] },
@@ -131,7 +142,7 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'thac-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['thac'] },
 ];
 
-const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac'];
+const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac', 'vrf'];
 
 export function getOptionsForSeries(seriesId: string): EquipmentOption[] {
   if (CURATED_ONLY_SERIES_IDS.includes(seriesId)) {

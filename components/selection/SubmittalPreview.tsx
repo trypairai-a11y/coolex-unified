@@ -38,6 +38,7 @@ export function SubmittalPreview() {
   const router = useRouter();
 
   const {
+    selectedGroup,
     selectedModels,
     selectedSeries,
     selectedOptions,
@@ -55,7 +56,8 @@ export function SubmittalPreview() {
   const selectedModel = selectedModels[0] ?? null;
   const showPricing = user?.role !== "dealer";
 
-  const { data: allOptions } = useOptions(selectedSeries?.id ?? null);
+  const optionsSeriesId = selectedGroup?.id === 'vrf' ? 'vrf' : selectedSeries?.id ?? null;
+  const { data: allOptions } = useOptions(optionsSeriesId);
   const chosenOptions: SubmittalOption[] = (allOptions ?? [])
     .filter(o => selectedOptions.includes(o.id))
     .map(o => ({ id: o.id, label: o.label, priceAdderKWD: o.priceAdderKWD }));
@@ -225,12 +227,15 @@ export function SubmittalPreview() {
       </div>
 
       {/* Summary bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className={`grid grid-cols-1 gap-4 mb-6 ${selectedSeries?.isChiller ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         {[
           { label: "Model", value: selectedModel.modelNumber, mono: true },
           { label: "Total Capacity", value: unitSystem === "metric"
             ? `${round(btuhToKw(selectedModel.totalCapacityBtuh), 1)} kW`
             : `${(selectedModel.totalCapacityBtuh / 1000).toFixed(0)}k Btu/h` },
+          ...(selectedSeries?.isChiller
+            ? [{ label: "Tonnage", value: `${round(selectedModel.nominalTons, 1)} TR` }]
+            : []),
           { label: "Options Selected", value: `${chosenOptions.length} items` },
         ].map(item => (
           <div key={item.label} className="bg-card border rounded-lg p-3">

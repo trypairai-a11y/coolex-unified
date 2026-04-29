@@ -12,7 +12,7 @@ import { NomenclatureInline } from "@/components/selection/NomenclatureBreakdown
 import type { Model } from "@/types/product";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { btuhToKw, fToC, cfmToM3h, gpmToLps, round } from "@/lib/utils/unit-conversions";
+import { btuhToKw, btuhToTons, fToC, cfmToM3h, gpmToLps, round } from "@/lib/utils/unit-conversions";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
 
@@ -55,6 +55,8 @@ export function ResultsTable() {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,
     espInWG: dc?.espInWG,
+    leavingWaterTempF: dc?.leavingWaterTempF,
+    ambientTempF: dc?.ambientTempF,
   };
   const { data: models, isLoading, isError } = useModels(selectedSeries?.id ?? null, capacityBtuh, basis, airflowCFM, evapConditions);
 
@@ -166,8 +168,8 @@ export function ResultsTable() {
                       <div className="font-medium">{model.powerKW} kW</div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground">{isMetric ? "COP" : "EER"}</div>
-                      <div className="font-medium">{isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
+                      <div className="text-muted-foreground">{isChiller || isMetric ? "COP" : "EER"}</div>
+                      <div className="font-medium">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
                     </div>
                     {isChiller ? (
                       <>
@@ -247,6 +249,7 @@ export function ResultsTable() {
                     <TH label="Model" />
                     <TH label="Match %" sortable="matchPercent" />
                     <TH label="Total Cap." sortable="totalCapacityBtuh" />
+                    <TH label="Tons" sortable="totalCapacityBtuh" />
                     {isChiller ? (
                       <>
                         <TH label={isMetric ? "Water In/Out (°C)" : "Water In/Out (°F)"} />
@@ -261,7 +264,7 @@ export function ResultsTable() {
                       <TH label="Sensible Cap." sortable="sensibleCapacityBtuh" />
                     )}
                     <TH label="Power (kW)" sortable="powerKW" />
-                    <TH label={isMetric ? "COP" : "EER"} sortable="eer" />
+                    <TH label={isChiller || isMetric ? "COP" : "EER"} sortable="eer" />
                     {!isChiller && !isCCU && (
                       <>
                         <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
@@ -308,6 +311,9 @@ export function ResultsTable() {
                         <td className="px-4 py-3 text-black">
                           {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
                         </td>
+                        <td className="px-4 py-3 text-black">
+                          {round(btuhToTons(model.totalCapacityBtuh), 1)} TR
+                        </td>
                         {isChiller ? (
                           <>
                             <td className="px-4 py-3 text-black text-xs">
@@ -349,7 +355,7 @@ export function ResultsTable() {
                         )}
                         <td className="px-4 py-3 text-black">{model.powerKW}</td>
                         <td className="px-4 py-3">
-                          <span className="text-black">{isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
+                          <span className="text-black">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
                         </td>
                         {!isChiller && !isCCU && (
                           <>

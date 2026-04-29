@@ -60,6 +60,11 @@ export function kwToBtuh(kw: number): number {
   return kw * BTU_PER_KW;
 }
 
+// 1 refrigeration ton = 12,000 Btu/h
+export function btuhToTons(btuh: number): number {
+  return btuh / 12000;
+}
+
 // --- Round helper ---
 export function round(value: number, decimals: number = 1): number {
   const factor = Math.pow(10, decimals);

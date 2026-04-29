@@ -118,7 +118,7 @@ export function DesignConditionsForm() {
   const imperialDefaults: FormData = {
     requiredCoolingCapacityBtuh: 120000,
     requiredAirflowCFM: 4000,
-    powerSupply: is50HzOnly ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
+    powerSupply: is50HzOnly || projectInfo?.country !== 'Saudi Arabia' ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
     enteringDBF: 80,
     enteringWBF: 67,
     espInWG: 0.5,
@@ -152,6 +152,13 @@ export function DesignConditionsForm() {
   const wWB = watch("enteringWBF");
   const wEWT = watch("enteringWaterTempF");
   const wLWT = watch("leavingWaterTempF");
+  const wGPM = watch("waterFlowRateGPM");
+
+  // Chillers: user enters EWT (required) and EITHER LWT or GPM. The other is
+  // auto-calculated via GPM = 24 × TR / ΔT (water-side balance, °F + GPM).
+  // `chillerAnchor` records which field the user typed into so the opposite
+  // one is the derived value.
+  const [chillerAnchor, setChillerAnchor] = useState<"lwt" | "gpm">("lwt");
 
   // Tonnage sync (chillers only): 1 TR = 12,000 Btu/h = 3.51685 kW.
   // Local string state lets the user type partial numbers (e.g. "10.") without
@@ -190,6 +197,54 @@ export function DesignConditionsForm() {
     );
   };
 
+  // Chiller water-side auto-calc — GPM derived from LWT
+  useEffect(() => {
+    if (!isChiller) return;
+    if (chillerAnchor !== "lwt") return;
+    if (wEWT == null || wLWT == null || wCapacity == null) return;
+    const ewtNum = Number(wEWT);
+    const lwtNum = Number(wLWT);
+    const capNum = Number(wCapacity);
+    if (isNaN(ewtNum) || isNaN(lwtNum) || isNaN(capNum)) return;
+    const ewtF = toImperial(ewtNum, "enteringWaterTempF", unitSystem);
+    const lwtF = toImperial(lwtNum, "leavingWaterTempF", unitSystem);
+    const capBtuh = toImperial(capNum, "requiredCoolingCapacityBtuh", unitSystem);
+    const dT = ewtF - lwtF;
+    if (dT <= 0 || capBtuh <= 0) return;
+    const tr = capBtuh / 12000;
+    const gpm = (24 * tr) / dT;
+    if (!isFinite(gpm)) return;
+    const next = toDisplay(round(gpm, 2), "waterFlowRateGPM", unitSystem);
+    const current = Number(getValues("waterFlowRateGPM") ?? NaN);
+    if (isNaN(current) || Math.abs(current - next) > 0.01) {
+      setValue("waterFlowRateGPM", next as never, { shouldDirty: true });
+    }
+  }, [isChiller, chillerAnchor, wEWT, wLWT, wCapacity, unitSystem, getValues, setValue]);
+
+  // Chiller water-side auto-calc — LWT derived from GPM
+  useEffect(() => {
+    if (!isChiller) return;
+    if (chillerAnchor !== "gpm") return;
+    if (wEWT == null || wGPM == null || wCapacity == null) return;
+    const ewtNum = Number(wEWT);
+    const gpmNum = Number(wGPM);
+    const capNum = Number(wCapacity);
+    if (isNaN(ewtNum) || isNaN(gpmNum) || isNaN(capNum)) return;
+    const ewtF = toImperial(ewtNum, "enteringWaterTempF", unitSystem);
+    const gpmI = toImperial(gpmNum, "waterFlowRateGPM", unitSystem);
+    const capBtuh = toImperial(capNum, "requiredCoolingCapacityBtuh", unitSystem);
+    if (gpmI <= 0 || capBtuh <= 0) return;
+    const tr = capBtuh / 12000;
+    const dT = (24 * tr) / gpmI;
+    const lwtF = ewtF - dT;
+    if (!isFinite(lwtF)) return;
+    const next = toDisplay(round(lwtF, 1), "leavingWaterTempF", unitSystem);
+    const current = Number(getValues("leavingWaterTempF") ?? NaN);
+    if (isNaN(current) || Math.abs(current - next) > 0.05) {
+      setValue("leavingWaterTempF", next as never, { shouldDirty: true });
+    }
+  }, [isChiller, chillerAnchor, wEWT, wGPM, wCapacity, unitSystem, getValues, setValue]);
+
   // When unit system changes (from TopBar toggle), convert all visible values in-place
   useEffect(() => {
     const prevSystem = prevUnitRef.current;
@@ -222,8 +277,11 @@ export function DesignConditionsForm() {
     : isThreePhaseOnly
     ? ["400-415V/3Ph/50Hz", "380-400V/3Ph/60Hz"]
     : ["230-240V/1Ph/50Hz", "400-415V/3Ph/50Hz", "230V/1Ph/60Hz", "230V/3Ph/60Hz", "380-400V/3Ph/60Hz", "460V/3Ph/60Hz"];
+  const filtered50Hz = basePowerSupplies.filter(p => p.includes("50Hz"));
   const filtered60Hz = basePowerSupplies.filter(p => p.includes("60Hz"));
-  const POWER_SUPPLIES = isSaudiArabia && filtered60Hz.length > 0 ? filtered60Hz : basePowerSupplies;
+  const POWER_SUPPLIES = isSaudiArabia
+    ? (filtered60Hz.length > 0 ? filtered60Hz : basePowerSupplies)
+    : (filtered50Hz.length > 0 ? filtered50Hz : basePowerSupplies);
 
   // Reset the selected power supply if the current value is no longer valid (e.g., after switching to Saudi Arabia).
   useEffect(() => {
@@ -424,7 +482,7 @@ export function DesignConditionsForm() {
             <div className="space-y-1.5">
               <Label>Power Supply <span className="text-destructive">*</span></Label>
               <Select
-                value={getValues("powerSupply") || (is50HzOnly ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz")}
+                value={getValues("powerSupply") || POWER_SUPPLIES[0]}
                 onValueChange={(v) => setValue("powerSupply", v)}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -578,9 +636,16 @@ export function DesignConditionsForm() {
         )}
 
         {/* Chiller-specific */}
-        {isChiller && (
+        {isChiller && (() => {
+          const lwtFilled = wLWT != null && String(wLWT) !== "";
+          const gpmFilled = wGPM != null && String(wGPM) !== "";
+          const eitherFilled = lwtFilled || gpmFilled;
+          return (
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Hydronic / Chiller Conditions</h3>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Enter the entering water temp, then either the leaving water temp <em>or</em> the water flow rate — the other is calculated for you using <span className="font-mono">GPM = 24 × TR / ΔT</span>.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FieldWithTooltip
                 label={`Entering Water Temp (${u('enteringWaterTempF')})`}
@@ -592,21 +657,42 @@ export function DesignConditionsForm() {
               </FieldWithTooltip>
               <FieldWithTooltip
                 label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
-                tooltip="Chilled water supply temperature leaving the evaporator."
+                tooltip="Chilled water supply temperature leaving the evaporator. Auto-calculated from the flow rate if you enter that instead."
                 required
-                filled={wLWT != null && String(wLWT) !== ""}
+                filled={eitherFilled}
               >
-                <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
+                <Input
+                  type="number"
+                  step="0.1"
+                  {...register("leavingWaterTempF", {
+                    onChange: () => setChillerAnchor("lwt"),
+                  })}
+                />
+                {chillerAnchor === "gpm" && (
+                  <p className="text-[11px] text-muted-foreground">Auto-calculated from flow rate</p>
+                )}
               </FieldWithTooltip>
               <FieldWithTooltip
                 label={`Water Flow Rate (${u('waterFlowRateGPM')})`}
-                tooltip="Chilled water flow rate through the evaporator."
+                tooltip="Chilled water flow rate through the evaporator. Auto-calculated from the leaving water temp if you enter that instead."
+                required
+                filled={eitherFilled}
               >
-                <Input type="number" step="0.01" {...register("waterFlowRateGPM")} />
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...register("waterFlowRateGPM", {
+                    onChange: () => setChillerAnchor("gpm"),
+                  })}
+                />
+                {chillerAnchor === "lwt" && (
+                  <p className="text-[11px] text-muted-foreground">Auto-calculated from leaving water temp</p>
+                )}
               </FieldWithTooltip>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Dual refrigerant */}
         {selectedSeries?.hasDualRefrigerant && (

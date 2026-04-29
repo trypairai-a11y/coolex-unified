@@ -70,16 +70,20 @@ const HORIZ_PAD = 70;
 const TOP_PAD = 24;
 const BOTTOM_PAD = 40;
 
+// Trunk sits on the left, ODU centered above it.
+const TRUNK_X = HORIZ_PAD + ODU_W / 2;
+
 const DEFAULT_MAIN_TRUNK_FT = 20;
-const DEFAULT_FLOOR_GAP_FT = 12;
+const DEFAULT_FLOOR_GAP_FT = 14;
 const DEFAULT_BRANCH_SEG_FT = 8;
-const DEFAULT_DROP_FT = 6;
 
 // Visual scale — pixels per foot. Kept small so long trunks don't explode the canvas.
 const V_PX_PER_FT = 4.5;
 const H_PX_PER_FT = 11;
-const MIN_V_PX = 44;
-const MIN_H_PX = 100;
+// Minimums leave enough clearance around each card so the branch line is visible
+// between siblings (cards are centered vertically on the branch).
+const MIN_V_PX = 90;
+const MIN_H_PX = 140;
 
 function vPx(ft: number) {
   return Math.max(MIN_V_PX, ft * V_PX_PER_FT);
@@ -161,12 +165,9 @@ interface FloorLayout {
   floorId: string;
   floorNumber: number;
   floorIndex: number;
-  y: number; // branch line y
-  rooms: (FlattenedRoom & { x: number; cardTop: number; dropPx: number })[];
-  branchStartX: number;
+  y: number; // branch line y — also the vertical center of every card on this floor
+  rooms: (FlattenedRoom & { x: number; cardTop: number })[];
   branchEndX: number;
-  trunkX: number;
-  maxDropPx: number;
 }
 
 export function VRFSystemDiagram() {
@@ -244,16 +245,13 @@ export function VRFSystemDiagram() {
     DEFAULT_FLOOR_GAP_FT
   );
 
-  const branchSegKeys = floorsData.flatMap((f) =>
-    f.rooms.slice(1).map((r) => r.id)
-  );
+  // Every indoor unit has a horizontal branch segment: the first connects to the
+  // trunk; subsequent ones connect to the previous sibling.
+  const branchSegKeys = floorsData.flatMap((f) => f.rooms.map((r) => r.id));
   const [branchFt, setBranchFt, setBranchAll] = useLengthState(
     branchSegKeys,
     DEFAULT_BRANCH_SEG_FT
   );
-
-  const dropKeys = floorsData.flatMap((f) => f.rooms.map((r) => r.id));
-  const [dropFt, setDropFt, setDropAll] = useLengthState(dropKeys, DEFAULT_DROP_FT);
 
   const resetLengths = () => {
     setMainTrunkFt(DEFAULT_MAIN_TRUNK_FT);
@@ -267,86 +265,73 @@ export function VRFSystemDiagram() {
       for (const k of Object.keys(prev)) next[k] = DEFAULT_BRANCH_SEG_FT;
       return next;
     });
-    setDropAll((prev) => {
-      const next: Record<string, number> = {};
-      for (const k of Object.keys(prev)) next[k] = DEFAULT_DROP_FT;
-      return next;
-    });
   };
 
   // Geometry — derived from live ft state so the diagram grows/shrinks as lengths change.
   const mainTrunkPx = vPx(mainTrunkFt);
 
-  const widestRowPx = useMemo(() => {
+  // Right-extension from trunk needed to fit every floor's branch + last unit.
+  const widestExtentPx = useMemo(() => {
     return Math.max(
-      ODU_W + 80,
+      ODU_W / 2 + 8, // ODU half-width sits to the right of trunk
       ...floorsData.map((f) => {
-        if (f.rooms.length <= 1) return INDOOR_IMG_W;
-        const segs = f.rooms
-          .slice(1)
-          .map((r) => hPx(branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT));
-        return segs.reduce((a, b) => a + b, 0) + INDOOR_IMG_W;
+        const segSum = f.rooms
+          .map((r) => hPx(branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT))
+          .reduce((a, b) => a + b, 0);
+        return segSum + INDOOR_IMG_W / 2;
       })
     );
   }, [floorsData, branchFt]);
 
-  const canvasW = widestRowPx + 2 * HORIZ_PAD;
-  const centerX = canvasW / 2;
+  const canvasW = TRUNK_X + widestExtentPx + HORIZ_PAD;
 
   const floorLayouts: FloorLayout[] = useMemo(() => {
     const layouts: FloorLayout[] = [];
-    let y = TOP_PAD + ODU_BLOCK_H + mainTrunkPx;
+    // First floor branch sits below ODU. Cards are vertically centered on the branch,
+    // so the visible trunk run from ODU bottom to firstBranchY equals mainTrunkPx
+    // plus half a card so the first card doesn't crowd the ODU.
+    let y = TOP_PAD + ODU_BLOCK_H + INDOOR_BLOCK_H / 2 + mainTrunkPx;
     floorsData.forEach((f, i) => {
       if (i > 0) {
         const prev = layouts[i - 1];
         const gapPx = vPx(floorSegFt[f.floorId] ?? DEFAULT_FLOOR_GAP_FT);
-        y = prev.y + prev.maxDropPx + INDOOR_BLOCK_H + gapPx;
+        // Leave gapPx of clear trunk between the bottom of the previous floor's
+        // cards and the top of this floor's cards.
+        y = prev.y + INDOOR_BLOCK_H + gapPx;
       }
-      const n = f.rooms.length;
-      const segPxs = f.rooms
-        .slice(1)
-        .map((r) => hPx(branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT));
-      const rowW = segPxs.reduce((a, b) => a + b, 0);
-      const startX = centerX - rowW / 2;
-      let cursorX = startX;
+      const segPxs = f.rooms.map((r) => hPx(branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT));
+      let cursorX = TRUNK_X;
       const rooms = f.rooms.map((r, idx) => {
-        if (idx > 0) cursorX += segPxs[idx - 1];
-        const dropPx = vPx(dropFt[r.id] ?? DEFAULT_DROP_FT);
+        cursorX += segPxs[idx];
         return {
           ...r,
           x: cursorX,
-          dropPx,
-          cardTop: y + dropPx,
+          cardTop: y - INDOOR_BLOCK_H / 2,
         };
       });
-      const maxDropPx = Math.max(...rooms.map((r) => r.dropPx));
       layouts.push({
         floorId: f.floorId,
         floorNumber: f.floorNumber,
         floorIndex: f.floorIndex,
         y,
         rooms,
-        branchStartX: n === 1 ? centerX : startX,
-        branchEndX: n === 1 ? centerX : startX + rowW,
-        trunkX: centerX,
-        maxDropPx,
+        branchEndX: cursorX,
       });
     });
     return layouts;
-  }, [floorsData, centerX, mainTrunkPx, floorSegFt, branchFt, dropFt]);
+  }, [floorsData, mainTrunkPx, floorSegFt, branchFt]);
 
   const lastFloor = floorLayouts[floorLayouts.length - 1];
   const canvasH =
     (lastFloor
-      ? lastFloor.y + lastFloor.maxDropPx + INDOOR_BLOCK_H
+      ? lastFloor.y + INDOOR_BLOCK_H / 2
       : TOP_PAD + ODU_BLOCK_H) + BOTTOM_PAD;
 
   // Totals
   const totalPipeFt =
     mainTrunkFt +
     Object.values(floorSegFt).reduce((a, b) => a + b, 0) +
-    Object.values(branchFt).reduce((a, b) => a + b, 0) +
-    Object.values(dropFt).reduce((a, b) => a + b, 0);
+    Object.values(branchFt).reduce((a, b) => a + b, 0);
 
   if (!vrfLayout || allRooms.length === 0) {
     return (
@@ -460,52 +445,42 @@ export function VRFSystemDiagram() {
               </marker>
             </defs>
 
-            {/* Main trunk: from bottom of ODU to first floor branch */}
+            {/* Main trunk: from bottom of ODU down to the first floor's branch line. */}
             <Pipe
-              x1={centerX}
+              x1={TRUNK_X}
               y1={oduBottomY}
-              x2={centerX}
+              x2={TRUNK_X}
               y2={firstBranchY}
             />
 
-            {/* Trunk between floors (through indoor row back down) */}
+            {/* Trunk between floors: from previous floor's branch line straight down
+                to the next floor's branch line. The trunk runs entirely to the left
+                of every card, so it's always visible as one continuous line. */}
             {floorLayouts.slice(1).map((f, i) => {
               const prev = floorLayouts[i];
-              const prevRowBottom = prev.y + prev.maxDropPx + INDOOR_BLOCK_H;
               return (
                 <Pipe
                   key={`trunk-${f.floorId}`}
-                  x1={centerX}
-                  y1={prevRowBottom}
-                  x2={centerX}
+                  x1={TRUNK_X}
+                  y1={prev.y}
+                  x2={TRUNK_X}
                   y2={f.y}
                 />
               );
             })}
 
-            {/* Per-floor branches + drops */}
+            {/* Per-floor horizontal branches — one continuous line from the trunk
+                to the last indoor unit on the floor. Each card sits along this line. */}
             {floorLayouts.map((f) => (
               <g key={`floor-${f.floorId}`}>
-                {/* Horizontal branch line */}
-                {f.rooms.length > 1 && (
-                  <Pipe
-                    x1={f.branchStartX}
-                    y1={f.y}
-                    x2={f.branchEndX}
-                    y2={f.y}
-                    flowFrom={centerX}
-                  />
-                )}
+                <Pipe
+                  x1={TRUNK_X}
+                  y1={f.y}
+                  x2={f.branchEndX}
+                  y2={f.y}
+                />
                 {/* Junction dot where trunk meets branch */}
-                <circle cx={centerX} cy={f.y} r={4} fill={PIPE_COLOR} />
-
-                {/* Drops + end caps */}
-                {f.rooms.map((r) => (
-                  <g key={`drop-${r.id}`}>
-                    <Pipe x1={r.x} y1={f.y} x2={r.x} y2={r.cardTop} />
-                    <circle cx={r.x} cy={f.y} r={3} fill={PIPE_COLOR} />
-                  </g>
-                ))}
+                <circle cx={TRUNK_X} cy={f.y} r={4} fill={PIPE_COLOR} />
               </g>
             ))}
           </svg>
@@ -513,7 +488,7 @@ export function VRFSystemDiagram() {
           {/* ODU card */}
           <UnitCard
             top={TOP_PAD}
-            left={centerX - ODU_W / 2}
+            left={TRUNK_X - ODU_W / 2}
             width={ODU_W}
             imageH={ODU_IMG_H}
             labelH={ODU_LABEL_H}
@@ -555,41 +530,43 @@ export function VRFSystemDiagram() {
           )}
 
           {/* Editable length labels */}
-          {/* Main trunk label */}
+          {/* Main trunk label — sits along the vertical trunk between ODU and floor 1 */}
           <PipeLabel
-            cx={centerX}
+            cx={TRUNK_X}
             cy={(oduBottomY + firstBranchY) / 2}
             valueFt={mainTrunkFt}
             onChange={setMainTrunkFt}
             isMetric={isMetric}
             orientation="vertical"
+            anchor="left"
           />
 
-          {/* Between-floor trunk labels */}
+          {/* Between-floor trunk labels — placed midway along the trunk between adjacent floors */}
           {floorLayouts.slice(1).map((f, i) => {
             const prev = floorLayouts[i];
-            const prevRowBottom = prev.y + prev.maxDropPx + INDOOR_BLOCK_H;
             return (
               <PipeLabel
                 key={`lbl-trunk-${f.floorId}`}
-                cx={centerX}
-                cy={(prevRowBottom + f.y) / 2}
+                cx={TRUNK_X}
+                cy={(prev.y + f.y) / 2}
                 valueFt={floorSegFt[f.floorId] ?? DEFAULT_FLOOR_GAP_FT}
                 onChange={(v) => setFloorSeg(f.floorId, v)}
                 isMetric={isMetric}
                 orientation="vertical"
+                anchor="left"
               />
             );
           })}
 
-          {/* Branch segment labels (between sibling indoors) */}
+          {/* Branch segment labels — one per indoor unit. The first connects from
+              trunk to that unit; subsequent ones connect prev sibling to this unit. */}
           {floorLayouts.flatMap((f) =>
-            f.rooms.slice(1).map((r, idx) => {
-              const prev = f.rooms[idx];
+            f.rooms.map((r, idx) => {
+              const prevX = idx === 0 ? TRUNK_X : f.rooms[idx - 1].x;
               return (
                 <PipeLabel
                   key={`lbl-branch-${r.id}`}
-                  cx={(prev.x + r.x) / 2}
+                  cx={(prevX + r.x) / 2}
                   cy={f.y}
                   valueFt={branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT}
                   onChange={(v) => setBranchFt(r.id, v)}
@@ -600,23 +577,7 @@ export function VRFSystemDiagram() {
             })
           )}
 
-          {/* Drop labels */}
-          {floorLayouts.flatMap((f) =>
-            f.rooms.map((r) => (
-              <PipeLabel
-                key={`lbl-drop-${r.id}`}
-                cx={r.x + 2}
-                cy={(f.y + r.cardTop) / 2}
-                valueFt={dropFt[r.id] ?? DEFAULT_DROP_FT}
-                onChange={(v) => setDropFt(r.id, v)}
-                isMetric={isMetric}
-                orientation="vertical"
-                anchor="left"
-              />
-            ))
-          )}
-
-          {/* Floor ribbon labels (left side) */}
+          {/* Floor ribbon labels — placed just left of trunk at each branch line */}
           {floorLayouts.map((f) => (
             <div
               key={`floor-ribbon-${f.floorId}`}
