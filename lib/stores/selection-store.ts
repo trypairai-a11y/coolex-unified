@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
 import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType } from '@/types/selection';
+import { pickVRFOutdoorTons, synthesizeVRFOutdoorModel } from '@/lib/utils/vrf';
 
 /** Key in vrfOptionsByUnit: 'odu' for the outdoor unit, otherwise a room id (indoor unit). */
 export type VRFUnitKey = 'odu' | string;
@@ -140,7 +141,13 @@ export const useSelectionStore = create<SelectionState>()(
           espInWG: 0,
           altitudeFt: 0,
         };
-        return { step: 5, designConditions };
+        // Hydrate selectedModels with the synthesized outdoor unit here (rather
+        // than relying on a useEffect inside the system-diagram step) so that
+        // the submittal step always has a model — even if the user navigates
+        // forward without the diagram component getting a chance to mount.
+        const oduTons = pickVRFOutdoorTons(totalKbtuh);
+        const oduModel = synthesizeVRFOutdoorModel(oduTons);
+        return { step: 5, designConditions, selectedModels: [oduModel] };
       }),
 
       setSelectedSeries: (series) => set({
@@ -240,7 +247,7 @@ export const useSelectionStore = create<SelectionState>()(
     }),
     {
       name: 'coolex-selection',
-      version: 3,
+      version: 4,
       migrate: () => initialState,
     }
     ),

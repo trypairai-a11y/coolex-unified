@@ -14,8 +14,8 @@ import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, round } from "@/lib/utils/unit-conversions";
+import { VRF_OUTDOOR_SIZES, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
 import type { VRFIndoorType } from "@/types/selection";
-import type { Model } from "@/types/product";
 
 const INDOOR_IMAGE: Record<VRFIndoorType, string> = {
   "ducted-split-low-static": "/images/vrf-ducted-split.png",
@@ -48,8 +48,6 @@ const INDOOR_EER: Record<VRFIndoorType, number> = {
   cassette: 11.2,
   "wall-mounted": 11.6,
 };
-
-const OUTDOOR_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 48];
 
 const PIPE_COLOR = "#0057B8";
 const PIPE_STROKE = 2.75;
@@ -120,34 +118,6 @@ function useLengthState<T extends string>(keys: T[], defaultFt: number) {
   return [map, setOne, setMap] as const;
 }
 
-function synthesizeOutdoorModel(tons: number): Model {
-  const totalBtuh = tons * 12000;
-  const eer = 11.8;
-  const powerKW = round(totalBtuh / eer / 1000, 2);
-  const airflow = Math.round(tons * 380);
-  return {
-    id: `vrf-odu-${tons}`,
-    seriesId: "vrf",
-    modelNumber: `VRF-OU-${String(tons).padStart(3, "0")}`,
-    totalCapacityBtuh: totalBtuh,
-    sensibleCapacityBtuh: Math.round(totalBtuh * 0.72),
-    powerKW,
-    eer,
-    airflowCFM: airflow,
-    leavingDBF: 58,
-    leavingWBF: 56,
-    compressorCount: tons >= 20 ? 2 : 1,
-    matchPercent: 100,
-    nominalTons: tons,
-    weightLbs: Math.round(tons * 75),
-    lengthIn: 60,
-    widthIn: 36,
-    heightIn: 64,
-    refrigerant: "R-410A",
-    compressorType: "Inverter Scroll",
-  };
-}
-
 interface FlattenedRoom {
   key: string;
   floorId: string;
@@ -202,13 +172,15 @@ export function VRFSystemDiagram() {
   const totalKbtuh = allRooms.reduce((s, r) => s + r.capacityKbtuh, 0);
   const totalTons = totalKbtuh / 12;
   const oduTons =
-    OUTDOOR_SIZES.find((s) => s >= totalTons) ?? OUTDOOR_SIZES[OUTDOOR_SIZES.length - 1];
+    VRF_OUTDOOR_SIZES.find((s) => s >= totalTons) ?? VRF_OUTDOOR_SIZES[VRF_OUTDOOR_SIZES.length - 1];
   const oduModel = `VRF-OU-${String(oduTons).padStart(3, "0")}`;
 
-  // Hydrate selectedModels with a synthetic ODU so the next step works.
+  // Re-hydrate selectedModels if the ODU sizing changes (e.g. user went back
+  // and added a room). Initial hydration happens in confirmVRFDesign so the
+  // submittal step always has a model.
   useEffect(() => {
     if (allRooms.length === 0) return;
-    const synth = synthesizeOutdoorModel(oduTons);
+    const synth = synthesizeVRFOutdoorModel(oduTons);
     const current = selectedModels[0];
     if (!current || current.id !== synth.id) {
       toggleModelSelection(synth);

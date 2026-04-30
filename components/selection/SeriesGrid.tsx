@@ -11,14 +11,25 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { EquipmentIllustration } from "./EquipmentIllustration";
 import type { ProductSeries } from "@/types/product";
 
-export function SeriesGrid() {
-  const { selectedGroup, setSelectedSeries, navigateBack } = useSelectionStore();
+// Series that are not offered in Saudi Arabia.
+const SAUDI_EXCLUDED_SERIES_IDS = new Set(['thac', 'acc-bp', 'acc-st']);
 
-  const { data: series, isLoading } = useQuery<ProductSeries[]>({
+export function SeriesGrid() {
+  const { selectedGroup, setSelectedSeries, navigateBack, projectInfo } = useSelectionStore();
+
+  const { data: rawSeries, isLoading } = useQuery<ProductSeries[]>({
     queryKey: ["product-series", selectedGroup?.id],
     queryFn: () => fetch(`/api/mock/product-series?groupId=${selectedGroup?.id}`).then(r => r.json()),
     enabled: !!selectedGroup,
   });
+
+  const series = useMemo(() => {
+    if (!rawSeries) return rawSeries;
+    if (projectInfo?.country === 'Saudi Arabia') {
+      return rawSeries.filter(s => !SAUDI_EXCLUDED_SERIES_IDS.has(s.id));
+    }
+    return rawSeries;
+  }, [rawSeries, projectInfo?.country]);
 
   const hasSpeedTypes = series?.some(s => s.speedType);
 
