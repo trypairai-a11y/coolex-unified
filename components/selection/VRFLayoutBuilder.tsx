@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Plus, Minus, Building2, DoorClosed, Thermometer } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Minus, Building2, DoorClosed, Thermometer, Sun, Snowflake } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSelectionStore } from "@/lib/stores/selection-store";
-import { useUnitStore } from "@/lib/stores/unit-store";
+import { useUnitStore, type UnitSystem } from "@/lib/stores/unit-store";
 import { toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
 import { UnitToggle } from "@/components/selection/UnitToggle";
-import type { VRFFloor, VRFLayout, VRFRoom } from "@/types/selection";
+import type { VRFDesignCondition, VRFFloor, VRFLayout, VRFRoom } from "@/types/selection";
 
 const MAX_FLOORS = 50;
 const MAX_ROOMS_PER_FLOOR = 100;
@@ -37,6 +38,22 @@ const AMBIENT_PRESETS: { label: string; ambientF: number; description: string }[
   { label: "T4", ambientF: 118, description: "Extreme · 48°C" },
 ];
 
+const DEFAULT_SUMMER: VRFDesignCondition = {
+  enabled: true,
+  outdoorDBF: 95,
+  indoorDBF: 80,
+  indoorRH: 50,
+  indoorWBF: 67,
+};
+
+const DEFAULT_WINTER: VRFDesignCondition = {
+  enabled: true,
+  outdoorDBF: 47,
+  outdoorRH: 85,
+  outdoorWBF: 43,
+  indoorDBF: 70,
+};
+
 export function VRFLayoutBuilder() {
   const { selectedGroup, vrfLayout, setVRFLayout, navigateBack } = useSelectionStore();
   const { unitSystem } = useUnitStore();
@@ -46,7 +63,25 @@ export function VRFLayoutBuilder() {
     return [makeFloor(1, 1)];
   });
 
-  const [ambientTempF, setAmbientTempF] = useState<number>(vrfLayout?.ambientTempF ?? 95);
+  const [summer, setSummer] = useState<VRFDesignCondition>(() => ({
+    ...DEFAULT_SUMMER,
+    ...(vrfLayout?.summer ?? {}),
+    outdoorDBF: vrfLayout?.summer?.outdoorDBF ?? vrfLayout?.ambientTempF ?? DEFAULT_SUMMER.outdoorDBF,
+  }));
+  const [winter, setWinter] = useState<VRFDesignCondition>(() => ({
+    ...DEFAULT_WINTER,
+    ...(vrfLayout?.winter ?? {}),
+  }));
+
+  const ambientTempF = summer.outdoorDBF ?? 95;
+  const setAmbientTempF = (value: number) =>
+    setSummer((prev) => ({ ...prev, outdoorDBF: value }));
+
+  const updateSummer = <K extends keyof VRFDesignCondition>(key: K, value: VRFDesignCondition[K]) =>
+    setSummer((prev) => ({ ...prev, [key]: value }));
+
+  const updateWinter = <K extends keyof VRFDesignCondition>(key: K, value: VRFDesignCondition[K]) =>
+    setWinter((prev) => ({ ...prev, [key]: value }));
 
   const setFloorCount = (count: number) => {
     const next = Math.max(1, Math.min(MAX_FLOORS, Math.floor(count) || 1));
@@ -94,12 +129,9 @@ export function VRFLayoutBuilder() {
   const totalRooms = floors.reduce((sum, f) => sum + f.rooms.length, 0);
 
   const onContinue = () => {
-    const layout: VRFLayout = { floors, ambientTempF };
+    const layout: VRFLayout = { floors, ambientTempF, summer, winter };
     setVRFLayout(layout);
   };
-
-  const ambientDisplayValue = toDisplay(ambientTempF, "ambientTempF", unitSystem);
-  const ambientUnitLabel = unitLabel("ambientTempF", unitSystem);
 
   if (!selectedGroup) return null;
 
@@ -127,56 +159,150 @@ export function VRFLayoutBuilder() {
           </div>
           <div className="flex-1">
             <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#B45309] mb-0.5">Climate</p>
-            <h3 className="text-sm font-semibold text-[#0D1626]">Ambient Temperature</h3>
+            <h3 className="text-sm font-semibold text-[#0D1626]">Design Conditions</h3>
           </div>
         </div>
-        <div className="px-5 sm:px-6 py-5">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,240px)_1fr] gap-5 items-start">
+
+        <div className="px-5 sm:px-6 py-5 border-b border-[#F0F4FB]">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB] mb-2">
+            Climate preset
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {AMBIENT_PRESETS.map(({ label, ambientF, description }) => {
+              const selected = ambientTempF === ambientF;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setAmbientTempF(ambientF)}
+                  className={`px-3 py-2 rounded-lg border-2 text-left transition-colors ${
+                    selected
+                      ? "border-[#0057B8] bg-[#EBF3FF]"
+                      : "border-[#E2E8F4] bg-white hover:border-[#B8D4F0] hover:bg-[#F8FBFF]"
+                  }`}
+                >
+                  <span className={`block text-xs font-bold ${selected ? "text-[#0057B8]" : "text-[#0D1626]"}`}>
+                    {label}
+                  </span>
+                  <span className="block text-[10px] text-[#8894AB] mt-0.5">{description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <ConditionSection
+          icon={<Sun className="w-4 h-4" />}
+          iconBg="bg-[#FFF4E0]"
+          iconText="text-[#B45309]"
+          accent="text-[#B45309]"
+          title="Summer Condition"
+          enabled={summer.enabled}
+          onToggle={(checked) => updateSummer("enabled", checked)}
+          divider
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <Label htmlFor="vrf-ambient-temp" className="text-xs text-muted-foreground">
-                Outdoor design temp ({ambientUnitLabel}) <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="vrf-ambient-temp"
-                type="number"
-                step="0.1"
-                value={ambientDisplayValue}
-                onChange={(e) => {
-                  const raw = parseFloat(e.target.value);
-                  if (!Number.isFinite(raw)) return;
-                  setAmbientTempF(toImperial(raw, "ambientTempF", unitSystem));
-                }}
-                className="mt-1.5 font-semibold"
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB] mb-2">
+                Outdoor
+              </p>
+              <TempField
+                id="vrf-summer-od-db"
+                label="Outdoor DB"
+                value={summer.outdoorDBF}
+                onChange={(v) => updateSummer("outdoorDBF", v)}
+                unitSystem={unitSystem}
+                disabled={!summer.enabled}
               />
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB] mb-2">
-                Climate preset
+                Indoor
               </p>
-              <div className="flex flex-wrap gap-2">
-                {AMBIENT_PRESETS.map(({ label, ambientF }) => {
-                  const selected = ambientTempF === ambientF;
-                  return (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => setAmbientTempF(ambientF)}
-                      className={`px-3 py-2 rounded-lg border-2 text-center transition-colors ${
-                        selected
-                          ? "border-[#0057B8] bg-[#EBF3FF]"
-                          : "border-[#E2E8F4] bg-white hover:border-[#B8D4F0] hover:bg-[#F8FBFF]"
-                      }`}
-                    >
-                      <span className={`text-xs font-bold ${selected ? "text-[#0057B8]" : "text-[#0D1626]"}`}>
-                        {label}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="grid grid-cols-3 gap-2">
+                <TempField
+                  id="vrf-summer-id-db"
+                  label="DB"
+                  value={summer.indoorDBF}
+                  onChange={(v) => updateSummer("indoorDBF", v)}
+                  unitSystem={unitSystem}
+                  disabled={!summer.enabled}
+                />
+                <RHField
+                  id="vrf-summer-id-rh"
+                  label="RH"
+                  value={summer.indoorRH}
+                  onChange={(v) => updateSummer("indoorRH", v)}
+                  disabled={!summer.enabled}
+                />
+                <TempField
+                  id="vrf-summer-id-wb"
+                  label="WB"
+                  value={summer.indoorWBF}
+                  onChange={(v) => updateSummer("indoorWBF", v)}
+                  unitSystem={unitSystem}
+                  disabled={!summer.enabled}
+                />
               </div>
             </div>
           </div>
-        </div>
+        </ConditionSection>
+
+        <ConditionSection
+          icon={<Snowflake className="w-4 h-4" />}
+          iconBg="bg-[#E6F1FF]"
+          iconText="text-[#0057B8]"
+          accent="text-[#0057B8]"
+          title="Winter Condition"
+          enabled={winter.enabled}
+          onToggle={(checked) => updateWinter("enabled", checked)}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB] mb-2">
+                Outdoor
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <TempField
+                  id="vrf-winter-od-db"
+                  label="DB"
+                  value={winter.outdoorDBF}
+                  onChange={(v) => updateWinter("outdoorDBF", v)}
+                  unitSystem={unitSystem}
+                  disabled={!winter.enabled}
+                />
+                <RHField
+                  id="vrf-winter-od-rh"
+                  label="RH"
+                  value={winter.outdoorRH}
+                  onChange={(v) => updateWinter("outdoorRH", v)}
+                  disabled={!winter.enabled}
+                />
+                <TempField
+                  id="vrf-winter-od-wb"
+                  label="WB"
+                  value={winter.outdoorWBF}
+                  onChange={(v) => updateWinter("outdoorWBF", v)}
+                  unitSystem={unitSystem}
+                  disabled={!winter.enabled}
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#8894AB] mb-2">
+                Indoor
+              </p>
+              <TempField
+                id="vrf-winter-id-db"
+                label="Indoor DB"
+                value={winter.indoorDBF}
+                onChange={(v) => updateWinter("indoorDBF", v)}
+                unitSystem={unitSystem}
+                disabled={!winter.enabled}
+              />
+            </div>
+          </div>
+        </ConditionSection>
       </div>
 
       {/* Floor count card */}
@@ -308,6 +434,123 @@ export function VRFLayoutBuilder() {
           Continue <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+interface ConditionSectionProps {
+  icon: React.ReactNode;
+  iconBg: string;
+  iconText: string;
+  accent: string;
+  title: string;
+  enabled: boolean;
+  onToggle: (checked: boolean) => void;
+  divider?: boolean;
+  children: React.ReactNode;
+}
+
+function ConditionSection({
+  icon,
+  iconBg,
+  iconText,
+  accent,
+  title,
+  enabled,
+  onToggle,
+  divider,
+  children,
+}: ConditionSectionProps) {
+  const checkboxId = `condition-${title.replace(/\s+/g, "-").toLowerCase()}`;
+  return (
+    <div className={divider ? "border-b border-[#F0F4FB]" : ""}>
+      <div className="px-5 sm:px-6 pt-5 pb-4 flex items-center gap-3">
+        <Checkbox
+          id={checkboxId}
+          checked={enabled}
+          onCheckedChange={(c) => onToggle(c === true)}
+        />
+        <div className={`flex items-center justify-center w-9 h-9 rounded-lg ${iconBg} ${iconText}`}>
+          {icon}
+        </div>
+        <Label htmlFor={checkboxId} className={`text-sm font-semibold cursor-pointer ${accent}`}>
+          {title}
+        </Label>
+      </div>
+      <div
+        className={`px-5 sm:px-6 pb-5 transition-opacity ${
+          enabled ? "opacity-100" : "opacity-50 pointer-events-none"
+        }`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+interface TempFieldProps {
+  id: string;
+  label: string;
+  value?: number;
+  onChange: (v: number) => void;
+  unitSystem: UnitSystem;
+  disabled?: boolean;
+}
+
+function TempField({ id, label, value, onChange, unitSystem, disabled }: TempFieldProps) {
+  const display = value != null ? toDisplay(value, "ambientTempF", unitSystem) : "";
+  const unit = unitLabel("ambientTempF", unitSystem);
+  return (
+    <div>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label} ({unit})
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        step="0.1"
+        value={display}
+        disabled={disabled}
+        onChange={(e) => {
+          const raw = parseFloat(e.target.value);
+          if (!Number.isFinite(raw)) return;
+          onChange(toImperial(raw, "ambientTempF", unitSystem));
+        }}
+        className="mt-1.5 font-semibold"
+      />
+    </div>
+  );
+}
+
+interface RHFieldProps {
+  id: string;
+  label: string;
+  value?: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}
+
+function RHField({ id, label, value, onChange, disabled }: RHFieldProps) {
+  return (
+    <div>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">
+        {label} (%)
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        step="1"
+        min={0}
+        max={100}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(e) => {
+          const raw = parseFloat(e.target.value);
+          if (!Number.isFinite(raw)) return;
+          onChange(Math.max(0, Math.min(100, raw)));
+        }}
+        className="mt-1.5 font-semibold"
+      />
     </div>
   );
 }

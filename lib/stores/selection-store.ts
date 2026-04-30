@@ -79,15 +79,22 @@ export const useSelectionStore = create<SelectionState>()(
         projectInfo: state.projectInfo ? { ...state.projectInfo, ...partial } : null,
       })),
 
-      setSelectedGroup: (group) => set({
-        selectedGroup: group,
-        selectedSeries: null,
-        designConditions: null,
-        selectedModels: [],
-        selectedOptions: [],
-        vrfOptionsByUnit: {},
-        vrfLayout: null,
-        step: 3,
+      setSelectedGroup: (group) => set((state) => {
+        // Re-selecting the same group during a revision/edit shouldn't wipe
+        // downstream choices the user is here to review.
+        if (state.selectedGroup?.id === group.id) {
+          return { selectedGroup: group, step: 3 };
+        }
+        return {
+          selectedGroup: group,
+          selectedSeries: null,
+          designConditions: null,
+          selectedModels: [],
+          selectedOptions: [],
+          vrfOptionsByUnit: {},
+          vrfLayout: null,
+          step: 3,
+        };
       }),
 
       setVRFLayout: (layout) => set({
@@ -150,18 +157,30 @@ export const useSelectionStore = create<SelectionState>()(
         return { step: 5, designConditions, selectedModels: [oduModel] };
       }),
 
-      setSelectedSeries: (series) => set({
-        selectedSeries: series,
-        designConditions: null,
-        selectedModels: [],
-        selectedOptions: [],
-        step: 4,
+      setSelectedSeries: (series) => set((state) => {
+        if (state.selectedSeries?.id === series.id) {
+          return { selectedSeries: series, step: 4 };
+        }
+        return {
+          selectedSeries: series,
+          designConditions: null,
+          selectedModels: [],
+          selectedOptions: [],
+          step: 4,
+        };
       }),
 
-      setDesignConditions: (conditions) => set({
-        designConditions: conditions,
-        selectedModels: [],
-        step: 5,
+      setDesignConditions: (conditions) => set((state) => {
+        const unchanged = state.designConditions
+          && JSON.stringify(state.designConditions) === JSON.stringify(conditions);
+        if (unchanged) {
+          return { designConditions: conditions, step: 5 };
+        }
+        return {
+          designConditions: conditions,
+          selectedModels: [],
+          step: 5,
+        };
       }),
 
       toggleModelSelection: (model) => set((state) => {
@@ -196,12 +215,19 @@ export const useSelectionStore = create<SelectionState>()(
         return { vrfOptionsByUnit: next };
       }),
 
-      navigateBack: (toStep) => set(() => {
+      navigateBack: (toStep) => set((state) => {
         // Step order: 1=ProjectInfo, 2=Group, 3=Series, 4=Design, 5=Results, 6=Options, 7=Submittal
         // Preserve user-entered data (projectInfo, designConditions, selectionBasis).
         // setSelectedGroup / setSelectedSeries already clear designConditions if the
         // user actually picks a different group or series after going back.
         const updates: Partial<SelectionState> = { step: toStep };
+        // Editing an existing revision: the wizard is pre-populated with the prior
+        // selection. Going back to review or tweak a single step shouldn't blow
+        // away downstream choices — only the forward setters do, and only when
+        // the user actually changes the value.
+        if (state.revisionTargetUnitId) {
+          return updates;
+        }
         if (toStep <= 1) {
           updates.selectedGroup = null;
           updates.selectedSeries = null;

@@ -1,5 +1,5 @@
 import type { Model } from './product';
-import type { DesignConditionsFormData } from './selection';
+import type { DesignConditionsFormData, VRFLayout } from './selection';
 import type { SubmittalOption } from './submittal';
 
 export type ProjectStatus = 'draft' | 'active' | 'submitted' | 'approved' | 'archived';
@@ -9,6 +9,12 @@ export type RevisionStatus = 'draft' | 'issued' | 'superseded';
 export interface SubmittalSnapshot {
   designConditions: DesignConditionsFormData;
   selectedOptions: SubmittalOption[];
+  /** Non-VRF: option IDs (mirrors selection-store `selectedOptions`). VRF: unused. */
+  selectedOptionIds?: string[];
+  /** VRF only — per-unit option selections, keyed by 'odu' or room id. */
+  vrfOptionsByUnit?: Record<string, string[]>;
+  /** VRF only — full floor/room layout with capacities and indoor types. */
+  vrfLayout?: VRFLayout;
   basePriceKWD: number;
   optionsTotalKWD: number;
   discountPercent: number;

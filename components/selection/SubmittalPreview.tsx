@@ -107,6 +107,13 @@ export function SubmittalPreview() {
     const snapshot: SubmittalSnapshot = {
       designConditions,
       selectedOptions: chosenOptions,
+      selectedOptionIds: isVRF ? undefined : [...selectedOptions],
+      vrfOptionsByUnit: isVRF
+        ? Object.fromEntries(
+            Object.entries(vrfOptionsByUnit).map(([k, v]) => [k, [...v]]),
+          )
+        : undefined,
+      vrfLayout: isVRF ? useSelectionStore.getState().vrfLayout ?? undefined : undefined,
       basePriceKWD: bPrice,
       optionsTotalKWD: oTotal,
       discountPercent: dPct,

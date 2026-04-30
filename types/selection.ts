@@ -55,9 +55,21 @@ export interface VRFFloor {
   rooms: VRFRoom[];
 }
 
+export interface VRFDesignCondition {
+  enabled: boolean;
+  outdoorDBF?: number;
+  outdoorRH?: number;
+  outdoorWBF?: number;
+  indoorDBF?: number;
+  indoorRH?: number;
+  indoorWBF?: number;
+}
+
 export interface VRFLayout {
   floors: VRFFloor[];
   ambientTempF?: number;
+  summer?: VRFDesignCondition;
+  winter?: VRFDesignCondition;
 }
 
 export interface SelectionFlowState {

@@ -8,11 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
+import { SAUDI_EXCLUDED_SERIES_IDS } from "@/lib/mock-data/saudi-restrictions";
 import { EquipmentIllustration } from "./EquipmentIllustration";
 import type { ProductSeries } from "@/types/product";
-
-// Series that are not offered in Saudi Arabia.
-const SAUDI_EXCLUDED_SERIES_IDS = new Set(['thac', 'acc-bp', 'acc-st']);
 
 export function SeriesGrid() {
   const { selectedGroup, setSelectedSeries, navigateBack, projectInfo } = useSelectionStore();

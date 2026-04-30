@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -7,17 +8,34 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
+import { SAUDI_EXCLUDED_SERIES_IDS } from "@/lib/mock-data/saudi-restrictions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import type { ProductGroup } from "@/types/product";
+import type { ProductGroup, ProductSeries } from "@/types/product";
 
 export function ProductGroupGrid() {
-  const { setSelectedGroup, navigateBack } = useSelectionStore();
+  const { setSelectedGroup, navigateBack, projectInfo } = useSelectionStore();
 
   const { data: groups, isLoading, isError, refetch } = useQuery<ProductGroup[]>({
     queryKey: ["product-groups"],
     queryFn: () => fetch("/api/mock/product-groups").then(r => r.json()),
   });
+
+  const { data: allSeries } = useQuery<ProductSeries[]>({
+    queryKey: ["product-series"],
+    queryFn: () => fetch("/api/mock/product-series").then(r => r.json()),
+  });
+
+  const seriesCountByGroup = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!allSeries) return counts;
+    const isSaudi = projectInfo?.country === "Saudi Arabia";
+    for (const s of allSeries) {
+      if (isSaudi && SAUDI_EXCLUDED_SERIES_IDS.has(s.id)) continue;
+      counts[s.groupId] = (counts[s.groupId] ?? 0) + 1;
+    }
+    return counts;
+  }, [allSeries, projectInfo?.country]);
 
   if (isError) {
     return (
@@ -114,16 +132,22 @@ export function ProductGroupGrid() {
               </p>
 
               {/* Series count badge — colored on hover */}
-              <span
-                className="relative text-[10px] font-medium px-2.5 py-0.5 rounded-full
-                  transition-all duration-300"
-                style={{
-                  color: group.gradientFrom,
-                  background: `${group.gradientFrom}1A`,
-                }}
-              >
-                {group.seriesCount} {group.seriesCount === 1 ? "series" : "series"}
-              </span>
+              {(() => {
+                const count = seriesCountByGroup[group.id] ?? 0;
+                if (count === 0) return null;
+                return (
+                  <span
+                    className="relative text-[10px] font-medium px-2.5 py-0.5 rounded-full
+                      transition-all duration-300"
+                    style={{
+                      color: group.gradientFrom,
+                      background: `${group.gradientFrom}1A`,
+                    }}
+                  >
+                    {count} {count === 1 ? "series" : "series"}
+                  </span>
+                );
+              })()}
             </motion.button>
           ))}
       </div>

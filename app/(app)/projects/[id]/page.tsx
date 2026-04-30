@@ -185,27 +185,61 @@ export default function ProjectDetailPage() {
       : undefined;
 
     reset();
-    if (group && series && project) {
+    if (!group || !series || !project) {
+      router.push("/select");
+      return;
+    }
+
+    const projectInfo = {
+      projectId: project.id,
+      projectName: project.name,
+      clientName: project.clientName,
+      salesEngineer: project.salesEngineer,
+      submittedFor: project.submittedFor,
+      country: project.country,
+      unitReference: unit.reference,
+      unitTag: unit.tag,
+      quantity: unit.quantity,
+    };
+
+    const snapshot = unit.submittalData;
+    const isVRF = group.id === "vrf";
+    // VRF needs a stored layout to fully restore (older snapshots don't have one).
+    const canRestoreVRF = isVRF && !!snapshot?.vrfLayout;
+    const canRestoreFull = !!snapshot && (!isVRF || canRestoreVRF);
+
+    if (!canRestoreFull) {
       useSelectionStore.setState({
         selectionBasis: "capacity",
         selectedGroup: group,
         selectedSeries: series,
-        projectInfo: {
-          projectId: project.id,
-          projectName: project.name,
-          clientName: project.clientName,
-          salesEngineer: project.salesEngineer,
-          submittedFor: project.submittedFor,
-          country: project.country,
-          unitReference: unit.reference,
-          unitTag: unit.tag,
-          quantity: unit.quantity,
-        },
+        projectInfo,
         step: 2,
         revisionTargetProjectId: project.id,
         revisionTargetUnitId: unit.id,
       });
+      router.push("/select");
+      return;
     }
+
+    const restoredOptionIds = isVRF
+      ? []
+      : snapshot.selectedOptionIds ?? snapshot.selectedOptions.map((o) => o.id);
+
+    useSelectionStore.setState({
+      selectionBasis: "capacity",
+      selectedGroup: group,
+      selectedSeries: series,
+      projectInfo,
+      designConditions: snapshot.designConditions,
+      selectedModels: [unit.model],
+      selectedOptions: restoredOptionIds,
+      vrfOptionsByUnit: snapshot.vrfOptionsByUnit ?? {},
+      vrfLayout: snapshot.vrfLayout ?? null,
+      step: 7,
+      revisionTargetProjectId: project.id,
+      revisionTargetUnitId: unit.id,
+    });
     router.push("/select");
   };
 
