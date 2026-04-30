@@ -88,12 +88,17 @@ export function SubmittalPreview() {
     : chosenOptions.reduce((s, o) => s + o.priceAdderKWD, 0);
 
   const handleGenerate = async () => {
-    if (!selectedModel || !projectInfo || !designConditions || !selectedSeries) return;
+    if (!selectedModel || !projectInfo || !designConditions) return;
+    if (!isVRF && !selectedSeries) return;
+    if (isVRF && !selectedGroup) return;
     setSaving(true);
     await new Promise(r => setTimeout(r, 1500));
 
     const now = new Date().toISOString();
     const createdBy = user?.name ?? "Unknown";
+
+    const seriesIdForUnit = isVRF ? 'vrf' : selectedSeries!.id;
+    const seriesNameForUnit = isVRF ? selectedGroup!.name : selectedSeries!.name;
 
     const bPrice = Math.round(selectedModel.nominalTons * 185);
     const oTotal = optionsTotalKWDComputed;
@@ -106,7 +111,7 @@ export function SubmittalPreview() {
       optionsTotalKWD: oTotal,
       discountPercent: dPct,
       netTotalKWD: Math.round((bPrice + oTotal) * (1 - dPct / 100)),
-      oracleBOM: buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, bomOptionIds).oracleBOM,
+      oracleBOM: buildOracleBOM(selectedModel.modelNumber, seriesIdForUnit, bomOptionIds).oracleBOM,
       generatedBy: createdBy,
     };
 
@@ -154,8 +159,8 @@ export function SubmittalPreview() {
         projectId: addUnitTargetProjectId,
         tag: projectInfo.unitTag || "",
         reference: projectInfo.unitReference || "",
-        seriesId: selectedSeries.id,
-        seriesName: selectedSeries.name,
+        seriesId: seriesIdForUnit,
+        seriesName: seriesNameForUnit,
         model: selectedModel,
         quantity: Number(projectInfo.quantity ?? 1),
         revisions: [revision],
@@ -190,8 +195,8 @@ export function SubmittalPreview() {
         projectId,
         tag: projectInfo.unitTag || "",
         reference: projectInfo.unitReference || "",
-        seriesId: selectedSeries.id,
-        seriesName: selectedSeries.name,
+        seriesId: seriesIdForUnit,
+        seriesName: seriesNameForUnit,
         model: selectedModel,
         quantity: Number(projectInfo.quantity ?? 1),
         revisions: [revision],
@@ -236,7 +241,8 @@ export function SubmittalPreview() {
   const discountPct = 5;
   const netTotal = Math.round((basePriceKWD + optionsTotal) * (1 - discountPct / 100));
   const bomOptionIdsForPreview = isVRF ? chosenOptions.map((o) => o.id) : selectedOptions;
-  const oracleBOM = selectedSeries ? buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, bomOptionIdsForPreview).oracleBOM : selectedModel.modelNumber;
+  const seriesIdForBOM = isVRF ? 'vrf' : selectedSeries?.id;
+  const oracleBOM = seriesIdForBOM ? buildOracleBOM(selectedModel.modelNumber, seriesIdForBOM, bomOptionIdsForPreview).oracleBOM : selectedModel.modelNumber;
 
   return (
     <div>
