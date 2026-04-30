@@ -295,7 +295,6 @@ export function VRFDesignConditions() {
                           : null;
                         const specs: { label: string; value: string }[] = [
                           { label: "Model", value: s ? s.modelNumber : "—" },
-                          { label: "Match %", value: s ? `${s.matchPercent}%` : "—" },
                           {
                             label: "Total Cap.",
                             value: s

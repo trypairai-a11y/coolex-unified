@@ -50,7 +50,7 @@ export function ResultsTable() {
   const ambientF = dc?.ambientTempF ?? null;
   const sctF = ambientF != null ? ambientF + 25 : null;
   const basis = selectionBasis ?? 'capacity';
-  const showMewApproval = projectInfo?.country === "Kuwait" && ambientF === 118;
+  const showMewApproval = projectInfo?.country === "Kuwait" && ambientF === 118 && !isCCU;
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,

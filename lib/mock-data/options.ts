@@ -5,9 +5,11 @@ export interface EquipmentOption {
   description: string;
   priceAdderKWD: number;
   applicableSeriesIds: string[] | 'all';
+  /** For multi-component systems (e.g. VRF), restricts which side this option attaches to. */
+  vrfTarget?: 'odu' | 'idu';
 }
 
-const ROOFTOP_PACKAGED_SERIES_IDS = ['pngf', 'pngc', 'rpui', 'rpuf', 'rpuc', 'spu'];
+const ROOFTOP_PACKAGED_SERIES_IDS = ['rpui', 'rpuf', 'rpuc', 'spu'];
 
 export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   // Construction
@@ -38,7 +40,7 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'remote-mon', category: 'controls', label: 'Remote Monitoring Gateway', description: 'LTE/Wi-Fi gateway for remote monitoring via COOLEX cloud portal', priceAdderKWD: 350, applicableSeriesIds: 'all' },
   { id: 'econ-ctrl', category: 'controls', label: 'Economizer Control Module', description: 'Integrated economizer control with enthalpy sensor', priceAdderKWD: 275, applicableSeriesIds: ['pac-r', 'pac-g'] },
 
-  // ── Rooftop Packaged Series (PNGF / PNGC / RPUI / RPUF / RPUC / SPU) ──
+  // ── Rooftop Packaged Series (RPUI / RPUF / RPUC / SPU) ──
   // Construction
   { id: 'rp-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan for corrosion-resistant condensate handling', priceAdderKWD: 45, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
   { id: 'rp-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: ROOFTOP_PACKAGED_SERIES_IDS },
@@ -117,15 +119,21 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'dhac-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['dhac'] },
 
   // ── VRF — Variable Refrigerant Flow Series ──
-  // Construction
-  { id: 'vrf-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan with 1" NPT drain connection', priceAdderKWD: 45, applicableSeriesIds: ['vrf'] },
-  { id: 'vrf-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: ['vrf'] },
-  { id: 'vrf-evap-coat', category: 'construction', label: 'Evaporator Coil Protective Coating', description: 'Electrofin E-Coat on evaporator coil for corrosive environments', priceAdderKWD: 120, applicableSeriesIds: ['vrf'] },
-  { id: 'vrf-copper-evap', category: 'construction', label: 'Copper Fins - Evaporator', description: 'Copper fins on evaporator coil for enhanced durability in harsh environments', priceAdderKWD: 180, applicableSeriesIds: ['vrf'] },
-  { id: 'vrf-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: ['vrf'] },
+  // Outdoor unit (ODU) options
+  { id: 'vrf-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: ['vrf'], vrfTarget: 'odu' },
+  { id: 'vrf-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: ['vrf'], vrfTarget: 'odu' },
+  { id: 'vrf-odu-hail-guard', category: 'construction', label: 'Hail Guard', description: 'Galvanized steel hail protection covering the condenser coil face', priceAdderKWD: 95, applicableSeriesIds: ['vrf'], vrfTarget: 'odu' },
+  { id: 'vrf-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['vrf'], vrfTarget: 'odu' },
+  { id: 'vrf-odu-low-ambient', category: 'electrical', label: 'Low Ambient Kit', description: 'Head-pressure control kit extending outdoor unit operation below 15°C', priceAdderKWD: 175, applicableSeriesIds: ['vrf'], vrfTarget: 'odu' },
+  { id: 'vrf-odu-bms', category: 'controls', label: 'BACnet / Modbus Gateway', description: 'Factory-installed BMS gateway for site building management integration', priceAdderKWD: 285, applicableSeriesIds: ['vrf'], vrfTarget: 'odu' },
 
-  // Refrigeration
-  { id: 'vrf-pressure-gauges', category: 'refrigeration', label: 'Pressure Gauges (High, Low)', description: 'High-side and low-side refrigerant pressure gauges for field diagnostics', priceAdderKWD: 55, applicableSeriesIds: ['vrf'] },
+  // Indoor unit (IDU) options
+  { id: 'vrf-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan with 1" NPT drain connection', priceAdderKWD: 45, applicableSeriesIds: ['vrf'], vrfTarget: 'idu' },
+  { id: 'vrf-evap-coat', category: 'construction', label: 'Evaporator Coil Protective Coating', description: 'Electrofin E-Coat on evaporator coil for corrosive environments', priceAdderKWD: 120, applicableSeriesIds: ['vrf'], vrfTarget: 'idu' },
+  { id: 'vrf-copper-evap', category: 'construction', label: 'Copper Fins - Evaporator', description: 'Copper fins on evaporator coil for enhanced durability in harsh environments', priceAdderKWD: 180, applicableSeriesIds: ['vrf'], vrfTarget: 'idu' },
+  { id: 'vrf-idu-condensate-pump', category: 'air-side', label: 'Condensate Lift Pump', description: 'Built-in condensate pump for installations without gravity drainage', priceAdderKWD: 85, applicableSeriesIds: ['vrf'], vrfTarget: 'idu' },
+  { id: 'vrf-idu-wired-controller', category: 'controls', label: 'Wired Wall Controller', description: 'Backlit wired controller with weekly schedule and fault history', priceAdderKWD: 65, applicableSeriesIds: ['vrf'], vrfTarget: 'idu' },
+  { id: 'vrf-idu-wireless-remote', category: 'controls', label: 'Wireless Remote Controller', description: 'IR remote handset with magnetic wall cradle', priceAdderKWD: 35, applicableSeriesIds: ['vrf'], vrfTarget: 'idu' },
 
   // ── THAC — Air-Cooled Chiller (Brazed Plate HX) Series ──
   // Construction

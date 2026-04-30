@@ -1,9 +1,6 @@
 import type { Model } from '@/types/product';
 import { NGW_MODELS } from './ngw-models';
 import { ACSC_MODELS } from './acsc-models';
-import { PNGC_MODELS } from './pngc-models';
-import { NGCC_MODELS } from './ngcc-models';
-import { PNGF_MODELS } from './pngf-models';
 import { ACC_BP_MODELS, getACCBPPerformance } from './acc-bp-models';
 import { ACC_ST_MODELS, getACCSTPerformance } from './acc-st-models';
 import { CCU_MODELS } from './ccu-models';
@@ -42,7 +39,6 @@ function generateModels(seriesId: string, prefix: string, capacities: number[]):
 }
 
 export const MOCK_MODELS: Record<string, Model[]> = {
-  'pngf': PNGF_MODELS,
   'pac-r': generateModels('pac-r', 'CPACR', [5, 7.5, 10, 12.5, 15, 20, 25, 30, 40, 50, 60, 70]),
   'pac-f': generateModels('pac-f', 'CPACF', [3, 5, 7.5, 10, 15, 20, 25, 30]),
   'pac-g': generateModels('pac-g', 'CPACG', [5, 7.5, 10, 15, 20, 25]),
@@ -56,9 +52,6 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'dhac': generateModels('dhac', 'DHAC', [20, 25, 30, 40, 50, 60, 70, 80, 100]),
   'acc-bp': ACC_BP_MODELS,
   'acc-st': ACC_ST_MODELS,
-  'pngc': PNGC_MODELS,
-  'ngcc': NGCC_MODELS,
-  'ngcf': NGCC_MODELS,
   'dstc': generateModels('dstc', 'DSTC', [5, 6, 7.5, 8.5, 10]),
   'dstf': generateModels('dstf', 'DSTF', [5, 6, 7.5, 8.5, 10]),
   'ccu-std': CCU_MODELS,

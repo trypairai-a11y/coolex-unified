@@ -3,6 +3,9 @@ import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
 import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType } from '@/types/selection';
 
+/** Key in vrfOptionsByUnit: 'odu' for the outdoor unit, otherwise a room id (indoor unit). */
+export type VRFUnitKey = 'odu' | string;
+
 interface SelectionState {
   step: number;
   selectionBasis: SelectionBasis | null;
@@ -12,6 +15,8 @@ interface SelectionState {
   designConditions: DesignConditionsFormData | null;
   selectedModels: Model[];
   selectedOptions: string[];
+  /** Per-unit option selections for VRF. Key is 'odu' or a room id. */
+  vrfOptionsByUnit: Record<string, string[]>;
   vrfLayout: VRFLayout | null;
   revisionTargetProjectId: string | null;
   revisionTargetUnitId: string | null;
@@ -30,6 +35,9 @@ interface SelectionState {
   confirmVRFDesign: () => void;
   toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
+  toggleVRFUnitOption: (unitKey: VRFUnitKey, optionId: string) => void;
+  /** Replace every indoor unit's selections with the source room's selections. */
+  applyVRFIndoorOptionsToAll: (sourceRoomId: string, indoorRoomIds: string[]) => void;
   navigateBack: (toStep: number) => void;
   setRevisionTarget: (projectId: string, unitId: string) => void;
   reset: () => void;
@@ -44,6 +52,7 @@ const initialState = {
   designConditions: null,
   selectedModels: [],
   selectedOptions: [],
+  vrfOptionsByUnit: {} as Record<string, string[]>,
   vrfLayout: null,
   revisionTargetProjectId: null,
   revisionTargetUnitId: null,
@@ -75,6 +84,7 @@ export const useSelectionStore = create<SelectionState>()(
         designConditions: null,
         selectedModels: [],
         selectedOptions: [],
+        vrfOptionsByUnit: {},
         vrfLayout: null,
         step: 3,
       }),
@@ -114,7 +124,24 @@ export const useSelectionStore = create<SelectionState>()(
         };
       }),
 
-      confirmVRFDesign: () => set({ step: 5 }),
+      confirmVRFDesign: () => set((state) => {
+        if (!state.vrfLayout) return { step: 5 };
+        const totalKbtuh = state.vrfLayout.floors
+          .flatMap((f) => f.rooms)
+          .reduce((sum, r) => sum + (r.capacity ?? 0), 0);
+        // VRF doesn't have a single entering-DB/WB the way chillers/fan coils do —
+        // synthesize standard indoor cooling design conditions so step 7 has the
+        // metadata the PDF expects.
+        const designConditions: DesignConditionsFormData = {
+          requiredCoolingCapacityBtuh: totalKbtuh * 1000,
+          powerSupply: '380V/3Ph/60Hz',
+          enteringDBF: 80,
+          enteringWBF: 67,
+          espInWG: 0,
+          altitudeFt: 0,
+        };
+        return { step: 5, designConditions };
+      }),
 
       setSelectedSeries: (series) => set({
         selectedSeries: series,
@@ -143,6 +170,25 @@ export const useSelectionStore = create<SelectionState>()(
           : [...state.selectedOptions, optionId],
       })),
 
+      toggleVRFUnitOption: (unitKey, optionId) => set((state) => {
+        const current = state.vrfOptionsByUnit[unitKey] ?? [];
+        const next = current.includes(optionId)
+          ? current.filter((id) => id !== optionId)
+          : [...current, optionId];
+        return {
+          vrfOptionsByUnit: { ...state.vrfOptionsByUnit, [unitKey]: next },
+        };
+      }),
+
+      applyVRFIndoorOptionsToAll: (sourceRoomId, indoorRoomIds) => set((state) => {
+        const source = state.vrfOptionsByUnit[sourceRoomId] ?? [];
+        const next = { ...state.vrfOptionsByUnit };
+        for (const id of indoorRoomIds) {
+          next[id] = [...source];
+        }
+        return { vrfOptionsByUnit: next };
+      }),
+
       navigateBack: (toStep) => set(() => {
         // Step order: 1=ProjectInfo, 2=Group, 3=Series, 4=Design, 5=Results, 6=Options, 7=Submittal
         // Preserve user-entered data (projectInfo, designConditions, selectionBasis).
@@ -154,6 +200,7 @@ export const useSelectionStore = create<SelectionState>()(
           updates.selectedSeries = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfOptionsByUnit = {};
           updates.vrfLayout = null;
           updates.addUnitTargetProjectId = null;
         } else if (toStep <= 2) {
@@ -161,20 +208,25 @@ export const useSelectionStore = create<SelectionState>()(
           updates.selectedSeries = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfOptionsByUnit = {};
           updates.vrfLayout = null;
         } else if (toStep <= 3) {
           updates.selectedSeries = null;
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfOptionsByUnit = {};
           updates.vrfLayout = null;
         } else if (toStep <= 4) {
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfOptionsByUnit = {};
         } else if (toStep <= 5) {
           updates.selectedModels = [];
           updates.selectedOptions = [];
+          updates.vrfOptionsByUnit = {};
         } else if (toStep <= 6) {
           updates.selectedOptions = [];
+          updates.vrfOptionsByUnit = {};
         }
         return updates;
       }),
@@ -188,7 +240,7 @@ export const useSelectionStore = create<SelectionState>()(
     }),
     {
       name: 'coolex-selection',
-      version: 2,
+      version: 3,
       migrate: () => initialState,
     }
     ),

@@ -95,39 +95,6 @@ function decodeACSC(modelNumber: string): NomenclatureSegment[] {
   ];
 }
 
-function decodePNGC(modelNumber: string): NomenclatureSegment[] {
-  // PNGC-048  →  PNGC | 048
-  const match = modelNumber.match(/^(PNGC)-(\d{3})$/);
-  if (!match) return fallback(modelNumber);
-  const [, series, cap] = match;
-  return [
-    { code: series, label: 'Series', meaning: 'Packaged New Generation C — Rooftop (R-407C)', color: C.series },
-    { code: cap, label: 'Capacity Code', meaning: `${parseInt(cap, 10)} MBH nominal`, color: C.capacity },
-  ];
-}
-
-function decodePNGF(modelNumber: string): NomenclatureSegment[] {
-  // PNGF-048  →  PNGF | 048
-  const match = modelNumber.match(/^(PNGF)-(\d{3})$/);
-  if (!match) return fallback(modelNumber);
-  const [, series, cap] = match;
-  return [
-    { code: series, label: 'Series', meaning: 'Packaged New Generation F — Rooftop (R-410A)', color: C.series },
-    { code: cap, label: 'Capacity Code', meaning: `${parseInt(cap, 10)} MBH nominal`, color: C.capacity },
-  ];
-}
-
-function decodeNGCC(modelNumber: string): NomenclatureSegment[] {
-  // NGCC-076  →  NGCC | 076
-  const match = modelNumber.match(/^(NGCC)-(\d{3})$/);
-  if (!match) return fallback(modelNumber);
-  const [, series, cap] = match;
-  return [
-    { code: series, label: 'Series', meaning: 'New Generation Compact Concealed — Ducted Split', color: C.series },
-    { code: cap, label: 'Capacity Code', meaning: `${parseInt(cap, 10)} MBH nominal`, color: C.capacity },
-  ];
-}
-
 // Generic decoder for series without real model data yet
 function decodeGeneric(modelNumber: string, seriesId: string): NomenclatureSegment[] {
   const SERIES_MEANINGS: Record<string, string> = {
@@ -148,7 +115,6 @@ function decodeGeneric(modelNumber: string, seriesId: string): NomenclatureSegme
     'spu':        'SPU Split Packaged Unit',
     'dstc':       'DSTC Ducted Split Tropical (R-407C)',
     'dstf':       'DSTF Ducted Split Tropical (R-410A)',
-    'ngcf':       'NGCF New Generation Ducted Split (R-410A)',
   };
 
   // Try to split on dash: PREFIX-NUMBER
@@ -199,9 +165,6 @@ interface SeriesBOMConfig {
 const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
   'ngw':        { refrigerant: '',      voltage: '415', phase: '3', frequency: '50', compressorType: '' },
   'acsc':       { refrigerant: 'R134a', voltage: '415', phase: '3', frequency: '50', compressorType: 'SC' },
-  'pngc':       { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
-  'pngf':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
-  'ngcc':       { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'dstc':       { refrigerant: 'R407C', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'dstf':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'split-cs':   { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
@@ -219,7 +182,6 @@ const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
   'fcu':        { refrigerant: '',      voltage: '220', phase: '1', frequency: '50', compressorType: '' },
   'rpui':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'spu':        { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
-  'ngcf':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
 };
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -231,10 +193,6 @@ export function decodeNomenclature(modelNumber: string, seriesId: string): Nomen
   switch (seriesId) {
     case 'ngw':  return decodeNGW(modelNumber);
     case 'acsc': return decodeACSC(modelNumber);
-    case 'pngc': return decodePNGC(modelNumber);
-    case 'pngf': return decodePNGF(modelNumber);
-    case 'ngcc': return decodeNGCC(modelNumber);
-    case 'ngcf': return decodeNGCC(modelNumber);
     default:     return decodeGeneric(modelNumber, seriesId);
   }
 }

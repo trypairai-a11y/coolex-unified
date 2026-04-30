@@ -42,6 +42,7 @@ export function SubmittalPreview() {
     selectedModels,
     selectedSeries,
     selectedOptions,
+    vrfOptionsByUnit,
     projectInfo,
     designConditions,
     navigateBack,
@@ -56,11 +57,35 @@ export function SubmittalPreview() {
   const selectedModel = selectedModels[0] ?? null;
   const showPricing = user?.role !== "dealer";
 
-  const optionsSeriesId = selectedGroup?.id === 'vrf' ? 'vrf' : selectedSeries?.id ?? null;
+  const isVRF = selectedGroup?.id === 'vrf';
+  const optionsSeriesId = isVRF ? 'vrf' : selectedSeries?.id ?? null;
   const { data: allOptions } = useOptions(optionsSeriesId);
-  const chosenOptions: SubmittalOption[] = (allOptions ?? [])
-    .filter(o => selectedOptions.includes(o.id))
-    .map(o => ({ id: o.id, label: o.label, priceAdderKWD: o.priceAdderKWD }));
+
+  // For VRF, pricing/PDF rolls up the per-unit selections: each unit's selected
+  // options contribute their adder, so 5 indoor units each picking the same drain pan
+  // counts 5×. The submittal line list dedupes by id for display.
+  const vrfOptionLines: SubmittalOption[] = isVRF
+    ? Object.values(vrfOptionsByUnit)
+        .flat()
+        .map((id) => (allOptions ?? []).find((o) => o.id === id))
+        .filter((o): o is NonNullable<typeof o> => !!o)
+        .map((o) => ({ id: o.id, label: o.label, priceAdderKWD: o.priceAdderKWD }))
+    : [];
+
+  const chosenOptions: SubmittalOption[] = isVRF
+    ? Array.from(
+        vrfOptionLines.reduce((map, line) => {
+          if (!map.has(line.id)) map.set(line.id, line);
+          return map;
+        }, new Map<string, SubmittalOption>()).values(),
+      )
+    : (allOptions ?? [])
+        .filter((o) => selectedOptions.includes(o.id))
+        .map((o) => ({ id: o.id, label: o.label, priceAdderKWD: o.priceAdderKWD }));
+
+  const optionsTotalKWDComputed = isVRF
+    ? vrfOptionLines.reduce((s, o) => s + o.priceAdderKWD, 0)
+    : chosenOptions.reduce((s, o) => s + o.priceAdderKWD, 0);
 
   const handleGenerate = async () => {
     if (!selectedModel || !projectInfo || !designConditions || !selectedSeries) return;
@@ -71,8 +96,9 @@ export function SubmittalPreview() {
     const createdBy = user?.name ?? "Unknown";
 
     const bPrice = Math.round(selectedModel.nominalTons * 185);
-    const oTotal = chosenOptions.reduce((s, o) => s + o.priceAdderKWD, 0);
+    const oTotal = optionsTotalKWDComputed;
     const dPct = 5;
+    const bomOptionIds = isVRF ? chosenOptions.map((o) => o.id) : selectedOptions;
     const snapshot: SubmittalSnapshot = {
       designConditions,
       selectedOptions: chosenOptions,
@@ -80,7 +106,7 @@ export function SubmittalPreview() {
       optionsTotalKWD: oTotal,
       discountPercent: dPct,
       netTotalKWD: Math.round((bPrice + oTotal) * (1 - dPct / 100)),
-      oracleBOM: buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, selectedOptions).oracleBOM,
+      oracleBOM: buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, bomOptionIds).oracleBOM,
       generatedBy: createdBy,
     };
 
@@ -206,10 +232,11 @@ export function SubmittalPreview() {
   }
 
   const basePriceKWD = Math.round((selectedModel.nominalTons) * 185);
-  const optionsTotal = chosenOptions.reduce((s, o) => s + o.priceAdderKWD, 0);
+  const optionsTotal = optionsTotalKWDComputed;
   const discountPct = 5;
   const netTotal = Math.round((basePriceKWD + optionsTotal) * (1 - discountPct / 100));
-  const oracleBOM = selectedSeries ? buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, selectedOptions).oracleBOM : selectedModel.modelNumber;
+  const bomOptionIdsForPreview = isVRF ? chosenOptions.map((o) => o.id) : selectedOptions;
+  const oracleBOM = selectedSeries ? buildOracleBOM(selectedModel.modelNumber, selectedSeries.id, bomOptionIdsForPreview).oracleBOM : selectedModel.modelNumber;
 
   return (
     <div>
