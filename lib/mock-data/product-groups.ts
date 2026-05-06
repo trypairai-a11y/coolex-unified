@@ -43,7 +43,7 @@ export const PRODUCT_GROUPS: ProductGroup[] = [
     description: 'DX and chilled water fan coil units for commercial and residential applications. Includes ducted, concealed horizontal, vertical console, and ceiling cassette configurations.',
     shortDescription: 'DX & Chilled Water fan coil units',
     category: 'fan-coil',
-    imageUrl: '/images/fan-coil.png',
+    imageUrl: '/images/fcl.png',
     gradientFrom: '#64748B',
     gradientTo: '#475569',
     seriesCount: 3,
