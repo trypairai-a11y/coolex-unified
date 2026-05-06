@@ -39,6 +39,16 @@ export function lpsToGpm(lps: number): number {
   return lps / 0.0630902;
 }
 
+// --- Water Pressure Drop ---
+// ft.wg → kPa (1 ft.wg = 2.98898 kPa)
+export function ftWgToKpa(ftWg: number): number {
+  return ftWg * 2.98898;
+}
+
+export function kpaToFtWg(kpa: number): number {
+  return kpa / 2.98898;
+}
+
 // --- Airflow ---
 // CFM → m³/h (1 CFM = 1.699 m³/h)
 export function cfmToM3h(cfm: number): number {

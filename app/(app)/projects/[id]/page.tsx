@@ -179,13 +179,19 @@ export default function ProjectDetailPage() {
   };
 
   const handleCreateRevision = (unit: Unit) => {
-    const series = PRODUCT_SERIES.find((s) => s.id === unit.seriesId);
-    const group = series
+    // VRF stores the group id ('vrf') in seriesId — it has no series step.
+    const isVRF = unit.seriesId === "vrf";
+    const series = isVRF
+      ? undefined
+      : PRODUCT_SERIES.find((s) => s.id === unit.seriesId);
+    const group = isVRF
+      ? PRODUCT_GROUPS.find((g) => g.id === "vrf")
+      : series
       ? PRODUCT_GROUPS.find((g) => g.id === series.groupId)
       : undefined;
 
     reset();
-    if (!group || !series || !project) {
+    if (!group || !project || (!isVRF && !series)) {
       router.push("/select");
       return;
     }
@@ -203,7 +209,6 @@ export default function ProjectDetailPage() {
     };
 
     const snapshot = unit.submittalData;
-    const isVRF = group.id === "vrf";
     // VRF needs a stored layout to fully restore (older snapshots don't have one).
     const canRestoreVRF = isVRF && !!snapshot?.vrfLayout;
     const canRestoreFull = !!snapshot && (!isVRF || canRestoreVRF);
@@ -212,9 +217,10 @@ export default function ProjectDetailPage() {
       useSelectionStore.setState({
         selectionBasis: "capacity",
         selectedGroup: group,
-        selectedSeries: series,
+        selectedSeries: series ?? null,
         projectInfo,
-        step: 2,
+        // VRF has no series step — drop straight into Layout (3) instead of Group (2).
+        step: isVRF ? 3 : 2,
         revisionTargetProjectId: project.id,
         revisionTargetUnitId: unit.id,
       });
@@ -229,14 +235,14 @@ export default function ProjectDetailPage() {
     useSelectionStore.setState({
       selectionBasis: "capacity",
       selectedGroup: group,
-      selectedSeries: series,
+      selectedSeries: series ?? null,
       projectInfo,
       designConditions: snapshot.designConditions,
       selectedModels: [unit.model],
       selectedOptions: restoredOptionIds,
       vrfOptionsByUnit: snapshot.vrfOptionsByUnit ?? {},
       vrfLayout: snapshot.vrfLayout ?? null,
-      step: 7,
+      step: 4,
       revisionTargetProjectId: project.id,
       revisionTargetUnitId: unit.id,
     });

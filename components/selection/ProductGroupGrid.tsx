@@ -8,7 +8,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
-import { SAUDI_EXCLUDED_SERIES_IDS } from "@/lib/mock-data/saudi-restrictions";
+import { SAUDI_EXCLUDED_GROUP_IDS, SAUDI_EXCLUDED_SERIES_IDS } from "@/lib/mock-data/saudi-restrictions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import type { ProductGroup, ProductSeries } from "@/types/product";
@@ -26,16 +26,23 @@ export function ProductGroupGrid() {
     queryFn: () => fetch("/api/mock/product-series").then(r => r.json()),
   });
 
+  const isSaudi = projectInfo?.country === "Saudi Arabia";
+
+  const visibleGroups = useMemo(() => {
+    if (!groups) return [];
+    if (!isSaudi) return groups;
+    return groups.filter(g => !SAUDI_EXCLUDED_GROUP_IDS.has(g.id));
+  }, [groups, isSaudi]);
+
   const seriesCountByGroup = useMemo(() => {
     const counts: Record<string, number> = {};
     if (!allSeries) return counts;
-    const isSaudi = projectInfo?.country === "Saudi Arabia";
     for (const s of allSeries) {
       if (isSaudi && SAUDI_EXCLUDED_SERIES_IDS.has(s.id)) continue;
       counts[s.groupId] = (counts[s.groupId] ?? 0) + 1;
     }
     return counts;
-  }, [allSeries, projectInfo?.country]);
+  }, [allSeries, isSaudi]);
 
   if (isError) {
     return (
@@ -77,7 +84,7 @@ export function ProductGroupGrid() {
 
       {/* Product Group Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        {(groups ?? []).map((group, i) => (
+        {visibleGroups.map((group, i) => (
             <motion.button
               key={group.id}
               initial={{ opacity: 0, y: 20 }}
@@ -131,10 +138,11 @@ export function ProductGroupGrid() {
                 {group.shortDescription}
               </p>
 
-              {/* Series count badge — colored on hover */}
+              {/* Series count badge — colored on hover. Falls back to the group's static seriesCount for groups with no entries in product-series.ts (e.g. VRF). */}
               {(() => {
-                const count = seriesCountByGroup[group.id] ?? 0;
-                if (count === 0) return null;
+                const count = seriesCountByGroup[group.id] ?? group.seriesCount ?? 0;
+                const label = count > 0 ? `${count} series` : group.tonRange;
+                if (!label) return null;
                 return (
                   <span
                     className="relative text-[10px] font-medium px-2.5 py-0.5 rounded-full
@@ -144,7 +152,7 @@ export function ProductGroupGrid() {
                       background: `${group.gradientFrom}1A`,
                     }}
                   >
-                    {count} {count === 1 ? "series" : "series"}
+                    {label}
                   </span>
                 );
               })()}

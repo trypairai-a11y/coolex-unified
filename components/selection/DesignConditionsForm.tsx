@@ -105,7 +105,8 @@ export function DesignConditionsForm() {
   const isCRAC = selectedSeries?.groupId === 'crac';
   const isTHAC = selectedSeries?.id === 'thac';
   const isDHAC = selectedSeries?.id === 'dhac';
-  const is50HzOnly = isCCU || isTHAC || isDHAC;
+  const isPHE = selectedSeries?.id === 'phe';
+  const is50HzOnly = isCCU || isTHAC || isDHAC || isPHE;
 
   // Chillers and condensing units are always selected by capacity — never expose the airflow basis.
   useEffect(() => {
@@ -153,6 +154,8 @@ export function DesignConditionsForm() {
   const wEWT = watch("enteringWaterTempF");
   const wLWT = watch("leavingWaterTempF");
   const wGPM = watch("waterFlowRateGPM");
+  const wAmbient = watch("ambientTempF");
+  const wSST = watch("saturatedSuctionTempF");
 
   // Chillers: user enters EWT (required) and EITHER LWT or GPM. The other is
   // auto-calculated via GPM = 24 × TR / ΔT (water-side balance, °F + GPM).
@@ -508,6 +511,8 @@ export function DesignConditionsForm() {
               <FieldWithTooltip
                 label={`Ambient Temperature (${u('ambientTempF')})`}
                 tooltip="Outdoor ambient dry-bulb temperature at design conditions. Affects condenser and chiller performance."
+                required
+                filled={wAmbient != null && String(wAmbient) !== ""}
               >
                 <Input type="number" step="0.1" {...register("ambientTempF")} />
                 <div className="flex gap-2 pt-1">
@@ -536,6 +541,8 @@ export function DesignConditionsForm() {
               <FieldWithTooltip
                 label={`Saturated Suction Temperature (${u('saturatedSuctionTempF')})`}
                 tooltip="Evaporator saturated suction temperature (SST). Typical range: 20–50 °F depending on application (comfort cooling, medium temp, etc.)."
+                required
+                filled={wSST != null && String(wSST) !== ""}
               >
                 <Input type="number" step="0.1" {...register("saturatedSuctionTempF")} />
               </FieldWithTooltip>

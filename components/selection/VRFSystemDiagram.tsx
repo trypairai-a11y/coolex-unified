@@ -68,6 +68,8 @@ const HORIZ_PAD = 70;
 const TOP_PAD = 24;
 const BOTTOM_PAD = 40;
 
+const EMPTY_LEN_MAP: Readonly<Record<string, number>> = Object.freeze({});
+
 // Trunk sits on the left, ODU centered above it.
 const TRUNK_X = HORIZ_PAD + ODU_W / 2;
 
@@ -101,23 +103,6 @@ function formatLen(ft: number, isMetric: boolean) {
   return `${ft.toFixed(1)} ft`;
 }
 
-function useLengthState<T extends string>(keys: T[], defaultFt: number) {
-  const [map, setMap] = useState<Record<string, number>>(() =>
-    Object.fromEntries(keys.map((k) => [k, defaultFt]))
-  );
-  useEffect(() => {
-    setMap((prev) => {
-      const next: Record<string, number> = {};
-      for (const k of keys) next[k] = prev[k] ?? defaultFt;
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keys.join("|"), defaultFt]);
-  const setOne = (k: string, v: number) =>
-    setMap((prev) => ({ ...prev, [k]: Math.max(0.5, v) }));
-  return [map, setOne, setMap] as const;
-}
-
 interface FlattenedRoom {
   key: string;
   floorId: string;
@@ -141,8 +126,17 @@ interface FloorLayout {
 }
 
 export function VRFSystemDiagram() {
-  const { vrfLayout, navigateBack, setStep, toggleModelSelection, selectedModels } =
-    useSelectionStore();
+  const {
+    vrfLayout,
+    navigateBack,
+    setStep,
+    toggleModelSelection,
+    selectedModels,
+    setVRFMainTrunkFt,
+    setVRFFloorSegFt,
+    setVRFBranchFt,
+    resetVRFPipeLengths,
+  } = useSelectionStore();
   const unitSystem = useUnitStore((s) => s.unitSystem);
   const isMetric = unitSystem === "metric";
 
@@ -209,35 +203,19 @@ export function VRFSystemDiagram() {
     return floors;
   }, [allRooms]);
 
-  // Pipe length state
-  const [mainTrunkFt, setMainTrunkFt] = useState(DEFAULT_MAIN_TRUNK_FT);
-  const floorSegKeys = floorsData.slice(1).map((f) => f.floorId);
-  const [floorSegFt, setFloorSeg, setFloorSegAll] = useLengthState(
-    floorSegKeys,
-    DEFAULT_FLOOR_GAP_FT
-  );
+  // Pipe lengths are persisted on `vrfLayout` so they survive the wizard session
+  // and carry through to new revisions. Defaults apply only when the field is
+  // unset (initial design or after Reset lengths).
+  const mainTrunkFt = vrfLayout?.mainTrunkFt ?? DEFAULT_MAIN_TRUNK_FT;
+  const floorSegFt = vrfLayout?.floorSegFtById ?? EMPTY_LEN_MAP;
+  const branchFt = vrfLayout?.branchFtById ?? EMPTY_LEN_MAP;
 
-  // Every indoor unit has a horizontal branch segment: the first connects to the
-  // trunk; subsequent ones connect to the previous sibling.
-  const branchSegKeys = floorsData.flatMap((f) => f.rooms.map((r) => r.id));
-  const [branchFt, setBranchFt, setBranchAll] = useLengthState(
-    branchSegKeys,
-    DEFAULT_BRANCH_SEG_FT
-  );
-
-  const resetLengths = () => {
-    setMainTrunkFt(DEFAULT_MAIN_TRUNK_FT);
-    setFloorSegAll((prev) => {
-      const next: Record<string, number> = {};
-      for (const k of Object.keys(prev)) next[k] = DEFAULT_FLOOR_GAP_FT;
-      return next;
-    });
-    setBranchAll((prev) => {
-      const next: Record<string, number> = {};
-      for (const k of Object.keys(prev)) next[k] = DEFAULT_BRANCH_SEG_FT;
-      return next;
-    });
-  };
+  const setMainTrunkFt = (v: number) => setVRFMainTrunkFt(Math.max(0.5, v));
+  const setFloorSeg = (floorId: string, v: number) =>
+    setVRFFloorSegFt(floorId, Math.max(0.5, v));
+  const setBranchFtFor = (roomId: string, v: number) =>
+    setVRFBranchFt(roomId, Math.max(0.5, v));
+  const resetLengths = () => resetVRFPipeLengths();
 
   // Geometry — derived from live ft state so the diagram grows/shrinks as lengths change.
   const mainTrunkPx = vPx(mainTrunkFt);
@@ -464,7 +442,7 @@ export function VRFSystemDiagram() {
             width={ODU_W}
             imageH={ODU_IMG_H}
             labelH={ODU_LABEL_H}
-            image="/images/vrf.png"
+            image="/images/vrf-outdoor-unit.png"
             title={oduModel}
             subtitle="Outdoor Unit"
             power={`${oduTons} tons capacity`}
@@ -541,7 +519,7 @@ export function VRFSystemDiagram() {
                   cx={(prevX + r.x) / 2}
                   cy={f.y}
                   valueFt={branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT}
-                  onChange={(v) => setBranchFt(r.id, v)}
+                  onChange={(v) => setBranchFtFor(r.id, v)}
                   isMetric={isMetric}
                   orientation="horizontal"
                 />

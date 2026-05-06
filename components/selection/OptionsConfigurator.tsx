@@ -44,19 +44,19 @@ const CATEGORY_CONFIG: Record<
     color: "text-orange-600",
     bgColor: "bg-orange-50",
   },
-  electrical: {
-    label: "Electrical Options",
-    description: "Power and electrical accessories",
-    icon: Zap,
-    color: "text-yellow-600",
-    bgColor: "bg-yellow-50",
-  },
   refrigeration: {
     label: "Refrigeration Options",
     description: "Refrigerant circuit accessories",
     icon: Snowflake,
     color: "text-cyan-600",
     bgColor: "bg-cyan-50",
+  },
+  electrical: {
+    label: "Electrical Options",
+    description: "Power and electrical accessories",
+    icon: Zap,
+    color: "text-yellow-600",
+    bgColor: "bg-yellow-50",
   },
   "air-side": {
     label: "Air Side Options",
@@ -103,14 +103,15 @@ export function OptionsConfigurator() {
   } = useSelectionStore();
 
   const isVRF = selectedGroup?.id === "vrf";
-  const isChiller = selectedGroup?.id === "chiller";
   const optionsSeriesId = isVRF ? "vrf" : selectedSeries?.id ?? null;
   const { data: options, isLoading, isError } = useOptions(optionsSeriesId);
 
   const primaryModel = selectedModels[0] ?? null;
-  const dc = designConditions as Record<string, number> | null;
-  const designLwtF = dc?.leavingWaterTempF ?? null;
-  const designAmbientF = dc?.ambientTempF ?? null;
+  const dc = designConditions as Record<string, number | string> | null;
+  const designLwtF = (dc?.leavingWaterTempF as number | undefined) ?? null;
+  const designAmbientF = (dc?.ambientTempF as number | undefined) ?? null;
+  const designSstF = (dc?.saturatedSuctionTempF as number | undefined) ?? null;
+  const is60Hz = typeof dc?.powerSupply === "string" && dc.powerSupply.includes("60Hz");
 
   return (
     <div className="w-full">
@@ -129,12 +130,14 @@ export function OptionsConfigurator() {
         </div>
       </div>
 
-      {!isVRF && !isChiller && primaryModel && (
+      {!isVRF && primaryModel && (
         <div className="mb-6">
           <PerformanceDataPanel
             model={primaryModel}
             designLcwtF={designLwtF}
             designAmbientF={designAmbientF}
+            designSstF={designSstF}
+            is60Hz={is60Hz}
           />
         </div>
       )}

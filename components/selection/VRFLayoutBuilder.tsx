@@ -32,10 +32,10 @@ function makeFloor(floorNumber: number, roomCount = 1): VRFFloor {
   };
 }
 
-const AMBIENT_PRESETS: { label: string; ambientF: number; description: string }[] = [
-  { label: "T1", ambientF: 95, description: "Moderate · 35°C" },
-  { label: "T3", ambientF: 115, description: "Hot · 46°C" },
-  { label: "T4", ambientF: 118, description: "Extreme · 48°C" },
+const AMBIENT_PRESETS: { label: string; ambientF: number }[] = [
+  { label: "T1", ambientF: 95 },
+  { label: "T3", ambientF: 115 },
+  { label: "T4", ambientF: 118 },
 ];
 
 const DEFAULT_SUMMER: VRFDesignCondition = {
@@ -168,7 +168,7 @@ export function VRFLayoutBuilder() {
             Climate preset
           </p>
           <div className="flex flex-wrap gap-2">
-            {AMBIENT_PRESETS.map(({ label, ambientF, description }) => {
+            {AMBIENT_PRESETS.map(({ label, ambientF }) => {
               const selected = ambientTempF === ambientF;
               return (
                 <button
@@ -184,7 +184,6 @@ export function VRFLayoutBuilder() {
                   <span className={`block text-xs font-bold ${selected ? "text-[#0057B8]" : "text-[#0D1626]"}`}>
                     {label}
                   </span>
-                  <span className="block text-[10px] text-[#8894AB] mt-0.5">{description}</span>
                 </button>
               );
             })}

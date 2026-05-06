@@ -185,8 +185,34 @@ export const ACC_ST_MODELS: ACCSTModelSpec[] = Object.entries(RAW).map(([modelNu
 );
 
 /**
+ * Find the two tabulated grid values that bracket a target. Clamps to the
+ * range edges when the target is outside the table, so extrapolation reduces
+ * to using the boundary value.
+ */
+function bracket(target: number, options: readonly number[]): { lo: number; hi: number; t: number } {
+  const sorted = [...options].sort((a, b) => a - b);
+  if (target <= sorted[0]) return { lo: sorted[0], hi: sorted[0], t: 0 };
+  if (target >= sorted[sorted.length - 1]) {
+    const last = sorted[sorted.length - 1];
+    return { lo: last, hi: last, t: 0 };
+  }
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (target >= sorted[i] && target <= sorted[i + 1]) {
+      const lo = sorted[i];
+      const hi = sorted[i + 1];
+      const t = hi === lo ? 0 : (target - lo) / (hi - lo);
+      return { lo, hi, t };
+    }
+  }
+  return { lo: sorted[0], hi: sorted[0], t: 0 };
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/**
  * Look up an ACC-ST performance point by leaving chilled water temp and ambient temp (°C).
- * Snaps to the closest tabulated condition in each axis.
+ * Performs bilinear interpolation across the LCWT × ambient grid; values outside the
+ * tabulated range are clamped to the nearest edge.
  */
 export function getACCSTPerformance(
   modelNumber: string,
@@ -196,10 +222,25 @@ export function getACCSTPerformance(
   const model = ACC_ST_MODELS.find(m => m.modelNumber === modelNumber);
   if (!model) return undefined;
 
-  const closest = (target: number, options: readonly number[]) =>
-    options.reduce((best, v) => Math.abs(v - target) < Math.abs(best - target) ? v : best, options[0]);
+  const { lo: lcwtLo, hi: lcwtHi, t: tL } = bracket(lcwtC, ACC_ST_LCWT_C);
+  const { lo: ambLo, hi: ambHi, t: tA } = bracket(ambientC, ACC_ST_AMBIENT_TEMPS_C);
 
-  const lcwt = closest(lcwtC, ACC_ST_LCWT_C);
-  const ambient = closest(ambientC, ACC_ST_AMBIENT_TEMPS_C);
-  return model.performance[String(lcwt)]?.[String(ambient)];
+  const p00 = model.performance[String(lcwtLo)]?.[String(ambLo)];
+  const p01 = model.performance[String(lcwtLo)]?.[String(ambHi)];
+  const p10 = model.performance[String(lcwtHi)]?.[String(ambLo)];
+  const p11 = model.performance[String(lcwtHi)]?.[String(ambHi)];
+  if (!p00 || !p01 || !p10 || !p11) return undefined;
+
+  const blend = (k: keyof ACCSTPerformancePoint) => {
+    const lo = lerp(p00[k], p01[k], tA);
+    const hi = lerp(p10[k], p11[k], tA);
+    return lerp(lo, hi, tL);
+  };
+
+  return {
+    capacityKW: blend('capacityKW'),
+    compressorKW: blend('compressorKW'),
+    waterFlowLPS: blend('waterFlowLPS'),
+    waterPressureDropKPa: blend('waterPressureDropKPa'),
+  };
 }

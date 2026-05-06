@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Loader2, Check, FileText } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -15,8 +15,10 @@ import { useToast } from "@/components/ui/toast";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, round } from "@/lib/utils/unit-conversions";
 import { buildOracleBOM } from "@/lib/nomenclature";
+import { pickVRFOutdoorTons, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
 import type { SubmittalOption } from "@/types/submittal";
 import type { Project, Unit, Revision, SubmittalSnapshot } from "@/types/project";
+import type { DesignConditionsFormData } from "@/types/selection";
 
 const PDFViewer = dynamic(
   () => import("@/components/submittal/SubmittalPDF").then(m => m.SubmittalPDFViewer),
@@ -43,6 +45,7 @@ export function SubmittalPreview() {
     selectedSeries,
     selectedOptions,
     vrfOptionsByUnit,
+    vrfLayout,
     projectInfo,
     designConditions,
     navigateBack,
@@ -51,13 +54,43 @@ export function SubmittalPreview() {
     addUnitTargetProjectId,
     reset,
   } = useSelectionStore();
+
+  const isVRF = selectedGroup?.id === 'vrf';
+
+  // VRF state (ODU model + design conditions) is auto-derived from vrfLayout.
+  // navigateBack to ≤5 wipes selectedModels, so on a forward jump straight to
+  // step 7 the gate would otherwise fail. Re-derive here so step 7 is robust
+  // regardless of how the user got here.
+  useEffect(() => {
+    if (!isVRF || !vrfLayout) return;
+    const totalKbtuh = vrfLayout.floors
+      .flatMap((f) => f.rooms)
+      .reduce((sum, r) => sum + (r.capacity ?? 0), 0);
+    if (totalKbtuh <= 0) return;
+
+    if (selectedModels.length === 0) {
+      const oduTons = pickVRFOutdoorTons(totalKbtuh);
+      useSelectionStore.setState({ selectedModels: [synthesizeVRFOutdoorModel(oduTons)] });
+    }
+    if (!designConditions) {
+      const dc: DesignConditionsFormData = {
+        requiredCoolingCapacityBtuh: totalKbtuh * 1000,
+        powerSupply: '380V/3Ph/60Hz',
+        enteringDBF: 80,
+        enteringWBF: 67,
+        espInWG: 0,
+        altitudeFt: 0,
+      };
+      useSelectionStore.setState({ designConditions: dc });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVRF, vrfLayout]);
   const { addProject, addUnit, addRevision, updateUnitSubmittal } = useProjectsStore();
   const { user } = useAuthStore();
   const unitSystem = useUnitStore((s) => s.unitSystem);
   const selectedModel = selectedModels[0] ?? null;
   const showPricing = user?.role !== "dealer";
 
-  const isVRF = selectedGroup?.id === 'vrf';
   const optionsSeriesId = isVRF ? 'vrf' : selectedSeries?.id ?? null;
   const { data: allOptions } = useOptions(optionsSeriesId);
 

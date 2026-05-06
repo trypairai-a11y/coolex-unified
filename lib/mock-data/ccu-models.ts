@@ -608,8 +608,34 @@ export const CCU_MODELS: CCUModelSpec[] = Object.entries(RAW).map(([modelNumber,
 );
 
 /**
+ * Find the two tabulated grid values that bracket a target. Clamps to the
+ * range edges when the target is outside the table, so extrapolation reduces
+ * to using the boundary value.
+ */
+function bracket(target: number, options: readonly number[]): { lo: number; hi: number; t: number } {
+  const sorted = [...options].sort((a, b) => a - b);
+  if (target <= sorted[0]) return { lo: sorted[0], hi: sorted[0], t: 0 };
+  if (target >= sorted[sorted.length - 1]) {
+    const last = sorted[sorted.length - 1];
+    return { lo: last, hi: last, t: 0 };
+  }
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (target >= sorted[i] && target <= sorted[i + 1]) {
+      const lo = sorted[i];
+      const hi = sorted[i + 1];
+      const t = hi === lo ? 0 : (target - lo) / (hi - lo);
+      return { lo, hi, t };
+    }
+  }
+  return { lo: sorted[0], hi: sorted[0], t: 0 };
+}
+
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/**
  * Look up a CCU performance point by SST (°F) and ambient temp (°F).
- * Snaps to the closest tabulated condition in each axis.
+ * Performs bilinear interpolation across the SST × ambient grid; values outside
+ * the tabulated range are clamped to the nearest edge.
  */
 export function getCCUPerformance(
   modelNumber: string,
@@ -619,10 +645,24 @@ export function getCCUPerformance(
   const model = CCU_MODELS.find(m => m.modelNumber === modelNumber);
   if (!model) return undefined;
 
-  const closest = (target: number, options: readonly number[]) =>
-    options.reduce((best, v) => Math.abs(v - target) < Math.abs(best - target) ? v : best, options[0]);
+  const { lo: sstLo, hi: sstHi, t: tS } = bracket(sstF, CCU_SST_F);
+  const { lo: ambLo, hi: ambHi, t: tA } = bracket(ambientF, CCU_AMBIENT_F);
 
-  const sst = closest(sstF, CCU_SST_F);
-  const ambient = closest(ambientF, CCU_AMBIENT_F);
-  return model.performance[String(sst)]?.[String(ambient)];
+  const p00 = model.performance[String(sstLo)]?.[String(ambLo)];
+  const p01 = model.performance[String(sstLo)]?.[String(ambHi)];
+  const p10 = model.performance[String(sstHi)]?.[String(ambLo)];
+  const p11 = model.performance[String(sstHi)]?.[String(ambHi)];
+  if (!p00 || !p01 || !p10 || !p11) return undefined;
+
+  const blend = (k: keyof CCUPerformancePoint) => {
+    const lo = lerp(p00[k], p01[k], tA);
+    const hi = lerp(p10[k], p11[k], tA);
+    return lerp(lo, hi, tS);
+  };
+
+  return {
+    totalCapacityBtuh: blend('totalCapacityBtuh'),
+    powerInputKW: blend('powerInputKW'),
+    condensingTempF: blend('condensingTempF'),
+  };
 }

@@ -70,6 +70,12 @@ export interface VRFLayout {
   ambientTempF?: number;
   summer?: VRFDesignCondition;
   winter?: VRFDesignCondition;
+  /** Refrigerant trunk between the ODU and the first floor's branch line, in feet. */
+  mainTrunkFt?: number;
+  /** Vertical trunk segment from each floor's branch line to the next, keyed by destination floorId. */
+  floorSegFtById?: Record<string, number>;
+  /** Horizontal branch segment leading to each indoor unit, keyed by roomId. */
+  branchFtById?: Record<string, number>;
 }
 
 export interface SelectionFlowState {

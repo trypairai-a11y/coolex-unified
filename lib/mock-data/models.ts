@@ -3,7 +3,9 @@ import { NGW_MODELS } from './ngw-models';
 import { ACSC_MODELS } from './acsc-models';
 import { ACC_BP_MODELS, getACCBPPerformance } from './acc-bp-models';
 import { ACC_ST_MODELS, getACCSTPerformance } from './acc-st-models';
-import { CCU_MODELS } from './ccu-models';
+import { DHAC_MODELS, getDHACPerformance } from './dhac-models';
+import { THAC_MODELS, getTHACPerformance } from './thac-models';
+import { CCU_MODELS, getCCUPerformance } from './ccu-models';
 import { fToC } from '@/lib/utils/unit-conversions';
 
 // Helper to generate realistic mock models for a series
@@ -48,8 +50,8 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'ms-cas': generateModels('ms-cas', 'CMSC', [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]),
   'ngw': NGW_MODELS,
   'acsc': ACSC_MODELS,
-  'thac': generateModels('thac', 'THAC', [3, 5, 7.5, 10, 15, 20, 25, 30, 40, 50]),
-  'dhac': generateModels('dhac', 'DHAC', [20, 25, 30, 40, 50, 60, 70, 80, 100]),
+  'thac': THAC_MODELS,
+  'dhac': DHAC_MODELS,
   'acc-bp': ACC_BP_MODELS,
   'acc-st': ACC_ST_MODELS,
   'dstc': generateModels('dstc', 'DSTC', [5, 6, 7.5, 8.5, 10]),
@@ -82,43 +84,87 @@ export interface EvaporatorConditions {
   // Chiller-only: design-point lookup keys for tabulated performance matrices
   leavingWaterTempF?: number;
   ambientTempF?: number;
+  // CCU-only: saturated suction temperature (°F)
+  saturatedSuctionTempF?: number;
 }
 
 const BTUH_PER_KW = 3412.142;
 const KW_PER_TON = 3.51685;
 
 /**
- * For tabulated chiller series (ACC-BP, ACC-ST), recompute capacity / power / EER
- * at the user's design point (LCWT + ambient) instead of the catalogue T1 rating.
- * Snaps to the nearest tabulated grid point in each axis.
+ * For tabulated chiller series (ACC-BP, ACC-ST, DHAC, THAC), recompute capacity / power / EER
+ * at the user's design point (LCWT + ambient) instead of the catalogue rating.
+ * Performs bilinear interpolation across the matrix.
+ *
+ * ACC-BP / ACC-ST tables are indexed in °C; DHAC / THAC are indexed in °F
+ * (matching their English-system catalogues), so the lookup gets the temps
+ * in its native units.
  */
 function applyChillerDesignPoint(
   seriesId: string,
   models: Model[],
   cond?: EvaporatorConditions,
 ): Model[] {
+  if (seriesId === 'ccu-std') {
+    return applyCCUDesignPoint(models, cond);
+  }
+
   if (cond?.leavingWaterTempF == null || cond?.ambientTempF == null) return models;
   const lookup =
     seriesId === 'acc-bp' ? getACCBPPerformance :
     seriesId === 'acc-st' ? getACCSTPerformance :
+    seriesId === 'dhac'   ? getDHACPerformance :
+    seriesId === 'thac'   ? getTHACPerformance :
     null;
   if (!lookup) return models;
 
-  const lcwtC = fToC(cond.leavingWaterTempF);
-  const ambientC = fToC(cond.ambientTempF);
+  const useFahrenheit = seriesId === 'dhac' || seriesId === 'thac';
+  const lcwtArg = useFahrenheit ? cond.leavingWaterTempF : fToC(cond.leavingWaterTempF);
+  const ambientArg = useFahrenheit ? cond.ambientTempF : fToC(cond.ambientTempF);
 
   return models.map(m => {
-    const perf = lookup(m.modelNumber, lcwtC, ambientC);
+    const perf = lookup(m.modelNumber, lcwtArg, ambientArg);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.capacityKW * BTUH_PER_KW);
-    const eer = Math.round((totalCapacityBtuh / (perf.compressorKW * 1000)) * 100) / 100;
+    const compressorKW = Math.round(perf.compressorKW * 10) / 10;
+    const eer = Math.round((totalCapacityBtuh / (compressorKW * 1000)) * 100) / 100;
     return {
       ...m,
       totalCapacityBtuh,
       sensibleCapacityBtuh: totalCapacityBtuh,
-      powerKW: perf.compressorKW,
+      powerKW: compressorKW,
       eer,
       nominalTons: Math.round((perf.capacityKW / KW_PER_TON) * 100) / 100,
+      // L/s stored at 4-decimal precision so the round-trip to GPM preserves
+      // catalog values exactly (1 L/s ≈ 15.85 GPM, so 2-decimal L/s loses 0.16 GPM).
+      matrixWaterFlowLPS: Math.round(perf.waterFlowLPS * 10000) / 10000,
+      matrixWaterPressureDropKPa: Math.round(perf.waterPressureDropKPa * 100) / 100,
+    };
+  });
+}
+
+/**
+ * For tabulated condensing-unit series (CCU), recompute capacity / power / EER /
+ * condensing temp at the user's design point (SST + ambient °F). Bilinearly
+ * interpolated across the matrix.
+ */
+function applyCCUDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
+  if (cond?.saturatedSuctionTempF == null || cond?.ambientTempF == null) return models;
+
+  return models.map(m => {
+    const perf = getCCUPerformance(m.modelNumber, cond.saturatedSuctionTempF!, cond.ambientTempF!);
+    if (!perf) return m;
+    const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
+    const powerKW = Math.round(perf.powerInputKW * 10) / 10;
+    const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
+    return {
+      ...m,
+      totalCapacityBtuh,
+      sensibleCapacityBtuh: totalCapacityBtuh,
+      powerKW,
+      eer,
+      nominalTons: Math.round((totalCapacityBtuh / 12000) * 10) / 10,
+      matrixCondensingTempF: Math.round(perf.condensingTempF * 10) / 10,
     };
   });
 }
@@ -162,41 +208,35 @@ export function getModelsMatchingCapacity(
   const models = applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), conditions);
   if (models.length === 0) return [];
 
-  const corrFactor = capacityCorrectionFactor(conditions ?? {});
-  const maxEER = Math.max(...models.map(m => m.eer));
-  const bestPowerPerBtuh = Math.min(...models.map(m => m.powerKW / m.totalCapacityBtuh));
+  // Chillers and CCUs are sized by water-side / refrigerant-side conditions
+  // already baked into the design-point matrix — applying the airside (DB/WB/ESP)
+  // correction here would double-count derating and push match% below 100% even
+  // for an exact-tonnage request.
+  const isMatrixSized =
+    seriesId === 'acc-bp' || seriesId === 'acc-st' ||
+    seriesId === 'dhac'   || seriesId === 'thac'   ||
+    seriesId === 'acsc'   || seriesId === 'ccu-std';
+  const corrFactor = isMatrixSized ? 1 : capacityCorrectionFactor(conditions ?? {});
 
   const withMatch = models.map(m => {
-    // Apply correction factor to catalog capacity for realistic comparison
+    // Apply correction factor to catalog capacity (non-chillers only — see above).
     const correctedCapacity = m.totalCapacityBtuh * corrFactor;
 
-    // Capacity proximity (0–100)
-    const capDeviation = Math.abs(correctedCapacity - requestedBtuh) / requestedBtuh;
-    const capScore = Math.max(0, 100 - capDeviation * 100);
-
-    // EER score (0–100)
-    const eerScore = maxEER > 0 ? (m.eer / maxEER) * 100 : 100;
-
-    // Power efficiency score (0–100)
-    const powerPerBtuh = m.powerKW / m.totalCapacityBtuh;
-    const powerScore = bestPowerPerBtuh > 0 ? (bestPowerPerBtuh / powerPerBtuh) * 100 : 100;
-
-    // Condition suitability: how well the corrected capacity still meets the request
-    // Oversized is slightly better than undersized (safety margin)
+    // Match % = how well the model's capacity meets the request.
+    // Asymmetric: oversized is acceptable (safety margin), undersized hurts more.
     const ratio = correctedCapacity / requestedBtuh;
     const condScore = ratio >= 1.0
-      ? Math.max(0, 100 - (ratio - 1.0) * 80)   // oversized: gentle penalty
-      : Math.max(0, 100 - (1.0 - ratio) * 150);  // undersized: steeper penalty
+      ? Math.max(0, 100 - (ratio - 1.0) * 80)
+      : Math.max(0, 100 - (1.0 - ratio) * 150);
 
-    // Weighted: capacity 60%, conditions 20%, EER 10%, power 10%
-    const matchPercent = Math.max(0, Math.round(
-      capScore * 0.60 + condScore * 0.20 + eerScore * 0.10 + powerScore * 0.10
-    ));
+    const matchPercent = Math.max(0, Math.round(condScore));
 
     return { ...m, matchPercent };
   });
 
-  withMatch.sort((a, b) => b.matchPercent - a.matchPercent);
+  // Sort by match%, then by EER as a tiebreaker so the most efficient
+  // option wins among models with similar capacity fit.
+  withMatch.sort((a, b) => b.matchPercent - a.matchPercent || b.eer - a.eer);
   return withMatch.slice(0, 6);
 }
 
@@ -216,36 +256,21 @@ export function getModelsMatchingAirflow(
   const espDelta = ((conditions?.espInWG ?? STD_ESP) - STD_ESP);
   const espAirflowFactor = Math.max(0.80, 1 - Math.max(0, espDelta) * (1 / 0.1) * 0.015);
 
-  const maxEER = Math.max(...models.map(m => m.eer));
-  const bestPowerPerCFM = Math.min(...models.map(m => m.powerKW / m.airflowCFM));
-
   const withMatch = models.map(m => {
     const correctedCFM = m.airflowCFM * espAirflowFactor;
 
-    // Airflow proximity (0–100)
-    const cfmDeviation = Math.abs(correctedCFM - requestedCFM) / requestedCFM;
-    const cfmScore = Math.max(0, 100 - cfmDeviation * 100);
-
-    // EER score (0–100)
-    const eerScore = maxEER > 0 ? (m.eer / maxEER) * 100 : 100;
-
-    // Power efficiency (0–100)
-    const powerPerCFM = m.powerKW / m.airflowCFM;
-    const powerScore = bestPowerPerCFM > 0 ? (bestPowerPerCFM / powerPerCFM) * 100 : 100;
-
-    // Condition suitability: airflow margin
+    // Match % = how well delivered airflow meets the request.
+    // Asymmetric: oversized airflow is fine, undersized hurts more.
     const ratio = correctedCFM / requestedCFM;
     const condScore = ratio >= 1.0
       ? Math.max(0, 100 - (ratio - 1.0) * 80)
       : Math.max(0, 100 - (1.0 - ratio) * 150);
 
-    const matchPercent = Math.max(0, Math.round(
-      cfmScore * 0.60 + condScore * 0.20 + eerScore * 0.10 + powerScore * 0.10
-    ));
+    const matchPercent = Math.max(0, Math.round(condScore));
 
     return { ...m, matchPercent };
   });
 
-  withMatch.sort((a, b) => b.matchPercent - a.matchPercent);
+  withMatch.sort((a, b) => b.matchPercent - a.matchPercent || b.eer - a.eer);
   return withMatch.slice(0, 6);
 }

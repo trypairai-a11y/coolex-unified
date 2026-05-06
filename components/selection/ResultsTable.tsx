@@ -12,7 +12,7 @@ import { NomenclatureInline } from "@/components/selection/NomenclatureBreakdown
 import type { Model } from "@/types/product";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { btuhToKw, btuhToTons, fToC, cfmToM3h, gpmToLps, round } from "@/lib/utils/unit-conversions";
+import { btuhToKw, btuhToTons, fToC, cfmToM3h, gpmToLps, lpsToGpm, kpaToFtWg, round } from "@/lib/utils/unit-conversions";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
 
@@ -39,6 +39,9 @@ export function ResultsTable() {
   const isMetric = unitSystem === "metric";
   const isChiller = selectedSeries?.isChiller ?? false;
   const isCCU = selectedSeries?.isCCU ?? false;
+  const isCrac = selectedSeries?.groupId === "crac";
+  const isPackagedExclSPU = selectedSeries?.groupId === "pac" && selectedSeries?.id !== "spu";
+  const isSplit = selectedSeries?.groupId === "split";
 
   const dc = designConditions as Record<string, number> | null;
   const capacityBtuh = dc?.requiredCoolingCapacityBtuh ?? null;
@@ -50,13 +53,17 @@ export function ResultsTable() {
   const ambientF = dc?.ambientTempF ?? null;
   const sctF = ambientF != null ? ambientF + 25 : null;
   const basis = selectionBasis ?? 'capacity';
-  const showMewApproval = projectInfo?.country === "Kuwait" && ambientF === 118 && !isCCU;
+  const showMewApproval =
+    projectInfo?.country === "Kuwait" &&
+    ambientF === 118 &&
+    (isChiller || isCrac || isPackagedExclSPU || isSplit);
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,
     espInWG: dc?.espInWG,
     leavingWaterTempF: dc?.leavingWaterTempF,
     ambientTempF: dc?.ambientTempF,
+    saturatedSuctionTempF: dc?.saturatedSuctionTempF,
   };
   const { data: models, isLoading, isError } = useModels(selectedSeries?.id ?? null, capacityBtuh, basis, airflowCFM, evapConditions);
 
@@ -165,12 +172,14 @@ export function ResultsTable() {
                     </div>
                     <div>
                       <div className="text-muted-foreground">Power</div>
-                      <div className="font-medium">{model.powerKW} kW</div>
+                      <div className="font-medium">{round(model.powerKW, 1).toFixed(1)} kW</div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">{isChiller || isMetric ? "COP" : "EER"}</div>
-                      <div className="font-medium">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
-                    </div>
+                    {!isCCU && (
+                      <div>
+                        <div className="text-muted-foreground">{isChiller || isMetric ? "COP" : "EER"}</div>
+                        <div className="font-medium">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
+                      </div>
+                    )}
                     {isChiller ? (
                       <>
                         <div>
@@ -186,13 +195,27 @@ export function ResultsTable() {
                         <div>
                           <div className="text-muted-foreground">Flow</div>
                           <div className="font-medium">
-                            {flowGPM != null
+                            {model.matrixWaterFlowLPS != null
                               ? isMetric
-                                ? `${round(gpmToLps(flowGPM), 2)} L/s`
-                                : `${flowGPM.toLocaleString()} GPM`
-                              : "—"}
+                                ? `${model.matrixWaterFlowLPS.toFixed(1)} L/s`
+                                : `${lpsToGpm(model.matrixWaterFlowLPS).toFixed(1)} GPM`
+                              : flowGPM != null
+                                ? isMetric
+                                  ? `${round(gpmToLps(flowGPM), 1)} L/s`
+                                  : `${flowGPM.toLocaleString()} GPM`
+                                : "—"}
                           </div>
                         </div>
+                        {model.matrixWaterPressureDropKPa != null && (
+                          <div>
+                            <div className="text-muted-foreground">WPD</div>
+                            <div className="font-medium">
+                              {isMetric
+                                ? `${model.matrixWaterPressureDropKPa.toFixed(1)} kPa`
+                                : `${kpaToFtWg(model.matrixWaterPressureDropKPa).toFixed(1)} ft.wg`}
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : isCCU ? (
                       <>
@@ -209,11 +232,15 @@ export function ResultsTable() {
                         <div>
                           <div className="text-muted-foreground">Cond. Temp</div>
                           <div className="font-medium">
-                            {sctF != null
+                            {model.matrixCondensingTempF != null
                               ? isMetric
-                                ? `${round(fToC(sctF), 1)} °C`
-                                : `${sctF} °F`
-                              : "—"}
+                                ? `${round(fToC(model.matrixCondensingTempF), 1)} °C`
+                                : `${model.matrixCondensingTempF.toFixed(1)} °F`
+                              : sctF != null
+                                ? isMetric
+                                  ? `${round(fToC(sctF), 1)} °C`
+                                  : `${sctF} °F`
+                                : "—"}
                           </div>
                         </div>
                       </>
@@ -254,6 +281,7 @@ export function ResultsTable() {
                       <>
                         <TH label={isMetric ? "Water In/Out (°C)" : "Water In/Out (°F)"} />
                         <TH label={isMetric ? "Flow (L/s)" : "Flow (GPM)"} />
+                        <TH label={isMetric ? "WPD (kPa)" : "WPD (ft.wg)"} />
                       </>
                     ) : isCCU ? (
                       <>
@@ -264,7 +292,7 @@ export function ResultsTable() {
                       <TH label="Sensible Cap." sortable="sensibleCapacityBtuh" />
                     )}
                     <TH label="Power (kW)" sortable="powerKW" />
-                    <TH label={isChiller || isMetric ? "COP" : "EER"} sortable="eer" />
+                    {!isCCU && <TH label={isChiller || isMetric ? "COP" : "EER"} sortable="eer" />}
                     {!isChiller && !isCCU && (
                       <>
                         <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
@@ -324,10 +352,21 @@ export function ResultsTable() {
                                 : "—"}
                             </td>
                             <td className="px-4 py-3 text-black">
-                              {flowGPM != null
+                              {model.matrixWaterFlowLPS != null
                                 ? isMetric
-                                  ? round(gpmToLps(flowGPM), 2)
-                                  : flowGPM.toLocaleString()
+                                  ? model.matrixWaterFlowLPS.toFixed(1)
+                                  : lpsToGpm(model.matrixWaterFlowLPS).toFixed(1)
+                                : flowGPM != null
+                                  ? isMetric
+                                    ? round(gpmToLps(flowGPM), 1)
+                                    : flowGPM.toLocaleString()
+                                  : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-black">
+                              {model.matrixWaterPressureDropKPa != null
+                                ? isMetric
+                                  ? model.matrixWaterPressureDropKPa.toFixed(1)
+                                  : kpaToFtWg(model.matrixWaterPressureDropKPa).toFixed(1)
                                 : "—"}
                             </td>
                           </>
@@ -341,11 +380,15 @@ export function ResultsTable() {
                                 : "—"}
                             </td>
                             <td className="px-4 py-3 text-black">
-                              {sctF != null
+                              {model.matrixCondensingTempF != null
                                 ? isMetric
-                                  ? round(fToC(sctF), 1)
-                                  : sctF
-                                : "—"}
+                                  ? round(fToC(model.matrixCondensingTempF), 1)
+                                  : model.matrixCondensingTempF.toFixed(1)
+                                : sctF != null
+                                  ? isMetric
+                                    ? round(fToC(sctF), 1)
+                                    : sctF
+                                  : "—"}
                             </td>
                           </>
                         ) : (
@@ -353,10 +396,12 @@ export function ResultsTable() {
                             {isMetric ? `${round(btuhToKw(model.sensibleCapacityBtuh), 1)} kW` : `${formatBtuh(model.sensibleCapacityBtuh)} Btu/h`}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-black">{model.powerKW}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-black">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
-                        </td>
+                        <td className="px-4 py-3 text-black">{round(model.powerKW, 1).toFixed(1)}</td>
+                        {!isCCU && (
+                          <td className="px-4 py-3">
+                            <span className="text-black">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
+                          </td>
+                        )}
                         {!isChiller && !isCCU && (
                           <>
                             <td className="px-4 py-3 text-black">

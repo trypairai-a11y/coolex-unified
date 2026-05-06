@@ -7,3 +7,9 @@ export const SAUDI_EXCLUDED_SERIES_IDS = new Set<string>([
   'acc-st',
   'dhac',
 ]);
+
+// Entire product groups that are not offered in Saudi Arabia.
+export const SAUDI_EXCLUDED_GROUP_IDS = new Set<string>([
+  'ccu',
+  'crac',
+]);

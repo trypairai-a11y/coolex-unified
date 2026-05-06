@@ -67,4 +67,11 @@ export interface Model {
   capacity_at115F?: number;
   power_at95F?: number;
   power_at105F?: number;
+  // Tabulated chiller performance (ACC-BP, ACC-ST) at the user's design point.
+  // Bilinearly interpolated from the catalogue matrix on LCWT × ambient.
+  matrixWaterFlowLPS?: number;
+  matrixWaterPressureDropKPa?: number;
+  // Tabulated CCU performance at the user's design point.
+  // Bilinearly interpolated from the catalogue matrix on SST × ambient (°F).
+  matrixCondensingTempF?: number;
 }

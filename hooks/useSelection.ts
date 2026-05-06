@@ -8,6 +8,7 @@ interface EvapConditions {
   espInWG?: number;
   leavingWaterTempF?: number;
   ambientTempF?: number;
+  saturatedSuctionTempF?: number;
 }
 
 export function useModels(
@@ -17,9 +18,9 @@ export function useModels(
   airflowCFM: number | null = null,
   conditions: EvapConditions = {},
 ) {
-  const { enteringDBF, enteringWBF, espInWG, leavingWaterTempF, ambientTempF } = conditions;
+  const { enteringDBF, enteringWBF, espInWG, leavingWaterTempF, ambientTempF, saturatedSuctionTempF } = conditions;
   return useQuery<Model[]>({
-    queryKey: ['models', seriesId, basis, capacityBtuh, airflowCFM, enteringDBF, enteringWBF, espInWG, leavingWaterTempF, ambientTempF],
+    queryKey: ['models', seriesId, basis, capacityBtuh, airflowCFM, enteringDBF, enteringWBF, espInWG, leavingWaterTempF, ambientTempF, saturatedSuctionTempF],
     queryFn: async () => {
       if (!seriesId) return [];
       if (basis === 'airflow' && !airflowCFM) return [];
@@ -32,6 +33,7 @@ export function useModels(
       if (espInWG != null) params.set('esp', String(espInWG));
       if (leavingWaterTempF != null) params.set('lwt', String(leavingWaterTempF));
       if (ambientTempF != null) params.set('amb', String(ambientTempF));
+      if (saturatedSuctionTempF != null) params.set('sst', String(saturatedSuctionTempF));
       const res = await fetch(`/api/mock/results?${params}`);
       return res.json();
     },

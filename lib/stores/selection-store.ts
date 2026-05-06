@@ -33,6 +33,10 @@ interface SelectionState {
   setVRFLayout: (layout: VRFLayout) => void;
   setVRFRoomIndoorType: (roomId: string, indoorType: VRFIndoorType) => void;
   setVRFRoomCapacity: (roomId: string, capacity: number) => void;
+  setVRFMainTrunkFt: (ft: number) => void;
+  setVRFFloorSegFt: (floorId: string, ft: number) => void;
+  setVRFBranchFt: (roomId: string, ft: number) => void;
+  resetVRFPipeLengths: () => void;
   confirmVRFDesign: () => void;
   toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
@@ -128,6 +132,43 @@ export const useSelectionStore = create<SelectionState>()(
               ...f,
               rooms: f.rooms.map((r) => (r.id === roomId ? { ...r, capacity } : r)),
             })),
+          },
+        };
+      }),
+
+      setVRFMainTrunkFt: (ft) => set((state) => {
+        if (!state.vrfLayout) return {};
+        return { vrfLayout: { ...state.vrfLayout, mainTrunkFt: ft } };
+      }),
+
+      setVRFFloorSegFt: (floorId, ft) => set((state) => {
+        if (!state.vrfLayout) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            floorSegFtById: { ...(state.vrfLayout.floorSegFtById ?? {}), [floorId]: ft },
+          },
+        };
+      }),
+
+      setVRFBranchFt: (roomId, ft) => set((state) => {
+        if (!state.vrfLayout) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            branchFtById: { ...(state.vrfLayout.branchFtById ?? {}), [roomId]: ft },
+          },
+        };
+      }),
+
+      resetVRFPipeLengths: () => set((state) => {
+        if (!state.vrfLayout) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            mainTrunkFt: undefined,
+            floorSegFtById: undefined,
+            branchFtById: undefined,
           },
         };
       }),
