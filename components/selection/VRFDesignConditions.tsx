@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { btuhToKw, fToC, cfmToM3h, round } from "@/lib/utils/unit-conversions";
+import { btuhToKw, cfmToM3h, round } from "@/lib/utils/unit-conversions";
 import type { VRFIndoorType } from "@/types/selection";
 
 const INDOOR_SPEC_PROFILE: Record<
@@ -318,14 +318,6 @@ export function VRFDesignConditions() {
                               ? isMetric
                                 ? `${round(cfmToM3h(s.airflowCFM), 0).toLocaleString()} m³/h`
                                 : `${s.airflowCFM.toLocaleString()} CFM`
-                              : "—",
-                          },
-                          {
-                            label: "Leaving DB/WB",
-                            value: s
-                              ? isMetric
-                                ? `${round(fToC(s.leavingDBF), 1)}°C / ${round(fToC(s.leavingWBF), 1)}°C`
-                                : `${s.leavingDBF}°F / ${s.leavingWBF}°F`
                               : "—",
                           },
                         ];

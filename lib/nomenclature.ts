@@ -112,6 +112,7 @@ function decodeGeneric(modelNumber: string, seriesId: string): NomenclatureSegme
     'prec-tele':  'Precision Telecom Cooling',
     'fcu':        'Chilled Water Fan Coil Unit',
     'rpui':       'RPUI Rooftop Packaged Unit',
+    'fapu':       'FAPU Fresh Air Package Unit',
     'spu':        'SPU Split Packaged Unit',
     'dstc':       'DSTC Ducted Split Tropical (R-407C)',
     'dstf':       'DSTF Ducted Split Tropical (R-410A)',
@@ -181,6 +182,7 @@ const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
   'prec-tele':  { refrigerant: 'R410A', voltage: '220', phase: '1', frequency: '50', compressorType: 'IV' },
   'fcu':        { refrigerant: '',      voltage: '220', phase: '1', frequency: '50', compressorType: '' },
   'rpui':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
+  'fapu':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'spu':        { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
 };
 

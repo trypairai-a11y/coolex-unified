@@ -65,6 +65,25 @@ export interface VRFDesignCondition {
   indoorWBF?: number;
 }
 
+/** Identifies a unit on the VRF canvas. 'odu' is the single outdoor unit; otherwise a roomId. */
+export type VRFUnitId = 'odu' | string;
+
+export interface VRFCanvasPos {
+  /** Top-left of the unit card in canvas pixels. */
+  x: number;
+  y: number;
+}
+
+export interface VRFCustomPipe {
+  id: string;
+  /** Unit the pipe starts at. */
+  fromUnitId: VRFUnitId;
+  /** Unit the pipe ends at. */
+  toUnitId: VRFUnitId;
+  /** Length in feet (independent of canvas geometry — same model as auto-pipe lengths). */
+  lengthFt: number;
+}
+
 export interface VRFLayout {
   floors: VRFFloor[];
   ambientTempF?: number;
@@ -76,6 +95,17 @@ export interface VRFLayout {
   floorSegFtById?: Record<string, number>;
   /** Horizontal branch segment leading to each indoor unit, keyed by roomId. */
   branchFtById?: Record<string, number>;
+  /** User-overridden positions for unit cards on the canvas. Absent = use auto-layout. */
+  unitPositions?: Record<VRFUnitId, VRFCanvasPos>;
+  /** User-drawn pipes added on top of the auto-generated trunk/branch network. */
+  customPipes?: VRFCustomPipe[];
+  /**
+   * Auto-pipe segments the user has hidden from the suggestion. IDs follow:
+   *   - "auto-trunk-main"               main trunk (ODU → floor 1)
+   *   - "auto-trunk-floor-{floorId}"    inter-floor trunk to that floor
+   *   - "auto-branch-{roomId}"          horizontal segment leading to that indoor unit
+   */
+  deletedAutoPipeIds?: string[];
 }
 
 export interface SelectionFlowState {

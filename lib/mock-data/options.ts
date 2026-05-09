@@ -9,7 +9,7 @@ export interface EquipmentOption {
   vrfTarget?: 'odu' | 'idu';
 }
 
-const ROOFTOP_PACKAGED_SERIES_IDS = ['rpui', 'rpuf', 'rpuc', 'spu'];
+const ROOFTOP_PACKAGED_SERIES_IDS = ['rpui', 'rpuf', 'rpuc', 'fapu', 'spu'];
 
 export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   // Construction

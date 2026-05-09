@@ -157,11 +157,11 @@ export function DesignConditionsForm() {
   const wAmbient = watch("ambientTempF");
   const wSST = watch("saturatedSuctionTempF");
 
-  // Chillers: user enters EWT (required) and EITHER LWT or GPM. The other is
-  // auto-calculated via GPM = 24 × TR / ΔT (water-side balance, °F + GPM).
-  // `chillerAnchor` records which field the user typed into so the opposite
-  // one is the derived value.
-  const [chillerAnchor, setChillerAnchor] = useState<"lwt" | "gpm">("lwt");
+  // Hydronic auto-calc (chillers + fan coils): user enters EWT (required) and
+  // EITHER LWT or GPM. The other is auto-calculated via GPM = 24 × TR / ΔT
+  // (water-side balance, °F + GPM). `waterAnchor` records which field the user
+  // typed into so the opposite one is the derived value.
+  const [waterAnchor, setWaterAnchor] = useState<"lwt" | "gpm">("lwt");
 
   // Tonnage sync (chillers only): 1 TR = 12,000 Btu/h = 3.51685 kW.
   // Local string state lets the user type partial numbers (e.g. "10.") without
@@ -200,10 +200,10 @@ export function DesignConditionsForm() {
     );
   };
 
-  // Chiller water-side auto-calc — GPM derived from LWT
+  // Hydronic water-side auto-calc — GPM derived from LWT (chillers + fan coils)
   useEffect(() => {
-    if (!isChiller) return;
-    if (chillerAnchor !== "lwt") return;
+    if (!isChiller && !isFanCoil) return;
+    if (waterAnchor !== "lwt") return;
     if (wEWT == null || wLWT == null || wCapacity == null) return;
     const ewtNum = Number(wEWT);
     const lwtNum = Number(wLWT);
@@ -222,12 +222,12 @@ export function DesignConditionsForm() {
     if (isNaN(current) || Math.abs(current - next) > 0.01) {
       setValue("waterFlowRateGPM", next as never, { shouldDirty: true });
     }
-  }, [isChiller, chillerAnchor, wEWT, wLWT, wCapacity, unitSystem, getValues, setValue]);
+  }, [isChiller, isFanCoil, waterAnchor, wEWT, wLWT, wCapacity, unitSystem, getValues, setValue]);
 
-  // Chiller water-side auto-calc — LWT derived from GPM
+  // Hydronic water-side auto-calc — LWT derived from GPM (chillers + fan coils)
   useEffect(() => {
-    if (!isChiller) return;
-    if (chillerAnchor !== "gpm") return;
+    if (!isChiller && !isFanCoil) return;
+    if (waterAnchor !== "gpm") return;
     if (wEWT == null || wGPM == null || wCapacity == null) return;
     const ewtNum = Number(wEWT);
     const gpmNum = Number(wGPM);
@@ -246,7 +246,7 @@ export function DesignConditionsForm() {
     if (isNaN(current) || Math.abs(current - next) > 0.05) {
       setValue("leavingWaterTempF", next as never, { shouldDirty: true });
     }
-  }, [isChiller, chillerAnchor, wEWT, wGPM, wCapacity, unitSystem, getValues, setValue]);
+  }, [isChiller, isFanCoil, waterAnchor, wEWT, wGPM, wCapacity, unitSystem, getValues, setValue]);
 
   // When unit system changes (from TopBar toggle), convert all visible values in-place
   useEffect(() => {
@@ -272,28 +272,6 @@ export function DesignConditionsForm() {
     }
     setDesignConditions(data);
   };
-
-  const isThreePhaseOnly = selectedSeries?.id === 'acsc' || selectedSeries?.id === 'acc-bp';
-  const isSaudiArabia = projectInfo?.country === 'Saudi Arabia';
-  const basePowerSupplies = is50HzOnly
-    ? ["400-415V/3Ph/50Hz"]
-    : isThreePhaseOnly
-    ? ["400-415V/3Ph/50Hz", "380-400V/3Ph/60Hz"]
-    : ["230-240V/1Ph/50Hz", "400-415V/3Ph/50Hz", "230V/1Ph/60Hz", "230V/3Ph/60Hz", "380-400V/3Ph/60Hz", "460V/3Ph/60Hz"];
-  const filtered50Hz = basePowerSupplies.filter(p => p.includes("50Hz"));
-  const filtered60Hz = basePowerSupplies.filter(p => p.includes("60Hz"));
-  const POWER_SUPPLIES = isSaudiArabia
-    ? (filtered60Hz.length > 0 ? filtered60Hz : basePowerSupplies)
-    : (filtered50Hz.length > 0 ? filtered50Hz : basePowerSupplies);
-
-  // Reset the selected power supply if the current value is no longer valid (e.g., after switching to Saudi Arabia).
-  useEffect(() => {
-    const current = getValues("powerSupply");
-    if (current && !POWER_SUPPLIES.includes(current)) {
-      setValue("powerSupply", POWER_SUPPLIES[0]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSaudiArabia, is50HzOnly, isThreePhaseOnly]);
 
   const u = (field: string) => unitLabel(field, unitSystem);
 
@@ -482,18 +460,6 @@ export function DesignConditionsForm() {
               </>
             )}
 
-            <div className="space-y-1.5">
-              <Label>Power Supply <span className="text-destructive">*</span></Label>
-              <Select
-                value={getValues("powerSupply") || POWER_SUPPLIES[0]}
-                onValueChange={(v) => setValue("powerSupply", v)}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {POWER_SUPPLIES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </div>
 
@@ -519,21 +485,35 @@ export function DesignConditionsForm() {
                   {[
                     { label: "T1", ambientF: 95, dbF: 80, wbF: 67 },
                     { label: "T3", ambientF: 115, dbF: 84, wbF: 67 },
-                    { label: "T4", ambientF: 118, dbF: 80, wbF: 67 },
-                  ].filter(({ label }) => projectInfo?.country === "Kuwait" || label !== "T4").map(({ label, ambientF, dbF, wbF }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={() => {
-                        setValue("ambientTempF", toDisplay(ambientF, "ambientTempF", unitSystem), { shouldDirty: true });
-                        setValue("enteringDBF", toDisplay(dbF, "enteringDBF", unitSystem), { shouldDirty: true });
-                        setValue("enteringWBF", toDisplay(wbF, "enteringWBF", unitSystem), { shouldDirty: true });
-                      }}
-                      className="px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
-                    >
-                      {label}
-                    </button>
-                  ))}
+                    { label: "T4", ambientF: 118.4, dbF: 80, wbF: 67 },
+                  ].filter(({ label }) => projectInfo?.country === "Kuwait" || label !== "T4").map(({ label, ambientF, dbF, wbF }) => {
+                    const presetAmbient = toDisplay(ambientF, "ambientTempF", unitSystem);
+                    const presetDB = toDisplay(dbF, "enteringDBF", unitSystem);
+                    const presetWB = toDisplay(wbF, "enteringWBF", unitSystem);
+                    const isActive =
+                      Number(wAmbient) === presetAmbient &&
+                      Number(wDB) === presetDB &&
+                      Number(wWB) === presetWB;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => {
+                          setValue("ambientTempF", presetAmbient, { shouldDirty: true });
+                          setValue("enteringDBF", presetDB, { shouldDirty: true });
+                          setValue("enteringWBF", presetWB, { shouldDirty: true });
+                        }}
+                        aria-pressed={isActive}
+                        className={
+                          isActive
+                            ? "px-3 py-1 text-xs font-semibold rounded-md border border-[#0057B8] bg-[#0057B8] text-white shadow-sm transition-colors"
+                            : "px-3 py-1 text-xs font-semibold rounded-md border border-[#B8D4F0] bg-[#F0F7FF] text-[#0057B8] hover:bg-[#E6F0FB] hover:border-[#0057B8] transition-colors"
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </FieldWithTooltip>
             )}
@@ -575,32 +555,57 @@ export function DesignConditionsForm() {
                 {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
               </FieldWithTooltip>
 
-              {isFanCoil && (
-                <>
-                  <FieldWithTooltip
-                    label={`Entering Water Temp (${u('enteringWaterTempF')})`}
-                    tooltip="Chilled water return temperature entering the coil."
-                    required
-                    filled={wEWT != null && String(wEWT) !== ""}
-                  >
-                    <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
-                  </FieldWithTooltip>
-                  <FieldWithTooltip
-                    label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
-                    tooltip="Chilled water supply temperature leaving the coil."
-                    required
-                    filled={wLWT != null && String(wLWT) !== ""}
-                  >
-                    <Input type="number" step="0.1" {...register("leavingWaterTempF")} />
-                  </FieldWithTooltip>
-                  <FieldWithTooltip
-                    label={`Water Flow Rate (${u('waterFlowRateGPM')})`}
-                    tooltip="Chilled water flow rate through the coil."
-                  >
-                    <Input type="number" step="0.01" {...register("waterFlowRateGPM")} />
-                  </FieldWithTooltip>
-                </>
-              )}
+              {isFanCoil && (() => {
+                const lwtFilled = wLWT != null && String(wLWT) !== "";
+                const gpmFilled = wGPM != null && String(wGPM) !== "";
+                const eitherFilled = lwtFilled || gpmFilled;
+                return (
+                  <>
+                    <FieldWithTooltip
+                      label={`Entering Water Temp (${u('enteringWaterTempF')})`}
+                      tooltip="Chilled water return temperature entering the coil."
+                      required
+                      filled={wEWT != null && String(wEWT) !== ""}
+                    >
+                      <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
+                    </FieldWithTooltip>
+                    <FieldWithTooltip
+                      label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
+                      tooltip="Chilled water supply temperature leaving the coil. Auto-calculated from the flow rate if you enter that instead."
+                      required
+                      filled={eitherFilled}
+                    >
+                      <Input
+                        type="number"
+                        step="0.1"
+                        {...register("leavingWaterTempF", {
+                          onChange: () => setWaterAnchor("lwt"),
+                        })}
+                      />
+                      {waterAnchor === "gpm" && (
+                        <p className="text-[11px] text-muted-foreground">Auto-calculated from flow rate</p>
+                      )}
+                    </FieldWithTooltip>
+                    <FieldWithTooltip
+                      label={`Water Flow Rate (${u('waterFlowRateGPM')})`}
+                      tooltip="Chilled water flow rate through the coil. Auto-calculated from the leaving water temp if you enter that instead."
+                      required
+                      filled={eitherFilled}
+                    >
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...register("waterFlowRateGPM", {
+                          onChange: () => setWaterAnchor("gpm"),
+                        })}
+                      />
+                      {waterAnchor === "lwt" && (
+                        <p className="text-[11px] text-muted-foreground">Auto-calculated from leaving water temp</p>
+                      )}
+                    </FieldWithTooltip>
+                  </>
+                );
+              })()}
 
               <FieldWithTooltip
                 label={`External Static Pressure (${u('espInWG')})`}
@@ -621,7 +626,7 @@ export function DesignConditionsForm() {
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Fresh Air Requirements</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FieldWithTooltip
-                label="Airflow Rate (%)"
+                label="Fresh Air (%)"
                 tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Typical: 10–30%."
               >
                 <Input type="number" step="1" min={0} max={100} placeholder="0" {...register("freshAirPercent")} />
@@ -672,10 +677,10 @@ export function DesignConditionsForm() {
                   type="number"
                   step="0.1"
                   {...register("leavingWaterTempF", {
-                    onChange: () => setChillerAnchor("lwt"),
+                    onChange: () => setWaterAnchor("lwt"),
                   })}
                 />
-                {chillerAnchor === "gpm" && (
+                {waterAnchor === "gpm" && (
                   <p className="text-[11px] text-muted-foreground">Auto-calculated from flow rate</p>
                 )}
               </FieldWithTooltip>
@@ -689,10 +694,10 @@ export function DesignConditionsForm() {
                   type="number"
                   step="0.01"
                   {...register("waterFlowRateGPM", {
-                    onChange: () => setChillerAnchor("gpm"),
+                    onChange: () => setWaterAnchor("gpm"),
                   })}
                 />
-                {chillerAnchor === "lwt" && (
+                {waterAnchor === "lwt" && (
                   <p className="text-[11px] text-muted-foreground">Auto-calculated from leaving water temp</p>
                 )}
               </FieldWithTooltip>

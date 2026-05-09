@@ -56,7 +56,7 @@ export function ResultsTable() {
   const showMewApproval =
     projectInfo?.country === "Kuwait" &&
     ambientF === 118 &&
-    (isChiller || isCrac || isPackagedExclSPU || isSplit);
+    (isCrac || isPackagedExclSPU || isSplit);
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,

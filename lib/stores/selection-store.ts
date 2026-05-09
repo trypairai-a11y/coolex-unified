@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
-import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType } from '@/types/selection';
+import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType, VRFCanvasPos, VRFCustomPipe, VRFUnitId } from '@/types/selection';
 import { pickVRFOutdoorTons, synthesizeVRFOutdoorModel } from '@/lib/utils/vrf';
 
 /** Key in vrfOptionsByUnit: 'odu' for the outdoor unit, otherwise a room id (indoor unit). */
@@ -36,7 +36,17 @@ interface SelectionState {
   setVRFMainTrunkFt: (ft: number) => void;
   setVRFFloorSegFt: (floorId: string, ft: number) => void;
   setVRFBranchFt: (roomId: string, ft: number) => void;
-  resetVRFPipeLengths: () => void;
+  /** Set or clear (pos = null) a unit card's overridden top-left position. */
+  setVRFUnitPosition: (unitId: VRFUnitId, pos: VRFCanvasPos | null) => void;
+  addVRFCustomPipe: (pipe: VRFCustomPipe) => void;
+  removeVRFCustomPipe: (pipeId: string) => void;
+  setVRFCustomPipeLength: (pipeId: string, ft: number) => void;
+  /** Hide a single auto-generated pipe segment by id (see VRFLayout.deletedAutoPipeIds). */
+  deleteVRFAutoPipe: (pipeId: string) => void;
+  /** Restore every auto-generated pipe the user has previously hidden. */
+  restoreAllVRFAutoPipes: () => void;
+  /** Resets pipe lengths, dragged positions, custom pipes, and hidden auto-pipes. */
+  resetVRFLayout: () => void;
   confirmVRFDesign: () => void;
   toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
@@ -161,7 +171,76 @@ export const useSelectionStore = create<SelectionState>()(
         };
       }),
 
-      resetVRFPipeLengths: () => set((state) => {
+      setVRFUnitPosition: (unitId, pos) => set((state) => {
+        if (!state.vrfLayout) return {};
+        const next = { ...(state.vrfLayout.unitPositions ?? {}) };
+        if (pos === null) delete next[unitId];
+        else next[unitId] = pos;
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            unitPositions: Object.keys(next).length > 0 ? next : undefined,
+          },
+        };
+      }),
+
+      addVRFCustomPipe: (pipe) => set((state) => {
+        if (!state.vrfLayout) return {};
+        const existing = state.vrfLayout.customPipes ?? [];
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            customPipes: [...existing, pipe],
+          },
+        };
+      }),
+
+      removeVRFCustomPipe: (pipeId) => set((state) => {
+        if (!state.vrfLayout?.customPipes) return {};
+        const next = state.vrfLayout.customPipes.filter((p) => p.id !== pipeId);
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            customPipes: next.length > 0 ? next : undefined,
+          },
+        };
+      }),
+
+      setVRFCustomPipeLength: (pipeId, ft) => set((state) => {
+        if (!state.vrfLayout?.customPipes) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            customPipes: state.vrfLayout.customPipes.map((p) =>
+              p.id === pipeId ? { ...p, lengthFt: ft } : p
+            ),
+          },
+        };
+      }),
+
+      deleteVRFAutoPipe: (pipeId) => set((state) => {
+        if (!state.vrfLayout) return {};
+        const existing = state.vrfLayout.deletedAutoPipeIds ?? [];
+        if (existing.includes(pipeId)) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            deletedAutoPipeIds: [...existing, pipeId],
+          },
+        };
+      }),
+
+      restoreAllVRFAutoPipes: () => set((state) => {
+        if (!state.vrfLayout?.deletedAutoPipeIds) return {};
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            deletedAutoPipeIds: undefined,
+          },
+        };
+      }),
+
+      resetVRFLayout: () => set((state) => {
         if (!state.vrfLayout) return {};
         return {
           vrfLayout: {
@@ -169,6 +248,9 @@ export const useSelectionStore = create<SelectionState>()(
             mainTrunkFt: undefined,
             floorSegFtById: undefined,
             branchFtById: undefined,
+            unitPositions: undefined,
+            customPipes: undefined,
+            deletedAutoPipeIds: undefined,
           },
         };
       }),

@@ -493,7 +493,10 @@ export default function ProjectDetailPage() {
           </div>
         ) : (
           <div className="divide-y">
-            {project.units.map((unit: Unit) => (
+            {project.units.map((unit: Unit) => {
+              const series = PRODUCT_SERIES.find((s) => s.id === unit.seriesId);
+              const group = series ? PRODUCT_GROUPS.find((g) => g.id === series.groupId) : undefined;
+              return (
               <div
                 key={unit.id}
                 className="px-6 py-4 hover:bg-muted/30 transition-colors group"
@@ -502,8 +505,19 @@ export default function ProjectDetailPage() {
                   {/* Left: unit info */}
                   <div className="flex items-center gap-4 min-w-0">
                     {/* Icon box */}
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#0057B8]/8 border border-[#0057B8]/15 flex items-center justify-center">
-                      <Layers className="w-5 h-5 text-[#0057B8]" />
+                    <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-[#0057B8]/8 border border-[#0057B8]/15 flex items-center justify-center overflow-hidden">
+                      {group?.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={group.imageUrl}
+                          alt={group.name}
+                          width={40}
+                          height={40}
+                          className="object-contain drop-shadow-sm"
+                        />
+                      ) : (
+                        <Layers className="w-5 h-5 text-[#0057B8]" />
+                      )}
                     </div>
 
                     <div className="min-w-0">
@@ -553,7 +567,8 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

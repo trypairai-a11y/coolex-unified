@@ -65,6 +65,7 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'fcl': generateModels('fcl', 'FCL', [0.5, 1, 1.5, 2, 3, 5, 7.5, 10, 15, 20, 25, 30]),
   'rpuf': generateModels('rpuf', 'RPUF', [4, 5, 6, 7.5, 8, 10]),
   'rpuc': generateModels('rpuc', 'RPUC', [4, 5, 6, 7.5, 8, 10]),
+  'fapu': generateModels('fapu', 'FAPU', [4, 5, 6, 7.5, 10, 15, 20, 25, 30, 40, 50]),
   'spu': generateModels('spu', 'SPU', [35, 40, 50, 60, 70, 80, 100]),
 };
 

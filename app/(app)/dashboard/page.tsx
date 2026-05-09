@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Zap, ArrowRight, FileText, LayoutGrid } from "lucide-react";
+import { Zap, ArrowRight, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { RecentProjectsList } from "@/components/dashboard/RecentProjectsList";
@@ -81,56 +81,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Feature cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          {
-            icon: LayoutGrid,
-            title: "7 Product Groups",
-            desc: "Rooftop Packaged, Split, Chiller, VRF, Fan Coil, Condensing Unit, CRAC",
-            href: "/select",
-            accent: "#0057B8",
-            bg: "#E8F2FF",
-          },
-          {
-            icon: Zap,
-            title: "Smart Selection",
-            desc: "Enter design conditions and get matched models ranked by fit percentage",
-            href: "/select",
-            accent: "#00A3E0",
-            bg: "#E0F5FF",
-          },
-          {
-            icon: FileText,
-            title: "PDF Submittals",
-            desc: "Generate branded 6-page submittals instantly with full revision tracking",
-            href: "/projects",
-            accent: "#4A6FBF",
-            bg: "#EEF2FF",
-          },
-        ].map((card) => {
-          const Icon = card.icon;
-          return (
-            <Link
-              key={card.title}
-              href={card.href}
-              className="group cx-card p-5 flex flex-col gap-3 no-underline hover:border-[#0057B8]/20"
-            >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110"
-                style={{ background: card.bg }}>
-                <Icon className="w-4 h-4" style={{ color: card.accent }} />
-              </div>
-              <div>
-                <div className="font-semibold text-sm text-foreground">{card.title}</div>
-                <div className="text-xs text-muted-foreground mt-1 leading-relaxed">{card.desc}</div>
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold mt-auto" style={{ color: card.accent }}>
-                Get started <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-              </div>
-            </Link>
-          );
-        })}
-      </div>
     </div>
   );
 }
