@@ -44,6 +44,7 @@ export function ResultsTable() {
   const isSplit = selectedSeries?.groupId === "split";
 
   const dc = designConditions as Record<string, number> | null;
+  const dcRaw = designConditions as Record<string, unknown> | null;
   const capacityBtuh = dc?.requiredCoolingCapacityBtuh ?? null;
   const airflowCFM = dc?.requiredAirflowCFM ?? null;
   const ewtF = dc?.enteringWaterTempF ?? null;
@@ -53,6 +54,24 @@ export function ResultsTable() {
   const ambientF = dc?.ambientTempF ?? null;
   const sctF = ambientF != null ? ambientF + 25 : null;
   const basis = selectionBasis ?? 'capacity';
+
+  // Rooftop Packaged with fresh-air mixing: shift each model's catalog leaving
+  // DB/WB (rated at 80°F / 67°F entering) by the same drop, applied to the
+  // mixed Final Entering DB/WB. Without fresh air, keep the catalog value.
+  const hasFreshAir = dcRaw?.hasFreshAir === true;
+  const finalEDB = dc?.finalEnteringDBF;
+  const finalEWB = dc?.finalEnteringWBF;
+  const useFinalEntering =
+    hasFreshAir && typeof finalEDB === 'number' && typeof finalEWB === 'number';
+  const STD_EDB = 80;
+  const STD_EWB = 67;
+  const leavingFor = (model: Model): { dbF: number; wbF: number } => {
+    if (!useFinalEntering) return { dbF: model.leavingDBF, wbF: model.leavingWBF };
+    return {
+      dbF: finalEDB! - (STD_EDB - model.leavingDBF),
+      wbF: finalEWB! - (STD_EWB - model.leavingWBF),
+    };
+  };
   const showMewApproval =
     projectInfo?.country === "Kuwait" &&
     ambientF === 118 &&
@@ -176,8 +195,8 @@ export function ResultsTable() {
                     </div>
                     {!isCCU && (
                       <div>
-                        <div className="text-muted-foreground">{isChiller || isMetric ? "COP" : "EER"}</div>
-                        <div className="font-medium">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</div>
+                        <div className="text-muted-foreground">{isChiller ? "COP" : "EER"}</div>
+                        <div className="font-medium">{isChiller ? round(model.eer / 3.412, 2) : model.eer}</div>
                       </div>
                     )}
                     {isChiller ? (
@@ -292,7 +311,7 @@ export function ResultsTable() {
                       <TH label="Sensible Cap." sortable="sensibleCapacityBtuh" />
                     )}
                     <TH label="Power (kW)" sortable="powerKW" />
-                    {!isCCU && <TH label={isChiller || isMetric ? "COP" : "EER"} sortable="eer" />}
+                    {!isCCU && <TH label={isChiller ? "COP" : "EER"} sortable="eer" />}
                     {!isChiller && !isCCU && (
                       <>
                         <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
@@ -399,7 +418,7 @@ export function ResultsTable() {
                         <td className="px-4 py-3 text-black">{round(model.powerKW, 1).toFixed(1)}</td>
                         {!isCCU && (
                           <td className="px-4 py-3">
-                            <span className="text-black">{isChiller || isMetric ? round(model.eer / 3.412, 2) : model.eer}</span>
+                            <span className="text-black">{isChiller ? round(model.eer / 3.412, 2) : model.eer}</span>
                           </td>
                         )}
                         {!isChiller && !isCCU && (
@@ -408,9 +427,12 @@ export function ResultsTable() {
                               {isMetric ? round(cfmToM3h(model.airflowCFM), 0).toLocaleString() : model.airflowCFM.toLocaleString()}
                             </td>
                             <td className="px-4 py-3 text-black text-xs">
-                              {isMetric
-                                ? `${round(fToC(model.leavingDBF), 1)}°C / ${round(fToC(model.leavingWBF), 1)}°C`
-                                : `${model.leavingDBF}°F / ${model.leavingWBF}°F`}
+                              {(() => {
+                                const { dbF, wbF } = leavingFor(model);
+                                return isMetric
+                                  ? `${round(fToC(dbF), 1)}°C / ${round(fToC(wbF), 1)}°C`
+                                  : `${round(dbF, 1)}°F / ${round(wbF, 1)}°F`;
+                              })()}
                             </td>
                           </>
                         )}

@@ -3,9 +3,9 @@ import type { ProductGroup } from '@/types/product';
 export const PRODUCT_GROUPS: ProductGroup[] = [
   {
     id: 'pac',
-    name: 'Rooftop Packaged',
-    description: 'All in one Rooftop Packaged Unit',
-    shortDescription: 'All in one Rooftop Packaged Unit',
+    name: 'Packaged',
+    description: 'All in one Packaged Unit',
+    shortDescription: 'All in one Packaged Unit',
     category: 'package',
     imageUrl: '/images/pac.png',
     gradientFrom: '#3B82F6',

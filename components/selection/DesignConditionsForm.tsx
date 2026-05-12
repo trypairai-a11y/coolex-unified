@@ -109,6 +109,7 @@ export function DesignConditionsForm() {
   const isFanCoil = selectedSeries?.groupId === 'fan-coil';
   const isSplit = selectedSeries?.groupId === 'split';
   const isCRAC = selectedSeries?.groupId === 'crac';
+  const isPAC = selectedSeries?.groupId === 'pac';
   const isTHAC = selectedSeries?.id === 'thac';
   const isDHAC = selectedSeries?.id === 'dhac';
   const isPHE = selectedSeries?.id === 'phe';
@@ -163,6 +164,32 @@ export function DesignConditionsForm() {
   const wAmbient = watch("ambientTempF");
   const wSST = watch("saturatedSuctionTempF");
   const wHasFreshAir = watch("hasFreshAir") ?? false;
+  const wFAPercent = watch("freshAirPercent");
+  const wFADB = watch("freshAirDBF");
+  const wFAWB = watch("freshAirWBF");
+
+  // Rooftop Packaged: final entering DB/WB is the weighted mix of fresh air
+  // and return air. Mix = (FA% × FA + (100 − FA%) × Return) / 100.
+  useEffect(() => {
+    if (!isPAC || !wHasFreshAir) return;
+    const fa = Number(wFAPercent);
+    if (isNaN(fa) || fa < 0 || fa > 100) return;
+    const x = 100 - fa;
+
+    const faDB = Number(wFADB);
+    const eDB = Number(wDB);
+    if (!isNaN(faDB) && !isNaN(eDB)) {
+      const mixDB = (fa * faDB + x * eDB) / 100;
+      setValue("finalEnteringDBF", round(mixDB, 1) as never, { shouldDirty: true });
+    }
+
+    const faWB = Number(wFAWB);
+    const eWB = Number(wWB);
+    if (!isNaN(faWB) && !isNaN(eWB)) {
+      const mixWB = (fa * faWB + x * eWB) / 100;
+      setValue("finalEnteringWBF", round(mixWB, 1) as never, { shouldDirty: true });
+    }
+  }, [isPAC, wHasFreshAir, wFAPercent, wFADB, wFAWB, wDB, wWB, setValue]);
 
   // Hydronic auto-calc (chillers + fan coils): user enters EWT (required) and
   // EITHER LWT or GPM. The other is auto-calculated via GPM = 24 × TR / ΔT
@@ -645,32 +672,58 @@ export function DesignConditionsForm() {
                 <FieldWithTooltip
                   label="Fresh Air (%)"
                   tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Typical: 10–30%."
+                  required
+                  filled
                 >
                   <Input type="number" step="1" min={0} max={100} placeholder="0" {...register("freshAirPercent")} />
                 </FieldWithTooltip>
                 <FieldWithTooltip
                   label={`Dry Bulb (${u('freshAirDBF')})`}
                   tooltip="Outdoor air dry-bulb temperature entering the mixing box."
+                  required
+                  filled
                 >
                   <Input type="number" step="0.1" {...register("freshAirDBF")} />
                 </FieldWithTooltip>
                 <FieldWithTooltip
                   label={`Wet Bulb (${u('freshAirWBF')})`}
                   tooltip="Outdoor air wet-bulb temperature entering the mixing box. Used for latent load on the mixed-air coil."
+                  required
+                  filled
                 >
                   <Input type="number" step="0.1" {...register("freshAirWBF")} />
                 </FieldWithTooltip>
                 <FieldWithTooltip
                   label={`Final Entering DB (${u('finalEnteringDBF')})`}
-                  tooltip="Mixed-air dry-bulb temperature entering the coil after blending return and fresh air."
+                  tooltip={isPAC
+                    ? "Auto-calculated from return and fresh-air conditions for Rooftop Packaged units."
+                    : "Mixed-air dry-bulb temperature entering the coil after blending return and fresh air."}
                 >
-                  <Input type="number" step="0.1" {...register("finalEnteringDBF")} />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    readOnly={isPAC}
+                    tabIndex={isPAC ? -1 : undefined}
+                    className={isPAC ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
+                    {...register("finalEnteringDBF")}
+                  />
+                  {isPAC && <p className="text-[11px] text-muted-foreground">Auto-calculated</p>}
                 </FieldWithTooltip>
                 <FieldWithTooltip
                   label={`Final Entering WB (${u('finalEnteringWBF')})`}
-                  tooltip="Mixed-air wet-bulb temperature entering the coil after blending return and fresh air."
+                  tooltip={isPAC
+                    ? "Auto-calculated from return and fresh-air conditions for Rooftop Packaged units."
+                    : "Mixed-air wet-bulb temperature entering the coil after blending return and fresh air."}
                 >
-                  <Input type="number" step="0.1" {...register("finalEnteringWBF")} />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    readOnly={isPAC}
+                    tabIndex={isPAC ? -1 : undefined}
+                    className={isPAC ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
+                    {...register("finalEnteringWBF")}
+                  />
+                  {isPAC && <p className="text-[11px] text-muted-foreground">Auto-calculated</p>}
                 </FieldWithTooltip>
               </div>
             )}
