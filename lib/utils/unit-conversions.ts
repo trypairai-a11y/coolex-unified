@@ -95,6 +95,8 @@ export function toDisplay(value: number, field: string, system: UnitSystem): num
     case 'ambientTempF':
     case 'freshAirDBF':
     case 'freshAirWBF':
+    case 'finalEnteringDBF':
+    case 'finalEnteringWBF':
     case 'saturatedSuctionTempF':
       return round(fToC(value), 1);
     case 'altitudeFt':
@@ -123,6 +125,8 @@ export function toImperial(value: number, field: string, system: UnitSystem): nu
     case 'ambientTempF':
     case 'freshAirDBF':
     case 'freshAirWBF':
+    case 'finalEnteringDBF':
+    case 'finalEnteringWBF':
     case 'saturatedSuctionTempF':
       return round(cToF(value), 1);
     case 'altitudeFt':
@@ -155,6 +159,8 @@ export function unitLabel(field: string, system: UnitSystem): string {
     requiredAirflowCFM: ['CFM', 'm³/h'],
     freshAirDBF: ['°F', '°C'],
     freshAirWBF: ['°F', '°C'],
+    finalEnteringDBF: ['°F', '°C'],
+    finalEnteringWBF: ['°F', '°C'],
     saturatedSuctionTempF: ['°F', '°C'],
   };
   const pair = labels[field];

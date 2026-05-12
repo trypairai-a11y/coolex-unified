@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { SelectionBasis } from "@/types/selection";
@@ -27,9 +28,12 @@ const standardSchema = z.object({
   altitudeFt: z.coerce.number().min(0),
   ambientTempF: z.coerce.number().optional(),
   refrigerant: z.string().optional(),
+  hasFreshAir: z.boolean().optional(),
   freshAirPercent: z.coerce.number().min(0).max(100).optional(),
   freshAirDBF: z.coerce.number().optional(),
   freshAirWBF: z.coerce.number().optional(),
+  finalEnteringDBF: z.coerce.number().optional(),
+  finalEnteringWBF: z.coerce.number().optional(),
   // Chiller fields (optional)
   enteringWaterTempF: z.coerce.number().optional(),
   leavingWaterTempF: z.coerce.number().optional(),
@@ -89,6 +93,8 @@ const CONVERTIBLE_FIELDS = [
   'waterFlowRateGPM',
   'freshAirDBF',
   'freshAirWBF',
+  'finalEnteringDBF',
+  'finalEnteringWBF',
   'saturatedSuctionTempF',
 ] as const;
 
@@ -156,6 +162,7 @@ export function DesignConditionsForm() {
   const wGPM = watch("waterFlowRateGPM");
   const wAmbient = watch("ambientTempF");
   const wSST = watch("saturatedSuctionTempF");
+  const wHasFreshAir = watch("hasFreshAir") ?? false;
 
   // Hydronic auto-calc (chillers + fan coils): user enters EWT (required) and
   // EITHER LWT or GPM. The other is auto-calculated via GPM = 24 × TR / ΔT
@@ -623,27 +630,50 @@ export function DesignConditionsForm() {
         {/* Fresh Air Requirements */}
         {!isCCU && !isChiller && !isFanCoil && !isSplit && !isCRAC && (
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground border-b pb-2">Fresh Air Requirements</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <FieldWithTooltip
-                label="Fresh Air (%)"
-                tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Typical: 10–30%."
-              >
-                <Input type="number" step="1" min={0} max={100} placeholder="0" {...register("freshAirPercent")} />
-              </FieldWithTooltip>
-              <FieldWithTooltip
-                label={`Dry Bulb (${u('freshAirDBF')})`}
-                tooltip="Outdoor air dry-bulb temperature entering the mixing box."
-              >
-                <Input type="number" step="0.1" {...register("freshAirDBF")} />
-              </FieldWithTooltip>
-              <FieldWithTooltip
-                label={`Wet Bulb (${u('freshAirWBF')})`}
-                tooltip="Outdoor air wet-bulb temperature entering the mixing box. Used for latent load on the mixed-air coil."
-              >
-                <Input type="number" step="0.1" {...register("freshAirWBF")} />
-              </FieldWithTooltip>
+            <div className="flex items-center gap-2 border-b pb-2">
+              <Checkbox
+                id="hasFreshAir"
+                checked={wHasFreshAir}
+                onCheckedChange={(checked) => setValue("hasFreshAir", checked === true, { shouldDirty: true })}
+              />
+              <Label htmlFor="hasFreshAir" className="text-sm font-semibold text-foreground cursor-pointer">
+                Fresh Air Requirements
+              </Label>
             </div>
+            {wHasFreshAir && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FieldWithTooltip
+                  label="Fresh Air (%)"
+                  tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Typical: 10–30%."
+                >
+                  <Input type="number" step="1" min={0} max={100} placeholder="0" {...register("freshAirPercent")} />
+                </FieldWithTooltip>
+                <FieldWithTooltip
+                  label={`Dry Bulb (${u('freshAirDBF')})`}
+                  tooltip="Outdoor air dry-bulb temperature entering the mixing box."
+                >
+                  <Input type="number" step="0.1" {...register("freshAirDBF")} />
+                </FieldWithTooltip>
+                <FieldWithTooltip
+                  label={`Wet Bulb (${u('freshAirWBF')})`}
+                  tooltip="Outdoor air wet-bulb temperature entering the mixing box. Used for latent load on the mixed-air coil."
+                >
+                  <Input type="number" step="0.1" {...register("freshAirWBF")} />
+                </FieldWithTooltip>
+                <FieldWithTooltip
+                  label={`Final Entering DB (${u('finalEnteringDBF')})`}
+                  tooltip="Mixed-air dry-bulb temperature entering the coil after blending return and fresh air."
+                >
+                  <Input type="number" step="0.1" {...register("finalEnteringDBF")} />
+                </FieldWithTooltip>
+                <FieldWithTooltip
+                  label={`Final Entering WB (${u('finalEnteringWBF')})`}
+                  tooltip="Mixed-air wet-bulb temperature entering the coil after blending return and fresh air."
+                >
+                  <Input type="number" step="0.1" {...register("finalEnteringWBF")} />
+                </FieldWithTooltip>
+              </div>
+            )}
           </div>
         )}
 
