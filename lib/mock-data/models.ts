@@ -84,7 +84,6 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'prec-dc': generateModels('prec-dc', 'CPDU', [5, 7.5, 10, 12.5, 15, 20, 25, 30]),
   'prec-tele': generateModels('prec-tele', 'CPTU', [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]),
   'fch': FCH_MODELS,
-  'fcu': generateModels('fcu', 'CFCU', [0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5]),
   'fcl': FCL_MODELS,
   'rpuf': PNGF_MODELS,
   'pngv': PNGV_MODELS,
@@ -123,6 +122,11 @@ export interface EvaporatorConditions {
   requiredAirflowCFM?: number;
   // ACSC-only: selects the 60 Hz vs 50 Hz performance matrix.
   is60Hz?: boolean;
+  // Capacity-basis only: the required total cooling capacity (Btu/h). For
+  // CFM-row units (SPU/DSSF/FAPU/PNGF/PNGV/NGW) the design-point scans every
+  // catalogue airflow row and operates at the one whose capacity is closest to
+  // this target, instead of pinning to the model's nominal rated row.
+  requiredCapacityBtuh?: number;
 }
 
 const BTUH_PER_KW = 3412.142;
@@ -205,6 +209,45 @@ function applyChillerDesignPoint(
       matrixWaterPressureDropKPa: Math.round(perf.waterPressureDropKPa * 100) / 100,
     };
   });
+}
+
+/**
+ * Pick the operating airflow for a CFM-row unit (SPU/DSSF/FAPU/PNGF/PNGV/NGW).
+ *
+ *  • Airflow basis (requestedCFM set): clamp the requested CFM into this model's
+ *    catalogue range — every model is evaluated at the same delivered airflow.
+ *  • Capacity basis (targetBtuh set): scan ALL catalogue CFM rows and return the
+ *    one whose total capacity is closest to the required load, regardless of
+ *    whether that is the lowest, the nominal/rated, or the maximum row.
+ *  • Otherwise: fall back to the model's nominal rated airflow.
+ *
+ * `totalAt(cfm)` returns the model's interpolated total capacity (Btu/h) at the
+ * given airflow and design thermal conditions, or null when there is no data.
+ */
+function selectOperatingCFM(
+  rows: number[],
+  ratedCFM: number,
+  requestedCFM: number | undefined,
+  targetBtuh: number | undefined,
+  totalAt: (cfm: number) => number | null,
+): number {
+  if (rows.length === 0) return ratedCFM;
+  if (requestedCFM != null && requestedCFM > 0) {
+    return Math.min(Math.max(requestedCFM, rows[0]), rows[rows.length - 1]);
+  }
+  if (targetBtuh == null || targetBtuh <= 0) return ratedCFM;
+  let bestCFM = ratedCFM;
+  let bestDiff = Infinity;
+  for (const cfm of rows) {
+    const total = totalAt(cfm);
+    if (total == null) continue;
+    const diff = Math.abs(total - targetBtuh);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestCFM = cfm;
+    }
+  }
+  return bestCFM;
 }
 
 /**
@@ -296,13 +339,12 @@ function applyFCLDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
 function applyFAPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
   // 95 °F entering air is the catalogue rating point (95/80 °F DB/WB).
   const dbF = cond?.ambientTempF ?? 95;
-  const requested = cond?.requiredAirflowCFM;
-  const onAirflowBasis = requested != null && requested > 0;
   return models.map(m => {
     const rows = getFAPUCfmRows(m.modelNumber);
-    const operatingCFM = onAirflowBasis && rows.length
-      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
-      : m.airflowCFM;
+    const operatingCFM = selectOperatingCFM(
+      rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
+      cfm => getFAPUPerformance(m.modelNumber, cfm, dbF)?.totalCapacityBtuh ?? null,
+    );
     const perf = getFAPUPerformance(m.modelNumber, operatingCFM, dbF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
@@ -311,7 +353,7 @@ function applyFAPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
     const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
     return {
       ...m,
-      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      airflowCFM: operatingCFM,
       totalCapacityBtuh,
       sensibleCapacityBtuh,
       powerKW,
@@ -335,13 +377,12 @@ function applyPNGFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
   // Catalogue rating point: 80 °F entering air DB, 95 °F condenser ambient.
   const dbF = cond?.enteringDBF ?? 80;
   const ambientF = cond?.ambientTempF ?? 95;
-  const requested = cond?.requiredAirflowCFM;
-  const onAirflowBasis = requested != null && requested > 0;
   return models.map(m => {
     const rows = getPNGFCfmRows(m.modelNumber);
-    const operatingCFM = onAirflowBasis && rows.length
-      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
-      : m.airflowCFM;
+    const operatingCFM = selectOperatingCFM(
+      rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
+      cfm => getPNGFPerformance(m.modelNumber, cfm, dbF, ambientF)?.totalCapacityBtuh ?? null,
+    );
     const perf = getPNGFPerformance(m.modelNumber, operatingCFM, dbF, ambientF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
@@ -350,7 +391,7 @@ function applyPNGFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
     const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
     return {
       ...m,
-      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      airflowCFM: operatingCFM,
       totalCapacityBtuh,
       sensibleCapacityBtuh,
       powerKW,
@@ -372,13 +413,12 @@ function applyPNGFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
 function applyPNGVDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
   // Catalogue rating point: 95 °F condenser ambient.
   const ambientF = cond?.ambientTempF ?? 95;
-  const requested = cond?.requiredAirflowCFM;
-  const onAirflowBasis = requested != null && requested > 0;
   return models.map(m => {
     const rows = getPNGVCfmRows(m.modelNumber);
-    const operatingCFM = onAirflowBasis && rows.length
-      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
-      : m.airflowCFM;
+    const operatingCFM = selectOperatingCFM(
+      rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
+      cfm => getPNGVPerformance(m.modelNumber, cfm, ambientF)?.totalCapacityBtuh ?? null,
+    );
     const perf = getPNGVPerformance(m.modelNumber, operatingCFM, ambientF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
@@ -387,7 +427,7 @@ function applyPNGVDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
     const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
     return {
       ...m,
-      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      airflowCFM: operatingCFM,
       totalCapacityBtuh,
       sensibleCapacityBtuh,
       powerKW,
@@ -410,13 +450,12 @@ function applySPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
   // Catalogue rating point: 80/67 °F entering air, 95 °F condenser ambient.
   const edbF = cond?.enteringDBF ?? 80;
   const ambientF = cond?.ambientTempF ?? 95;
-  const requested = cond?.requiredAirflowCFM;
-  const onAirflowBasis = requested != null && requested > 0;
   return models.map(m => {
     const rows = getSPUCfmRows(m.modelNumber);
-    const operatingCFM = onAirflowBasis && rows.length
-      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
-      : m.airflowCFM;
+    const operatingCFM = selectOperatingCFM(
+      rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
+      cfm => getSPUPerformance(m.modelNumber, cfm, edbF, ambientF)?.totalCapacityBtuh ?? null,
+    );
     const perf = getSPUPerformance(m.modelNumber, operatingCFM, edbF, ambientF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
@@ -425,7 +464,7 @@ function applySPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
     const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
     return {
       ...m,
-      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      airflowCFM: operatingCFM,
       totalCapacityBtuh,
       sensibleCapacityBtuh,
       powerKW,
@@ -447,13 +486,12 @@ function applyDSSFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
   // Catalogue rating point: 80/67 °F entering air, 95 °F condenser ambient.
   const edbF = cond?.enteringDBF ?? 80;
   const ambientF = cond?.ambientTempF ?? 95;
-  const requested = cond?.requiredAirflowCFM;
-  const onAirflowBasis = requested != null && requested > 0;
   return models.map(m => {
     const rows = getDSSFCfmRows(m.modelNumber);
-    const operatingCFM = onAirflowBasis && rows.length
-      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
-      : m.airflowCFM;
+    const operatingCFM = selectOperatingCFM(
+      rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
+      cfm => getDSSFPerformance(m.modelNumber, cfm, edbF, ambientF)?.totalCapacityBtuh ?? null,
+    );
     const perf = getDSSFPerformance(m.modelNumber, operatingCFM, edbF, ambientF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
@@ -462,7 +500,7 @@ function applyDSSFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
     const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
     return {
       ...m,
-      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      airflowCFM: operatingCFM,
       totalCapacityBtuh,
       sensibleCapacityBtuh,
       powerKW,
@@ -518,24 +556,24 @@ function applyACSCDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
 function applyNGWDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
   // 44°F is the catalogue rating point (80/67°F entering air, 44/54°F water).
   const ewtF = cond?.enteringWaterTempF ?? 44;
-  const requested = cond?.requiredAirflowCFM;
-  const onAirflowBasis = requested != null && requested > 0;
   return models.map(m => {
     const rows = getNGWCfmRows(m.modelNumber);
-    // Operating airflow: the requested CFM clamped to this coil's catalogue
-    // range (airflow basis), otherwise the model's rated airflow.
-    const operatingCFM = onAirflowBasis && rows.length
-      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
-      : m.airflowCFM;
+    // Operating airflow: on airflow basis the requested CFM clamped to this
+    // coil's catalogue range; on capacity basis the row whose capacity is
+    // closest to the load; otherwise the model's rated airflow.
+    const operatingCFM = selectOperatingCFM(
+      rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
+      cfm => getNGWPerformance(m.modelNumber, cfm, ewtF)?.totalCapacityBtuh ?? null,
+    );
     const perf = getNGWPerformance(m.modelNumber, operatingCFM, ewtF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
     const sensibleCapacityBtuh = Math.round(perf.sensibleCapacityBtuh);
     return {
       ...m,
-      // Reflect the operating airflow so airflow-basis matching ranks a coil by
-      // whether the request lands in its range, not by a fixed nominal point.
-      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      // Reflect the operating airflow so matching ranks a coil by its selected
+      // row, not by a fixed nominal point.
+      airflowCFM: operatingCFM,
       totalCapacityBtuh,
       sensibleCapacityBtuh,
       nominalTons: Math.round((totalCapacityBtuh / 12000) * 10) / 10,
@@ -581,9 +619,6 @@ export function getModelsMatchingCapacity(
   requestedBtuh: number,
   conditions?: EvaporatorConditions,
 ): Model[] {
-  const models = applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), conditions);
-  if (models.length === 0) return [];
-
   // Chillers and CCUs are sized by water-side / refrigerant-side conditions
   // already baked into the design-point matrix — applying the airside (DB/WB/ESP)
   // correction here would double-count derating and push match% below 100% even
@@ -596,6 +631,17 @@ export function getModelsMatchingCapacity(
     seriesId === 'rpuf'   || seriesId === 'spu'     ||
     seriesId === 'split-ds';
   const corrFactor = isMatrixSized ? 1 : capacityCorrectionFactor(conditions ?? {});
+
+  // Tell the CFM-row design-points (SPU/DSSF/FAPU/PNGF/PNGV/NGW) which capacity
+  // to size for so they operate at the catalogue airflow row closest to the
+  // load. Divide by corrFactor so the post-correction capacity (corrected =
+  // matrix × corrFactor) lands closest to the request for the corrected series.
+  const condForDesign: EvaporatorConditions = {
+    ...conditions,
+    requiredCapacityBtuh: requestedBtuh > 0 ? requestedBtuh / corrFactor : undefined,
+  };
+  const models = applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), condForDesign);
+  if (models.length === 0) return [];
 
   const withMatch = models.map(m => {
     // Apply correction factor to catalog capacity (non-chillers only — see above).

@@ -282,7 +282,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
   },
   // Fan coil
   {
-    id: 'fcu',
+    id: 'fch',
     groupId: 'fan-coil',
     name: 'FCH',
     fullName: 'Fan Coil Unit Series',

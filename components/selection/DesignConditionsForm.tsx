@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,31 +18,65 @@ import { useUnitStore } from "@/lib/stores/unit-store";
 import { round, toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 
-const standardSchema = z.object({
-  requiredCoolingCapacityBtuh: z.coerce.number().min(0).max(100000000).optional(),
-  requiredAirflowCFM: z.coerce.number().min(0).max(10000000).optional(),
-  powerSupply: z.string().min(1, "Power supply is required"),
-  enteringDBF: z.coerce.number(),
-  enteringWBF: z.coerce.number(),
-  espInWG: z.coerce.number().min(0),
-  altitudeFt: z.coerce.number().min(0),
-  ambientTempF: z.coerce.number().optional(),
-  refrigerant: z.string().optional(),
-  hasFreshAir: z.boolean().optional(),
-  freshAirPercent: z.coerce.number().min(0).max(100).optional(),
-  freshAirDBF: z.coerce.number().optional(),
-  freshAirWBF: z.coerce.number().optional(),
-  finalEnteringDBF: z.coerce.number().optional(),
-  finalEnteringWBF: z.coerce.number().optional(),
-  // Chiller fields (optional)
-  enteringWaterTempF: z.coerce.number().optional(),
-  leavingWaterTempF: z.coerce.number().optional(),
-  waterFlowRateGPM: z.coerce.number().min(0).optional(),
-  // CCU-only
-  saturatedSuctionTempF: z.coerce.number().optional(),
-});
+// Treat blank/NaN as "missing" so an empty number input fails a required check
+// instead of being silently coerced to 0 by z.coerce.number().
+const emptyToUndefined = (v: unknown) =>
+  v === "" || v === null || (typeof v === "number" && Number.isNaN(v)) ? undefined : v;
 
-type FormData = z.infer<typeof standardSchema>;
+const requiredNumber = (message: string) =>
+  z.preprocess(emptyToUndefined, z.coerce.number({ error: message }));
+
+function buildStandardSchema(isFanCoil: boolean) {
+  const base = z.object({
+    requiredCoolingCapacityBtuh: z.coerce.number().min(0).max(100000000).optional(),
+    requiredAirflowCFM: z.coerce.number().min(0).max(10000000).optional(),
+    powerSupply: z.string().min(1, "Power supply is required"),
+    enteringDBF: z.coerce.number(),
+    enteringWBF: z.coerce.number(),
+    espInWG: z.coerce.number().min(0),
+    altitudeFt: z.coerce.number().min(0),
+    ambientTempF: z.coerce.number().optional(),
+    refrigerant: z.string().optional(),
+    hasFreshAir: z.boolean().optional(),
+    freshAirPercent: z.coerce.number().min(0).max(100).optional(),
+    freshAirDBF: z.coerce.number().optional(),
+    freshAirWBF: z.coerce.number().optional(),
+    finalEnteringDBF: z.coerce.number().optional(),
+    finalEnteringWBF: z.coerce.number().optional(),
+    // Chiller fields (optional)
+    enteringWaterTempF: z.coerce.number().optional(),
+    leavingWaterTempF: z.coerce.number().optional(),
+    waterFlowRateGPM: z.coerce.number().min(0).optional(),
+    // CCU-only
+    saturatedSuctionTempF: z.coerce.number().optional(),
+  });
+
+  if (!isFanCoil) return base;
+
+  // Fan coils (NGW / FCH / FCL): cooling capacity, evaporator air temps, and the
+  // hydronic inputs are mandatory. Leaving water temp and flow rate are an
+  // either/or pair (one auto-calculates the other), so at least one is required.
+  return base
+    .extend({
+      requiredCoolingCapacityBtuh: requiredNumber("Cooling capacity is required").pipe(z.number().min(0).max(100000000)),
+      enteringDBF: requiredNumber("Entering dry bulb is required"),
+      enteringWBF: requiredNumber("Entering wet bulb is required"),
+      enteringWaterTempF: requiredNumber("Entering water temp is required"),
+      espInWG: requiredNumber("External static pressure is required").pipe(z.number().min(0)),
+    })
+    .superRefine((data, ctx) => {
+      const lwt = data.leavingWaterTempF;
+      const gpm = data.waterFlowRateGPM;
+      const missing = (v: unknown) => v == null || (typeof v === "number" && Number.isNaN(v));
+      if (missing(lwt) && missing(gpm)) {
+        const message = "Enter leaving water temp or flow rate";
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["leavingWaterTempF"] });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["waterFlowRateGPM"] });
+      }
+    });
+}
+
+type FormData = z.infer<ReturnType<typeof buildStandardSchema>>;
 
 function FieldWithTooltip({ label, tooltip, required, filled, children }: { label: string; tooltip: string; required?: boolean; filled?: boolean; children: React.ReactNode }) {
   const showRed = required && !filled;
@@ -110,6 +144,7 @@ export function DesignConditionsForm() {
   const isSplit = selectedSeries?.groupId === 'split';
   const isCRAC = selectedSeries?.groupId === 'crac';
   const isPAC = selectedSeries?.groupId === 'pac';
+  const isFAPU = selectedSeries?.id === 'fapu';
   const isTHAC = selectedSeries?.id === 'thac';
   const isDHAC = selectedSeries?.id === 'dhac';
   const isPHE = selectedSeries?.id === 'phe';
@@ -150,9 +185,13 @@ export function DesignConditionsForm() {
     }
   }
 
+  // Series flags are fixed for the form's lifetime (chosen in step 3), so the
+  // schema is computed once and stays stable across re-renders.
+  const schema = useMemo(() => buildStandardSchema(isFanCoil), [isFanCoil]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, setValue, getValues, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(standardSchema) as any,
+    resolver: zodResolver(schema) as any,
     defaultValues: displayDefaults,
   });
 
@@ -163,6 +202,7 @@ export function DesignConditionsForm() {
   const wEWT = watch("enteringWaterTempF");
   const wLWT = watch("leavingWaterTempF");
   const wGPM = watch("waterFlowRateGPM");
+  const wESP = watch("espInWG");
   const wAmbient = watch("ambientTempF");
   const wSST = watch("saturatedSuctionTempF");
   const wHasFreshAir = watch("hasFreshAir") ?? false;
@@ -608,6 +648,7 @@ export function DesignConditionsForm() {
                       filled={wEWT != null && String(wEWT) !== ""}
                     >
                       <Input type="number" step="0.1" {...register("enteringWaterTempF")} />
+                      {errors.enteringWaterTempF && <p className="text-xs text-destructive">{errors.enteringWaterTempF.message}</p>}
                     </FieldWithTooltip>
                     <FieldWithTooltip
                       label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
@@ -622,6 +663,7 @@ export function DesignConditionsForm() {
                           onChange: () => setWaterAnchor("lwt"),
                         })}
                       />
+                      {errors.leavingWaterTempF && <p className="text-xs text-destructive">{errors.leavingWaterTempF.message}</p>}
                       {waterAnchor === "gpm" && (
                         <p className="text-[11px] text-muted-foreground">Auto-calculated from flow rate</p>
                       )}
@@ -639,6 +681,7 @@ export function DesignConditionsForm() {
                           onChange: () => setWaterAnchor("gpm"),
                         })}
                       />
+                      {errors.waterFlowRateGPM && <p className="text-xs text-destructive">{errors.waterFlowRateGPM.message}</p>}
                       {waterAnchor === "lwt" && (
                         <p className="text-[11px] text-muted-foreground">Auto-calculated from leaving water temp</p>
                       )}
@@ -652,8 +695,11 @@ export function DesignConditionsForm() {
                 tooltip={unitSystem === 'imperial'
                   ? "Total external static pressure for the duct system. Typical: 0.3–1.5 in. WG."
                   : "Total external static pressure for the duct system. Typical: 75–375 Pa."}
+                required={isFanCoil}
+                filled={wESP != null && String(wESP) !== ""}
               >
                 <Input type="number" step={unitSystem === 'imperial' ? "0.05" : "1"} {...register("espInWG")} />
+                {errors.espInWG && <p className="text-xs text-destructive">{errors.espInWG.message}</p>}
               </FieldWithTooltip>
 
             </div>
@@ -661,7 +707,7 @@ export function DesignConditionsForm() {
         )}
 
         {/* Fresh Air Requirements */}
-        {!isCCU && !isChiller && !isFanCoil && !isSplit && !isCRAC && (
+        {!isCCU && !isChiller && !isFanCoil && !isSplit && !isCRAC && !isFAPU && (
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b pb-2">
               <Checkbox

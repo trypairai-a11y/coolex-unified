@@ -184,9 +184,23 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'split-evap-coat', category: 'construction', label: 'Evaporator Coil Protective Coating', description: 'Electrofin E-Coat on evaporator coil for corrosive environments', priceAdderKWD: 120, applicableSeriesIds: SPLIT_SERIES_IDS },
   { id: 'split-copper-evap', category: 'construction', label: 'Copper Fins - Evaporator', description: 'Copper fins on evaporator coil for enhanced durability in harsh environments', priceAdderKWD: 180, applicableSeriesIds: SPLIT_SERIES_IDS },
   { id: 'split-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: SPLIT_SERIES_IDS },
+
+  // ── NGW — Chilled Water Fan Coil Unit Series ──
+  // Construction
+  { id: 'ngw-double-skin', category: 'construction', label: 'Double Skin Panel', description: 'Insulated double-skin panel casing for improved thermal and acoustic performance', priceAdderKWD: 95, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-copper-coil', category: 'construction', label: 'Copper Fins – Chilled Water Coil', description: 'Copper fins on chilled water coil for enhanced durability in corrosive environments', priceAdderKWD: 180, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-threaded-water', category: 'construction', label: 'Threaded Water Connection', description: 'Threaded male water connections for chilled water inlet and outlet', priceAdderKWD: 35, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-ss-drain', category: 'construction', label: 'Stainless Steel Drain Pan', description: 'Type 304 stainless steel drain pan for corrosion-resistant condensate handling', priceAdderKWD: 45, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-air-filters', category: 'construction', label: 'Air Filters (Aluminum V Type or Bag Filter)', description: 'Aluminum V-type or bag filter section for improved supply air quality', priceAdderKWD: 90, applicableSeriesIds: ['ngw'] },
+
+  // Electrical
+  { id: 'ngw-single-phase', category: 'electrical', label: 'Single Phase Motor', description: 'Single-phase fan motor option for single-phase power supply applications', priceAdderKWD: 0, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-electric-heater', category: 'electrical', label: 'Electric Heater', description: 'Factory-installed electric resistance heater for supplemental or primary heating', priceAdderKWD: 0, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-thermostat', category: 'electrical', label: 'Thermostat', description: 'Wall-mounted thermostat for room temperature control', priceAdderKWD: 30, applicableSeriesIds: ['ngw'] },
+  { id: 'ngw-control-valve', category: 'electrical', label: 'Control Valve Kit', description: 'Motorized 2-way or 3-way control valve kit for chilled water flow modulation', priceAdderKWD: 120, applicableSeriesIds: ['ngw'] },
 ];
 
-const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, ...SPLIT_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac', 'vrf', 'acc-bp', 'acc-st'];
+const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, ...SPLIT_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac', 'vrf', 'acc-bp', 'acc-st', 'ngw'];
 
 export function getOptionsForSeries(seriesId: string): EquipmentOption[] {
   if (CURATED_ONLY_SERIES_IDS.includes(seriesId)) {

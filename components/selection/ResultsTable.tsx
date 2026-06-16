@@ -12,7 +12,7 @@ import { NomenclatureInline } from "@/components/selection/NomenclatureBreakdown
 import type { Model } from "@/types/product";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { btuhToKw, btuhToTons, fToC, cfmToM3h, gpmToLps, lpsToGpm, kpaToFtWg, round } from "@/lib/utils/unit-conversions";
+import { btuhToKw, btuhToTons, fToC, cfmToM3h, gpmToLps, lpsToGpm, kpaToFtWg, inWGToPa, round } from "@/lib/utils/unit-conversions";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
 
@@ -42,6 +42,12 @@ export function ResultsTable() {
   const isCrac = selectedSeries?.groupId === "crac";
   const isPackagedExclSPU = selectedSeries?.groupId === "pac" && selectedSeries?.id !== "spu";
   const isSplit = selectedSeries?.groupId === "split";
+  // Chilled-water fan coils (FCH/FCL/NGW) render in the air-side branch but carry
+  // a catalogue water-flow rate; surface it as a Flow column.
+  const isWaterFanCoil =
+    selectedSeries?.id === "fch" ||
+    selectedSeries?.id === "fcl" ||
+    selectedSeries?.id === "ngw";
 
   const dc = designConditions as Record<string, number> | null;
   const dcRaw = designConditions as Record<string, unknown> | null;
@@ -50,6 +56,7 @@ export function ResultsTable() {
   const ewtF = dc?.enteringWaterTempF ?? null;
   const lwtF = dc?.leavingWaterTempF ?? null;
   const flowGPM = dc?.waterFlowRateGPM ?? null;
+  const espInWG = dc?.espInWG ?? null;
   const sstF = dc?.saturatedSuctionTempF ?? null;
   const ambientF = dc?.ambientTempF ?? null;
   const sctF = ambientF != null ? ambientF + 25 : null;
@@ -72,6 +79,15 @@ export function ResultsTable() {
       wbF: finalEWB! - (STD_EWB - model.leavingWBF),
     };
   };
+  // Entering DB/WB as supplied on the design-conditions form (or the mixed
+  // final-entering values when fresh air is enabled). Constant across models.
+  const enteringDBF = dc?.enteringDBF;
+  const enteringWBF = dc?.enteringWBF;
+  const enteringConditions: { dbF: number; wbF: number } | null = useFinalEntering
+    ? { dbF: finalEDB!, wbF: finalEWB! }
+    : typeof enteringDBF === "number" && typeof enteringWBF === "number"
+      ? { dbF: enteringDBF, wbF: enteringWBF }
+      : null;
   const showMewApproval =
     projectInfo?.country === "Kuwait" &&
     ambientF === 118 &&
@@ -192,14 +208,28 @@ export function ResultsTable() {
                         {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-muted-foreground">Power</div>
-                      <div className="font-medium">{round(model.powerKW, 1).toFixed(1)} kW</div>
-                    </div>
-                    {!isCCU && (
+                    {!isWaterFanCoil && (
                       <div>
-                        <div className="text-muted-foreground">{isChiller ? "COP" : "EER"}</div>
-                        <div className="font-medium">{isChiller ? round(model.eer / 3.412, 2) : model.eer}</div>
+                        <div className="text-muted-foreground">Power</div>
+                        <div className="font-medium">{round(model.powerKW, 1).toFixed(1)} kW</div>
+                      </div>
+                    )}
+                    {isWaterFanCoil && (
+                      <div>
+                        <div className="text-muted-foreground">ESP</div>
+                        <div className="font-medium">
+                          {espInWG != null
+                            ? isMetric
+                              ? `${round(inWGToPa(espInWG), 0).toLocaleString()} Pa`
+                              : `${espInWG.toFixed(2)} in. WG`
+                            : "—"}
+                        </div>
+                      </div>
+                    )}
+                    {isChiller && !isCCU && !isWaterFanCoil && (
+                      <div>
+                        <div className="text-muted-foreground">COP</div>
+                        <div className="font-medium">{round(model.eer / 3.412, 2)}</div>
                       </div>
                     )}
                     {isChiller ? (
@@ -267,12 +297,44 @@ export function ResultsTable() {
                         </div>
                       </>
                     ) : (
-                      <div>
-                        <div className="text-muted-foreground">Airflow</div>
-                        <div className="font-medium">
-                          {isMetric ? `${round(cfmToM3h(model.airflowCFM), 0).toLocaleString()} m³/h` : `${model.airflowCFM.toLocaleString()} CFM`}
+                      <>
+                        <div>
+                          <div className="text-muted-foreground">Airflow</div>
+                          <div className="font-medium">
+                            {isMetric ? `${round(cfmToM3h(model.airflowCFM), 0).toLocaleString()} m³/h` : `${model.airflowCFM.toLocaleString()} CFM`}
+                          </div>
                         </div>
-                      </div>
+                        {isWaterFanCoil && model.matrixWaterFlowGPM != null && (
+                          <div>
+                            <div className="text-muted-foreground">Flow</div>
+                            <div className="font-medium">
+                              {isMetric
+                                ? `${round(gpmToLps(model.matrixWaterFlowGPM), 2)} L/s`
+                                : `${model.matrixWaterFlowGPM.toFixed(1)} GPM`}
+                            </div>
+                          </div>
+                        )}
+                        {isWaterFanCoil && ewtF != null && lwtF != null && (
+                          <div>
+                            <div className="text-muted-foreground">Water In/Out</div>
+                            <div className="font-medium">
+                              {isMetric
+                                ? `${round(fToC(ewtF), 1)} / ${round(fToC(lwtF), 1)} °C`
+                                : `${ewtF} / ${lwtF} °F`}
+                            </div>
+                          </div>
+                        )}
+                        {!isWaterFanCoil && enteringConditions && (
+                          <div>
+                            <div className="text-muted-foreground">Entering DB/WB</div>
+                            <div className="font-medium">
+                              {isMetric
+                                ? `${round(fToC(enteringConditions.dbF), 1)}°C / ${round(fToC(enteringConditions.wbF), 1)}°C`
+                                : `${round(enteringConditions.dbF, 1)}°F / ${round(enteringConditions.wbF, 1)}°F`}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                   <Button
@@ -313,12 +375,20 @@ export function ResultsTable() {
                     ) : (
                       <TH label="Sensible Cap." sortable="sensibleCapacityBtuh" />
                     )}
-                    <TH label="Power (kW)" sortable="powerKW" />
-                    {!isCCU && <TH label={isChiller ? "COP" : "EER"} sortable="eer" />}
+                    {!isWaterFanCoil && <TH label="Power (kW)" sortable="powerKW" />}
+                    {isWaterFanCoil && <TH label={isMetric ? "ESP (Pa)" : "ESP (in. WG)"} />}
+                    {isChiller && !isCCU && !isWaterFanCoil && <TH label="COP" sortable="eer" />}
                     {!isChiller && !isCCU && (
                       <>
                         <TH label={isMetric ? "Airflow (m³/h)" : "Airflow (CFM)"} sortable="airflowCFM" />
-                        <TH label="Leaving DB/WB" />
+                        {isWaterFanCoil && (
+                          <>
+                            <TH label={isMetric ? "Flow (L/s)" : "Flow (GPM)"} />
+                            <TH label={isMetric ? "Water In/Out (°C)" : "Water In/Out (°F)"} />
+                          </>
+                        )}
+                        {!isWaterFanCoil && <TH label="Entering DB/WB" />}
+                        {!isWaterFanCoil && <TH label="Leaving DB/WB" />}
                       </>
                     )}
                   </tr>
@@ -418,10 +488,19 @@ export function ResultsTable() {
                             {isMetric ? `${round(btuhToKw(model.sensibleCapacityBtuh), 1)} kW` : `${formatBtuh(model.sensibleCapacityBtuh)} Btu/h`}
                           </td>
                         )}
-                        <td className="px-4 py-3 text-black">{round(model.powerKW, 1).toFixed(1)}</td>
-                        {!isCCU && (
+                        {!isWaterFanCoil && <td className="px-4 py-3 text-black">{round(model.powerKW, 1).toFixed(1)}</td>}
+                        {isWaterFanCoil && (
+                          <td className="px-4 py-3 text-black">
+                            {espInWG != null
+                              ? isMetric
+                                ? round(inWGToPa(espInWG), 0).toLocaleString()
+                                : espInWG.toFixed(2)
+                              : "—"}
+                          </td>
+                        )}
+                        {isChiller && !isCCU && !isWaterFanCoil && (
                           <td className="px-4 py-3">
-                            <span className="text-black">{isChiller ? round(model.eer / 3.412, 2) : model.eer}</span>
+                            <span className="text-black">{round(model.eer / 3.412, 2)}</span>
                           </td>
                         )}
                         {!isChiller && !isCCU && (
@@ -429,14 +508,43 @@ export function ResultsTable() {
                             <td className="px-4 py-3 text-black">
                               {isMetric ? round(cfmToM3h(model.airflowCFM), 0).toLocaleString() : model.airflowCFM.toLocaleString()}
                             </td>
-                            <td className="px-4 py-3 text-black text-xs">
-                              {(() => {
-                                const { dbF, wbF } = leavingFor(model);
-                                return isMetric
-                                  ? `${round(fToC(dbF), 1)}°C / ${round(fToC(wbF), 1)}°C`
-                                  : `${round(dbF, 1)}°F / ${round(wbF, 1)}°F`;
-                              })()}
-                            </td>
+                            {isWaterFanCoil && (
+                              <>
+                                <td className="px-4 py-3 text-black">
+                                  {model.matrixWaterFlowGPM != null
+                                    ? isMetric
+                                      ? round(gpmToLps(model.matrixWaterFlowGPM), 2)
+                                      : model.matrixWaterFlowGPM.toFixed(1)
+                                    : "—"}
+                                </td>
+                                <td className="px-4 py-3 text-black text-xs">
+                                  {ewtF != null && lwtF != null
+                                    ? isMetric
+                                      ? `${round(fToC(ewtF), 1)} / ${round(fToC(lwtF), 1)}`
+                                      : `${ewtF} / ${lwtF}`
+                                    : "—"}
+                                </td>
+                              </>
+                            )}
+                            {!isWaterFanCoil && (
+                              <td className="px-4 py-3 text-black text-xs">
+                                {enteringConditions
+                                  ? isMetric
+                                    ? `${round(fToC(enteringConditions.dbF), 1)}°C / ${round(fToC(enteringConditions.wbF), 1)}°C`
+                                    : `${round(enteringConditions.dbF, 1)}°F / ${round(enteringConditions.wbF, 1)}°F`
+                                  : "—"}
+                              </td>
+                            )}
+                            {!isWaterFanCoil && (
+                              <td className="px-4 py-3 text-black text-xs">
+                                {(() => {
+                                  const { dbF, wbF } = leavingFor(model);
+                                  return isMetric
+                                    ? `${round(fToC(dbF), 1)}°C / ${round(fToC(wbF), 1)}°C`
+                                    : `${round(dbF, 1)}°F / ${round(wbF, 1)}°F`;
+                                })()}
+                              </td>
+                            )}
                           </>
                         )}
                       </tr>

@@ -110,7 +110,7 @@ function decodeGeneric(modelNumber: string, seriesId: string): NomenclatureSegme
 
     'prec-dc':    'Precision Data Center Cooling',
     'prec-tele':  'Precision Telecom Cooling',
-    'fcu':        'Chilled Water Fan Coil Unit',
+    'fch':        'Chilled Water Fan Coil Unit',
     'rpui':       'RPUI Rooftop Packaged Unit',
     'fapu':       'FAPU Fresh Air Package Unit',
     'spu':        'SPU Split Packaged Unit',
@@ -180,7 +180,7 @@ const SERIES_BOM_CONFIG: Record<string, SeriesBOMConfig> = {
 
   'prec-dc':    { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'prec-tele':  { refrigerant: 'R410A', voltage: '220', phase: '1', frequency: '50', compressorType: 'IV' },
-  'fcu':        { refrigerant: '',      voltage: '220', phase: '1', frequency: '50', compressorType: '' },
+  'fch':        { refrigerant: '',      voltage: '220', phase: '1', frequency: '50', compressorType: '' },
   'rpui':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'fapu':       { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
   'spu':        { refrigerant: 'R410A', voltage: '415', phase: '3', frequency: '50', compressorType: 'SL' },
