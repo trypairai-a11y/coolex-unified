@@ -6,11 +6,13 @@ import {
   ArrowLeftRight,
   ArrowRight,
   ArrowUpDown,
+  Check,
   Download,
   Info,
   Move,
   Plus,
   RotateCcw,
+  Save,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -177,6 +179,24 @@ interface FloorLayout {
   branchEndX: number;
 }
 
+/** One physical trunk segment (main trunk or an inter-floor riser). */
+interface TrunkSeg {
+  id: string;
+  ft: number;
+  setFt: (v: number) => void;
+  yTop: number;
+  yBot: number;
+}
+
+/** A run of one or more trunk segments rendered as a single continuous pipe.
+ *  Consecutive segments merge into one run when the floor junction between them
+ *  has no live branch, so an empty floor doesn't split the riser into two pipes. */
+interface TrunkRun {
+  segs: TrunkSeg[];
+  yTop: number;
+  yBot: number;
+}
+
 export function VRFSystemDiagram() {
   const {
     vrfLayout,
@@ -219,6 +239,24 @@ export function VRFSystemDiagram() {
     x2: number;
     y2: number;
   } | null>(null);
+
+  // Layout edits auto-persist to localStorage via the store's persist
+  // middleware; the Save button just flushes state and confirms to the user.
+  const [justSaved, setJustSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSave = useCallback(() => {
+    // Every layout edit is already written to localStorage by the store's
+    // persist middleware, so there is nothing to flush here — just flash a
+    // short-lived confirmation so the user knows their work is saved.
+    setJustSaved(true);
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setJustSaved(false), 2000);
+  }, []);
+
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+  }, []);
 
   const exitAddPipeMode = useCallback(() => {
     setAddPipeMode(false);
@@ -809,8 +847,67 @@ export function VRFSystemDiagram() {
     );
   }
 
-  const oduBottomY = TOP_PAD + ODU_BLOCK_H;
-  const firstBranchY = floorLayouts[0].y;
+  // A floor junction "exists" only while it still has at least one live branch.
+  // Once every branch on a floor is deleted there's nothing tapping the trunk
+  // there, so the risers above and below it should read as one pipe.
+  const isJunctionFloor = (f: FloorLayout) =>
+    f.rooms.some((r) => !isDeleted(branchSegId(r.id)));
+
+  // Flat, top-to-bottom list of every trunk segment: the main trunk first, then
+  // each inter-floor riser. Each carries its own length + setter so a merged run
+  // can still write back to the underlying segments.
+  const trunkSegs: TrunkSeg[] = [
+    {
+      id: MAIN_TRUNK_ID,
+      ft: mainTrunkFt,
+      setFt: setMainTrunkFt,
+      yTop: oduBottomLive,
+      yBot: floorLayouts[0].y,
+    },
+    ...floorLayouts.slice(1).map((f, i): TrunkSeg => ({
+      id: trunkSegId(f.floorId),
+      ft: floorSegFt[f.floorId] ?? DEFAULT_FLOOR_GAP_FT,
+      setFt: (v: number) => setFloorSeg(f.floorId, v),
+      yTop: floorLayouts[i].y,
+      yBot: f.y,
+    })),
+  ];
+
+  // Merge consecutive segments into runs. Two segments join when the floor they
+  // share (floorLayouts[i-1] for segment i) is not a junction. A deleted segment
+  // is hidden and breaks the current run.
+  const trunkRuns: TrunkRun[] = [];
+  let currentRun: TrunkRun | null = null;
+  trunkSegs.forEach((seg, i) => {
+    if (isDeleted(seg.id)) {
+      currentRun = null;
+      return;
+    }
+    const sharedFloor = i > 0 ? floorLayouts[i - 1] : null;
+    if (currentRun && sharedFloor && !isJunctionFloor(sharedFloor)) {
+      currentRun.segs.push(seg);
+      currentRun.yBot = seg.yBot;
+    } else {
+      currentRun = { segs: [seg], yTop: seg.yTop, yBot: seg.yBot };
+      trunkRuns.push(currentRun);
+    }
+  });
+
+  // Editing a merged run scales its segments proportionally so they still sum to
+  // the entered total; if the junction reappears the split stays sensible.
+  const setRunFt = (run: TrunkRun, v: number) => {
+    if (run.segs.length === 1) {
+      run.segs[0].setFt(v);
+      return;
+    }
+    const total = run.segs.reduce((a, s) => a + s.ft, 0);
+    if (total <= 0) {
+      run.segs[0].setFt(v);
+      return;
+    }
+    const ratio = v / total;
+    run.segs.forEach((s) => s.setFt(s.ft * ratio));
+  };
 
   return (
     <div>
@@ -915,6 +1012,24 @@ export function VRFSystemDiagram() {
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             {addPipeMode ? "Cancel adding pipe" : "Add pipe"}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleSave}
+            className={
+              justSaved
+                ? "border-[#86EFAC] text-[#15803D] hover:bg-[#F0FDF4]"
+                : ""
+            }
+          >
+            {justSaved ? (
+              <Check className="w-3.5 h-3.5 mr-1.5" />
+            ) : (
+              <Save className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            {justSaved ? "Saved" : "Save"}
+          </Button>
           {addPipeMode && (
             <span className="text-[11px] text-[#0057B8] font-medium inline-flex items-center gap-1.5 bg-[#EBF3FF] border border-[#B8D4F0] rounded-full px-2.5 py-1">
               <Info className="w-3.5 h-3.5" />
@@ -979,31 +1094,18 @@ export function VRFSystemDiagram() {
               </marker>
             </defs>
 
-            {/* Main trunk: from bottom of ODU down to the first floor's branch line.
-                Both endpoints follow the ODU horizontally so the trunk slides with it. */}
-            {!isDeleted(MAIN_TRUNK_ID) && (
+            {/* Trunk risers — vertical at the live trunk x. Adjacent segments are
+                merged into a single run wherever the floor between them has no live
+                branch, so an emptied floor doesn't leave two stacked pipes. */}
+            {trunkRuns.map((run) => (
               <Pipe
+                key={`trunk-run-${run.segs[0].id}`}
                 x1={dynamicTrunkX}
-                y1={oduBottomLive}
+                y1={run.yTop}
                 x2={dynamicTrunkX}
-                y2={firstBranchY}
+                y2={run.yBot}
               />
-            )}
-
-            {/* Trunk between floors — vertical at the live trunk x. */}
-            {floorLayouts.slice(1).map((f, i) => {
-              if (isDeleted(trunkSegId(f.floorId))) return null;
-              const prev = floorLayouts[i];
-              return (
-                <Pipe
-                  key={`trunk-${f.floorId}`}
-                  x1={dynamicTrunkX}
-                  y1={prev.y}
-                  x2={dynamicTrunkX}
-                  y2={f.y}
-                />
-              );
-            })}
+            ))}
 
             {/* Branches — each segment is a Manhattan-routed polyline that follows
                 the actual unit anchors. When everything is at its auto position the
@@ -1162,38 +1264,22 @@ export function VRFSystemDiagram() {
           )}
 
           {/* Editable length labels */}
-          {/* Main trunk label — sits along the vertical trunk between ODU and floor 1 */}
-          {!isDeleted(MAIN_TRUNK_ID) && (
+          {/* Trunk run labels — one per merged run. The badge shows the run's total
+              length; deleting it hides every segment in the run, and editing scales
+              the underlying segments to match. */}
+          {trunkRuns.map((run) => (
             <PipeLabel
+              key={`lbl-trunk-run-${run.segs[0].id}`}
               cx={dynamicTrunkX}
-              cy={(oduBottomLive + firstBranchY) / 2}
-              valueFt={mainTrunkFt}
-              onChange={setMainTrunkFt}
-              onDelete={() => deleteVRFAutoPipe(MAIN_TRUNK_ID)}
+              cy={(run.yTop + run.yBot) / 2}
+              valueFt={run.segs.reduce((a, s) => a + s.ft, 0)}
+              onChange={(v) => setRunFt(run, v)}
+              onDelete={() => run.segs.forEach((s) => deleteVRFAutoPipe(s.id))}
               isMetric={isMetric}
               orientation="vertical"
               anchor="left"
             />
-          )}
-
-          {/* Between-floor trunk labels — placed midway along the trunk between adjacent floors */}
-          {floorLayouts.slice(1).map((f, i) => {
-            if (isDeleted(trunkSegId(f.floorId))) return null;
-            const prev = floorLayouts[i];
-            return (
-              <PipeLabel
-                key={`lbl-trunk-${f.floorId}`}
-                cx={dynamicTrunkX}
-                cy={(prev.y + f.y) / 2}
-                valueFt={floorSegFt[f.floorId] ?? DEFAULT_FLOOR_GAP_FT}
-                onChange={(v) => setFloorSeg(f.floorId, v)}
-                onDelete={() => deleteVRFAutoPipe(trunkSegId(f.floorId))}
-                isMetric={isMetric}
-                orientation="vertical"
-                anchor="left"
-              />
-            );
-          })}
+          ))}
 
           {/* Branch segment labels — sit at the midpoint of each segment's
               horizontal portion, so they follow the units the segment connects. */}

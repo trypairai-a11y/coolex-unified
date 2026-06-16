@@ -17,6 +17,8 @@ import { SPU_MODELS } from './spu-models';
 import { getSPUPerformance, getSPUCfmRows } from './spu-performance';
 import { PNGF_MODELS } from './pngf-models';
 import { getPNGFPerformance, getPNGFCfmRows } from './pngf-performance';
+import { PNGV_MODELS } from './pngv-models';
+import { getPNGVPerformance, getPNGVCfmRows } from './pngv-performance';
 import { VRF_DUCTED_LOW_STATIC_MODELS } from './vrf-ducted-low-static-models';
 import { VRF_WALL_MOUNTED_MODELS } from './vrf-wall-mounted-models';
 import { VRF_CASSETTE_MODELS } from './vrf-cassette-models';
@@ -85,6 +87,7 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'fcu': generateModels('fcu', 'CFCU', [0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5]),
   'fcl': FCL_MODELS,
   'rpuf': PNGF_MODELS,
+  'pngv': PNGV_MODELS,
   'rpuc': generateModels('rpuc', 'RPUC', [4, 5, 6, 7.5, 8, 10]),
   'fapu': FAPU_MODELS,
   'spu': SPU_MODELS,
@@ -156,6 +159,9 @@ function applyChillerDesignPoint(
   }
   if (seriesId === 'rpuf') {
     return applyPNGFDesignPoint(models, cond);
+  }
+  if (seriesId === 'pngv') {
+    return applyPNGVDesignPoint(models, cond);
   }
   if (seriesId === 'spu') {
     return applySPUDesignPoint(models, cond);
@@ -337,6 +343,43 @@ function applyPNGFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
       ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
       : m.airflowCFM;
     const perf = getPNGFPerformance(m.modelNumber, operatingCFM, dbF, ambientF);
+    if (!perf) return m;
+    const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
+    const sensibleCapacityBtuh = Math.round(perf.sensibleCapacityBtuh);
+    const powerKW = Math.round(perf.kwInput * 10) / 10;
+    const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
+    return {
+      ...m,
+      airflowCFM: onAirflowBasis ? operatingCFM : m.airflowCFM,
+      totalCapacityBtuh,
+      sensibleCapacityBtuh,
+      powerKW,
+      eer,
+      nominalTons: Math.round((totalCapacityBtuh / 12000) * 10) / 10,
+    };
+  });
+}
+
+/**
+ * For PNGv air-cooled packaged DX units, recompute total / sensible capacity and
+ * power at the user's design point by bilinearly interpolating the catalogue
+ * matrix on airflow (CFM) × condenser ambient (°F). The catalogue has no
+ * separate entering-air axis, so only airflow and ambient are design-dependent.
+ *
+ * Capacity basis: each model is evaluated at its own rated airflow.
+ * Airflow basis: every model is evaluated at the requested airflow.
+ */
+function applyPNGVDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
+  // Catalogue rating point: 95 °F condenser ambient.
+  const ambientF = cond?.ambientTempF ?? 95;
+  const requested = cond?.requiredAirflowCFM;
+  const onAirflowBasis = requested != null && requested > 0;
+  return models.map(m => {
+    const rows = getPNGVCfmRows(m.modelNumber);
+    const operatingCFM = onAirflowBasis && rows.length
+      ? Math.min(Math.max(requested!, rows[0]), rows[rows.length - 1])
+      : m.airflowCFM;
+    const perf = getPNGVPerformance(m.modelNumber, operatingCFM, ambientF);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
     const sensibleCapacityBtuh = Math.round(perf.sensibleCapacityBtuh);

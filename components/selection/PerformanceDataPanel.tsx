@@ -67,6 +67,13 @@ import {
   getSPUCfmRows,
 } from "@/lib/mock-data/spu-performance";
 import {
+  PNGV_AMBIENT_F,
+  PNGV_RATING_NOTE,
+  getPNGVMatrix,
+  getPNGVPerformance,
+  getPNGVCfmRows,
+} from "@/lib/mock-data/pngv-performance";
+import {
   DSSF_AMBIENT_F,
   DSSF_RATING_NOTE,
   DSSF_WB_BY_DB,
@@ -274,6 +281,23 @@ function getPerformanceSource(
         : null,
       axisValueFormat: fmtAxis,
       note: `Entering air ${dbLabel}. ${SPU_RATING_NOTE}`,
+    };
+  }
+  if (model.seriesId === "pngv") {
+    // Packaged unit with no entering-air axis: 2D table is Airflow × Condenser Ambient.
+    const matrix = getPNGVMatrix(model.modelNumber);
+    const cfmRows = getPNGVCfmRows(model.modelNumber);
+    if (!matrix || cfmRows.length === 0) return null;
+    return {
+      matrix: matrix as unknown as Record<string, Record<string, PerfPoint>>,
+      yAxis: { label: "Airflow", unit: "CFM", values: cfmRows, designValue: designAirflowCFM },
+      xAxis: { label: "Ambient", unit: "°F", values: PNGV_AMBIENT_F, designValue: designAmbientF },
+      metrics: spuMetrics(),
+      designPoint: designAirflowCFM != null && designAmbientF != null
+        ? (getPNGVPerformance(model.modelNumber, designAirflowCFM, designAmbientF) as unknown as PerfPoint) ?? null
+        : null,
+      axisValueFormat: fmtAxis,
+      note: PNGV_RATING_NOTE,
     };
   }
   if (model.seriesId === "split-ds") {
