@@ -94,7 +94,7 @@ const SPECS: Record<number, VRFIndoorSpec> = {
     modelNumber: "IVHF-00364DH",
     coolingCapacityKW: 11.1,
     coolingCapacityBtuh: 38000,
-    heatingCapacityKW: 12.1,
+    heatingCapacityKW: 11.9,
     heatingCapacityBtuh: 41000,
     fanMotorWatts: 245,
     fanMotorWattsLabel: "245",

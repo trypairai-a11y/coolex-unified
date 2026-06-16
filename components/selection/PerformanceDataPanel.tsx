@@ -68,7 +68,7 @@ import {
 } from "@/lib/mock-data/spu-performance";
 import {
   PNGV_AMBIENT_F,
-  PNGV_RATING_NOTE,
+  getPNGVRatingNote,
   getPNGVMatrix,
   getPNGVPerformance,
   getPNGVCfmRows,
@@ -285,8 +285,9 @@ function getPerformanceSource(
   }
   if (model.seriesId === "pngv") {
     // Packaged unit with no entering-air axis: 2D table is Airflow × Condenser Ambient.
-    const matrix = getPNGVMatrix(model.modelNumber);
-    const cfmRows = getPNGVCfmRows(model.modelNumber);
+    // The table (and lineup) is frequency-specific: Saudi = 60 Hz, else 50 Hz.
+    const matrix = getPNGVMatrix(model.modelNumber, is60Hz);
+    const cfmRows = getPNGVCfmRows(model.modelNumber, is60Hz);
     if (!matrix || cfmRows.length === 0) return null;
     return {
       matrix: matrix as unknown as Record<string, Record<string, PerfPoint>>,
@@ -294,10 +295,10 @@ function getPerformanceSource(
       xAxis: { label: "Ambient", unit: "°F", values: PNGV_AMBIENT_F, designValue: designAmbientF },
       metrics: spuMetrics(),
       designPoint: designAirflowCFM != null && designAmbientF != null
-        ? (getPNGVPerformance(model.modelNumber, designAirflowCFM, designAmbientF) as unknown as PerfPoint) ?? null
+        ? (getPNGVPerformance(model.modelNumber, designAirflowCFM, designAmbientF, is60Hz) as unknown as PerfPoint) ?? null
         : null,
       axisValueFormat: fmtAxis,
-      note: PNGV_RATING_NOTE,
+      note: getPNGVRatingNote(is60Hz),
     };
   }
   if (model.seriesId === "split-ds") {

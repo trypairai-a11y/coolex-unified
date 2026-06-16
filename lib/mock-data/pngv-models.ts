@@ -1,27 +1,25 @@
 import type { Model } from '@/types/product';
-import { PNGV_CFM_BY_MODEL, getPNGVPerformance } from './pngv-performance';
+import { getPNGVModelNumbers, getPNGVCfmRows, getPNGVPerformance } from './pngv-performance';
 
 /**
- * PNGv catalogue models (PNGv_Performance_Data.xlsx). The catalogue's two rating
- * sheets are kept as separate selectable variants, suffixed "-S1" / "-S2" (see
- * pngv-performance.ts). Listed total/sensible/power come from the performance
- * matrix at the catalogue rating point:
- *   • Condenser ambient: 95 °F
- *   • Airflow: the variant's middle (rated) CFM row
+ * PNGv catalogue models. The catalogue is published per power frequency:
+ *   • 50 Hz — all countries except Saudi Arabia (default lineup)
+ *   • 60 Hz — Saudi Arabia
  *
- * At selection time applyPNGVDesignPoint (lib/mock-data/models.ts) overwrites
- * capacity / sensible / power by interpolating the matrix at the design airflow
- * and condenser ambient temperature.
+ * The two frequencies have different rated capacities and a slightly different
+ * lineup (50 Hz lists PNGv-130, 60 Hz lists PNGv-120), so the model list is
+ * built per frequency. `PNGV_MODELS` is the 50 Hz baseline used by the static
+ * registry; at selection time applyPNGVDesignPoint (lib/mock-data/models.ts)
+ * rebuilds the list for the active frequency (Saudi = 60 Hz) and interpolates
+ * capacity / sensible / power at the design airflow and condenser ambient.
  */
 
 const RATING_AMBIENT_F = 95; // condenser ambient
 
-const PNGV_MODEL_NUMBERS = Object.keys(PNGV_CFM_BY_MODEL);
-
-function buildPngvModel(modelNumber: string): Model {
-  const cfms = PNGV_CFM_BY_MODEL[modelNumber];
+function buildPngvModel(modelNumber: string, is60Hz: boolean): Model {
+  const cfms = getPNGVCfmRows(modelNumber, is60Hz);
   const ratedCFM = cfms[Math.floor(cfms.length / 2)]; // middle row = rated airflow
-  const perf = getPNGVPerformance(modelNumber, ratedCFM, RATING_AMBIENT_F)!;
+  const perf = getPNGVPerformance(modelNumber, ratedCFM, RATING_AMBIENT_F, is60Hz)!;
 
   const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
   const sensibleCapacityBtuh = Math.round(perf.sensibleCapacityBtuh);
@@ -52,4 +50,10 @@ function buildPngvModel(modelNumber: string): Model {
   };
 }
 
-export const PNGV_MODELS: Model[] = PNGV_MODEL_NUMBERS.map(buildPngvModel);
+/** Build the PNGv lineup for a given power frequency (Saudi = 60 Hz). */
+export function buildPNGVModels(is60Hz: boolean): Model[] {
+  return getPNGVModelNumbers(is60Hz).map((m) => buildPngvModel(m, is60Hz));
+}
+
+/** 50 Hz baseline lineup (all countries except Saudi Arabia). */
+export const PNGV_MODELS: Model[] = buildPNGVModels(false);

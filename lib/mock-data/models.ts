@@ -17,7 +17,7 @@ import { SPU_MODELS } from './spu-models';
 import { getSPUPerformance, getSPUCfmRows } from './spu-performance';
 import { PNGF_MODELS } from './pngf-models';
 import { getPNGFPerformance, getPNGFCfmRows } from './pngf-performance';
-import { PNGV_MODELS } from './pngv-models';
+import { PNGV_MODELS, buildPNGVModels } from './pngv-models';
 import { getPNGVPerformance, getPNGVCfmRows } from './pngv-performance';
 import { VRF_DUCTED_LOW_STATIC_MODELS } from './vrf-ducted-low-static-models';
 import { VRF_WALL_MOUNTED_MODELS } from './vrf-wall-mounted-models';
@@ -407,19 +407,26 @@ function applyPNGFDesignPoint(models: Model[], cond?: EvaporatorConditions): Mod
  * matrix on airflow (CFM) × condenser ambient (°F). The catalogue has no
  * separate entering-air axis, so only airflow and ambient are design-dependent.
  *
+ * PNGv is published per power frequency: Saudi Arabia uses the 60 Hz table, all
+ * other countries use 50 Hz. The two frequencies have different rated capacities
+ * and a slightly different lineup, so the model list itself is rebuilt for the
+ * active frequency here (the static PNGV_MODELS registry holds the 50 Hz lineup).
+ *
  * Capacity basis: each model is evaluated at its own rated airflow.
  * Airflow basis: every model is evaluated at the requested airflow.
  */
 function applyPNGVDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
-  // Catalogue rating point: 95 °F condenser ambient.
+  // Catalogue rating point: 95 °F condenser ambient. Saudi = 60 Hz, else 50 Hz.
   const ambientF = cond?.ambientTempF ?? 95;
-  return models.map(m => {
-    const rows = getPNGVCfmRows(m.modelNumber);
+  const is60Hz = cond?.is60Hz === true;
+  const lineup = is60Hz ? buildPNGVModels(true) : models;
+  return lineup.map(m => {
+    const rows = getPNGVCfmRows(m.modelNumber, is60Hz);
     const operatingCFM = selectOperatingCFM(
       rows, m.airflowCFM, cond?.requiredAirflowCFM, cond?.requiredCapacityBtuh,
-      cfm => getPNGVPerformance(m.modelNumber, cfm, ambientF)?.totalCapacityBtuh ?? null,
+      cfm => getPNGVPerformance(m.modelNumber, cfm, ambientF, is60Hz)?.totalCapacityBtuh ?? null,
     );
-    const perf = getPNGVPerformance(m.modelNumber, operatingCFM, ambientF);
+    const perf = getPNGVPerformance(m.modelNumber, operatingCFM, ambientF, is60Hz);
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
     const sensibleCapacityBtuh = Math.round(perf.sensibleCapacityBtuh);

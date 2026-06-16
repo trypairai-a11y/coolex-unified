@@ -93,6 +93,12 @@ export function ResultsTable() {
     ambientF === 118 &&
     (isCrac || isPackagedExclSPU || isSplit);
   const powerSupply = typeof dcRaw?.powerSupply === "string" ? dcRaw.powerSupply : "";
+  // PNGv performance is published per power frequency tied to the destination
+  // country: Saudi Arabia uses the 60 Hz table, every other country uses 50 Hz.
+  // Other frequency-aware series (ACSC) still derive it from the power supply.
+  const isSaudi = projectInfo?.country === "Saudi Arabia";
+  const is60Hz =
+    selectedSeries?.id === "pngv" ? isSaudi : powerSupply.includes("60Hz");
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,
@@ -101,7 +107,7 @@ export function ResultsTable() {
     enteringWaterTempF: dc?.enteringWaterTempF,
     ambientTempF: dc?.ambientTempF,
     saturatedSuctionTempF: dc?.saturatedSuctionTempF,
-    is60Hz: powerSupply.includes("60Hz"),
+    is60Hz,
   };
   const { data: models, isLoading, isError } = useModels(selectedSeries?.id ?? null, capacityBtuh, basis, airflowCFM, evapConditions);
 
