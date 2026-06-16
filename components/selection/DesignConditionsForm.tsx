@@ -133,7 +133,9 @@ export function DesignConditionsForm() {
     altitudeFt: 0,
     ambientTempF: 95,
     ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
-    ...(isFanCoil ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
+    // Fan coils: chilled water ENTERS cold (44°F supply) and LEAVES warm (54°F
+    // return) — opposite of the chiller evaporator convention above.
+    ...(isFanCoil ? { enteringWaterTempF: 44, leavingWaterTempF: 54, waterFlowRateGPM: 24 } : {}),
     ...(isCCU ? { saturatedSuctionTempF: 45 } : {}),
   };
 
@@ -246,7 +248,9 @@ export function DesignConditionsForm() {
     const ewtF = toImperial(ewtNum, "enteringWaterTempF", unitSystem);
     const lwtF = toImperial(lwtNum, "leavingWaterTempF", unitSystem);
     const capBtuh = toImperial(capNum, "requiredCoolingCapacityBtuh", unitSystem);
-    const dT = ewtF - lwtF;
+    // Chillers cool the water (entering warm → leaving cold); fan coils heat it
+    // (entering cold → leaving warm). |ΔT| is the same magnitude either way.
+    const dT = Math.abs(ewtF - lwtF);
     if (dT <= 0 || capBtuh <= 0) return;
     const tr = capBtuh / 12000;
     const gpm = (24 * tr) / dT;
@@ -273,7 +277,9 @@ export function DesignConditionsForm() {
     if (gpmI <= 0 || capBtuh <= 0) return;
     const tr = capBtuh / 12000;
     const dT = (24 * tr) / gpmI;
-    const lwtF = ewtF - dT;
+    // Fan coil: leaving (return) is warmer than entering (supply). Chiller: the
+    // reverse — leaving (supply) is colder than entering (return).
+    const lwtF = isFanCoil ? ewtF + dT : ewtF - dT;
     if (!isFinite(lwtF)) return;
     const next = toDisplay(round(lwtF, 1), "leavingWaterTempF", unitSystem);
     const current = Number(getValues("leavingWaterTempF") ?? NaN);
@@ -597,7 +603,7 @@ export function DesignConditionsForm() {
                   <>
                     <FieldWithTooltip
                       label={`Entering Water Temp (${u('enteringWaterTempF')})`}
-                      tooltip="Chilled water return temperature entering the coil."
+                      tooltip="Chilled-water supply temperature entering the coil (cold side, e.g. 44°F). Catalogue capacities are rated on this value."
                       required
                       filled={wEWT != null && String(wEWT) !== ""}
                     >
@@ -605,7 +611,7 @@ export function DesignConditionsForm() {
                     </FieldWithTooltip>
                     <FieldWithTooltip
                       label={`Leaving Water Temp (${u('leavingWaterTempF')})`}
-                      tooltip="Chilled water supply temperature leaving the coil. Auto-calculated from the flow rate if you enter that instead."
+                      tooltip="Chilled-water return temperature leaving the coil (warm side, e.g. 54°F). Auto-calculated from the flow rate if you enter that instead."
                       required
                       filled={eitherFilled}
                     >

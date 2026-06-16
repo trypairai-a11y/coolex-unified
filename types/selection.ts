@@ -74,12 +74,25 @@ export interface VRFCanvasPos {
   y: number;
 }
 
+/**
+ * One end of a custom pipe. Either snapped to a unit (follows the unit as it
+ * moves) or pinned to a free point on the canvas — including a point picked off
+ * an existing pipe line, so users can branch a new run from anywhere.
+ */
+export type VRFPipeEndpoint =
+  | { kind: 'unit'; unitId: VRFUnitId }
+  | { kind: 'point'; x: number; y: number };
+
 export interface VRFCustomPipe {
   id: string;
-  /** Unit the pipe starts at. */
-  fromUnitId: VRFUnitId;
-  /** Unit the pipe ends at. */
-  toUnitId: VRFUnitId;
+  /** Pipe start endpoint. */
+  from?: VRFPipeEndpoint;
+  /** Pipe end endpoint. */
+  to?: VRFPipeEndpoint;
+  /** @deprecated Legacy unit-only start; read via the `from`/`to` migration in the diagram. */
+  fromUnitId?: VRFUnitId;
+  /** @deprecated Legacy unit-only end. */
+  toUnitId?: VRFUnitId;
   /** Length in feet (independent of canvas geometry — same model as auto-pipe lengths). */
   lengthFt: number;
 }

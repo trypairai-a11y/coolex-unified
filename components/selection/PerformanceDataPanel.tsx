@@ -44,7 +44,37 @@ import {
   ACSC_50HZ_AMBIENT_F,
   getACSC50HzPerformance,
 } from "@/lib/mock-data/acsc-50hz-performance";
-import { fToC, gpmToLps, lpsToGpm } from "@/lib/utils/unit-conversions";
+import {
+  NGW_EWT_F,
+  NGW_RATING_NOTE,
+  getNGWMatrix,
+  getNGWPerformance,
+  getNGWCfmRows,
+} from "@/lib/mock-data/ngw-performance";
+import {
+  FAPU_ENTERING_AIR_DB_F,
+  FAPU_RATING_NOTE,
+  getFAPUMatrix,
+  getFAPUPerformance,
+  getFAPUCfmRows,
+} from "@/lib/mock-data/fapu-performance";
+import {
+  SPU_AMBIENT_F,
+  SPU_RATING_NOTE,
+  SPU_WB_BY_DB,
+  getSPUMatrix,
+  getSPUPerformance,
+  getSPUCfmRows,
+} from "@/lib/mock-data/spu-performance";
+import {
+  DSSF_AMBIENT_F,
+  DSSF_RATING_NOTE,
+  DSSF_WB_BY_DB,
+  getDSSFMatrix,
+  getDSSFPerformance,
+  getDSSFCfmRows,
+} from "@/lib/mock-data/dssf-cdef-performance";
+import { btuhToKw, fToC, gpmToLps, lpsToGpm } from "@/lib/utils/unit-conversions";
 
 const TONS_TO_KW = 3.51685;
 const FTWG_TO_KPA = 2.98898;
@@ -74,6 +104,8 @@ interface PerformanceSource {
   metrics: MetricConfig[];
   designPoint: PerfPoint | null;
   axisValueFormat: (v: number) => string;
+  // Optional catalogue footnote rendered beneath the table.
+  note?: string;
 }
 
 const fmtAxis = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
@@ -84,7 +116,26 @@ function getPerformanceSource(
   designAmbientF: number | null,
   designSstF: number | null,
   is60Hz: boolean,
+  designAirflowCFM: number | null,
+  designEwtF: number | null,
+  designEnteringDBF: number | null,
 ): PerformanceSource | null {
+  if (model.seriesId === "ngw") {
+    const matrix = getNGWMatrix(model.modelNumber);
+    const cfmRows = getNGWCfmRows(model.modelNumber);
+    if (!matrix || cfmRows.length === 0) return null;
+    return {
+      matrix: matrix as unknown as Record<string, Record<string, PerfPoint>>,
+      yAxis: { label: "Airflow", unit: "CFM", values: cfmRows, designValue: designAirflowCFM },
+      xAxis: { label: "Entering Water", unit: "°F", values: NGW_EWT_F, designValue: designEwtF },
+      metrics: ngwMetrics(),
+      designPoint: designAirflowCFM != null && designEwtF != null
+        ? (getNGWPerformance(model.modelNumber, designAirflowCFM, designEwtF) as unknown as PerfPoint) ?? null
+        : null,
+      axisValueFormat: fmtAxis,
+      note: NGW_RATING_NOTE,
+    };
+  }
   if (model.seriesId === "acsc" && is60Hz) {
     const matrix = ACSC_60HZ_PERFORMANCE[model.modelNumber];
     if (!matrix) return null;
@@ -187,6 +238,65 @@ function getPerformanceSource(
       axisValueFormat: fmtAxis,
     };
   }
+  if (model.seriesId === "fapu") {
+    const matrix = getFAPUMatrix(model.modelNumber);
+    const cfmRows = getFAPUCfmRows(model.modelNumber);
+    if (!matrix || cfmRows.length === 0) return null;
+    // Fresh-air unit: the entering-air DB axis is the outdoor/ambient temp.
+    return {
+      matrix: matrix as unknown as Record<string, Record<string, PerfPoint>>,
+      yAxis: { label: "Airflow", unit: "CFM", values: cfmRows, designValue: designAirflowCFM },
+      xAxis: { label: "Entering Air", unit: "°F", values: FAPU_ENTERING_AIR_DB_F, designValue: designAmbientF },
+      metrics: fapuMetrics(),
+      designPoint: designAirflowCFM != null && designAmbientF != null
+        ? (getFAPUPerformance(model.modelNumber, designAirflowCFM, designAmbientF) as unknown as PerfPoint) ?? null
+        : null,
+      axisValueFormat: fmtAxis,
+      note: FAPU_RATING_NOTE,
+    };
+  }
+  if (model.seriesId === "spu") {
+    // Packaged unit: fix the entering-air DB/WB to the design condition (default
+    // 80/67), then show the 2D table as Airflow (CFM) × Condenser Ambient.
+    const edbF = designEnteringDBF ?? 80;
+    const matrix = getSPUMatrix(model.modelNumber, edbF);
+    const cfmRows = getSPUCfmRows(model.modelNumber);
+    if (!matrix || cfmRows.length === 0) return null;
+    const wb = SPU_WB_BY_DB[edbF];
+    const dbLabel = wb ? `${edbF}/${wb} °F` : `${edbF} °F`;
+    return {
+      matrix: matrix as unknown as Record<string, Record<string, PerfPoint>>,
+      yAxis: { label: "Airflow", unit: "CFM", values: cfmRows, designValue: designAirflowCFM },
+      xAxis: { label: "Ambient", unit: "°F", values: SPU_AMBIENT_F, designValue: designAmbientF },
+      metrics: spuMetrics(),
+      designPoint: designAirflowCFM != null && designAmbientF != null
+        ? (getSPUPerformance(model.modelNumber, designAirflowCFM, edbF, designAmbientF) as unknown as PerfPoint) ?? null
+        : null,
+      axisValueFormat: fmtAxis,
+      note: `Entering air ${dbLabel}. ${SPU_RATING_NOTE}`,
+    };
+  }
+  if (model.seriesId === "split-ds") {
+    // Ducted split DX: fix the entering-air DB/WB to the design condition
+    // (default 80/67), then show the 2D table as Airflow (CFM) × Condenser Ambient.
+    const edbF = designEnteringDBF ?? 80;
+    const matrix = getDSSFMatrix(model.modelNumber, edbF);
+    const cfmRows = getDSSFCfmRows(model.modelNumber);
+    if (!matrix || cfmRows.length === 0) return null;
+    const wb = DSSF_WB_BY_DB[edbF];
+    const dbLabel = wb ? `${edbF}/${wb} °F` : `${edbF} °F`;
+    return {
+      matrix: matrix as unknown as Record<string, Record<string, PerfPoint>>,
+      yAxis: { label: "Airflow", unit: "CFM", values: cfmRows, designValue: designAirflowCFM },
+      xAxis: { label: "Ambient", unit: "°F", values: DSSF_AMBIENT_F, designValue: designAmbientF },
+      metrics: spuMetrics(),
+      designPoint: designAirflowCFM != null && designAmbientF != null
+        ? (getDSSFPerformance(model.modelNumber, designAirflowCFM, edbF, designAmbientF) as unknown as PerfPoint) ?? null
+        : null,
+      axisValueFormat: fmtAxis,
+      note: `Entering air ${dbLabel}. ${DSSF_RATING_NOTE}`,
+    };
+  }
   return null;
 }
 
@@ -267,6 +377,87 @@ function acscMetrics(): MetricConfig[] {
   ];
 }
 
+function fapuMetrics(): MetricConfig[] {
+  return [
+    {
+      id: "total",
+      label: "Total Capacity",
+      unit: "Btu/h",
+      key: "totalCapacityBtuh",
+      decimals: 0,
+      metric: { unit: "kW", transform: btuhToKw, decimals: 1 },
+    },
+    {
+      id: "sensible",
+      label: "Sensible Capacity",
+      unit: "Btu/h",
+      key: "sensibleCapacityBtuh",
+      decimals: 0,
+      metric: { unit: "kW", transform: btuhToKw, decimals: 1 },
+    },
+    { id: "power", label: "Power Input", unit: "kW", key: "kwInput", decimals: 2 },
+  ];
+}
+
+function spuMetrics(): MetricConfig[] {
+  return [
+    {
+      id: "total",
+      label: "Total Capacity",
+      unit: "Btu/h",
+      key: "totalCapacityBtuh",
+      decimals: 0,
+      metric: { unit: "kW", transform: btuhToKw, decimals: 1 },
+    },
+    {
+      id: "sensible",
+      label: "Sensible Capacity",
+      unit: "Btu/h",
+      key: "sensibleCapacityBtuh",
+      decimals: 0,
+      metric: { unit: "kW", transform: btuhToKw, decimals: 1 },
+    },
+    { id: "power", label: "Power Input", unit: "kW", key: "kwInput", decimals: 2 },
+  ];
+}
+
+function ngwMetrics(): MetricConfig[] {
+  return [
+    {
+      id: "total",
+      label: "Total Capacity",
+      unit: "Btu/h",
+      key: "totalCapacityBtuh",
+      decimals: 0,
+      metric: { unit: "kW", transform: btuhToKw, decimals: 1 },
+    },
+    {
+      id: "sensible",
+      label: "Sensible Capacity",
+      unit: "Btu/h",
+      key: "sensibleCapacityBtuh",
+      decimals: 0,
+      metric: { unit: "kW", transform: btuhToKw, decimals: 1 },
+    },
+    {
+      id: "flow",
+      label: "Water Flow Rate",
+      unit: "GPM",
+      key: "waterFlowGPM",
+      decimals: 1,
+      metric: { unit: "L/s", transform: gpmToLps, decimals: 2 },
+    },
+    {
+      id: "wpd",
+      label: "Water Pressure Drop",
+      unit: "ft.wg",
+      key: "waterPressureDropFtH2O",
+      decimals: 1,
+      metric: { unit: "kPa", transform: (v: number) => v * FTWG_TO_KPA, decimals: 1 },
+    },
+  ];
+}
+
 function ccuMetrics(): MetricConfig[] {
   return [
     { id: "capacity",   label: "Total Capacity",  unit: "Btu/h", key: "totalCapacityBtuh", decimals: 0 },
@@ -291,6 +482,9 @@ interface Props {
   designAmbientF?: number | null;
   designSstF?: number | null;
   is60Hz?: boolean;
+  designAirflowCFM?: number | null;
+  designEwtF?: number | null;
+  designEnteringDBF?: number | null;
 }
 
 function formatMetricValue(metric: MetricConfig, value: number, isMetric: boolean): { display: string; unit: string } {
@@ -312,10 +506,10 @@ function formatMetricValue(metric: MetricConfig, value: number, isMetric: boolea
   return { display: value.toFixed(metric.decimals), unit: metric.unit };
 }
 
-export function PerformanceDataPanel({ model, designLcwtF, designAmbientF, designSstF, is60Hz }: Props) {
+export function PerformanceDataPanel({ model, designLcwtF, designAmbientF, designSstF, is60Hz, designAirflowCFM, designEwtF, designEnteringDBF }: Props) {
   const source = useMemo(
-    () => getPerformanceSource(model, designLcwtF ?? null, designAmbientF ?? null, designSstF ?? null, is60Hz ?? false),
-    [model, designLcwtF, designAmbientF, designSstF, is60Hz],
+    () => getPerformanceSource(model, designLcwtF ?? null, designAmbientF ?? null, designSstF ?? null, is60Hz ?? false, designAirflowCFM ?? null, designEwtF ?? null, designEnteringDBF ?? null),
+    [model, designLcwtF, designAmbientF, designSstF, is60Hz, designAirflowCFM, designEwtF, designEnteringDBF],
   );
   const { unitSystem } = useUnitStore();
   const isMetric = unitSystem === "metric";
@@ -323,7 +517,7 @@ export function PerformanceDataPanel({ model, designLcwtF, designAmbientF, desig
 
   if (!source) return null;
 
-  const { matrix, yAxis, xAxis, metrics, designPoint, axisValueFormat } = source;
+  const { matrix, yAxis, xAxis, metrics, designPoint, axisValueFormat, note } = source;
   const activeMetric = metrics.find(m => m.id === metricId) ?? metrics[0];
 
   const yBrackets = yAxis.designValue != null ? bracketIndex(yAxis.designValue, yAxis.values) : null;
@@ -454,6 +648,12 @@ export function PerformanceDataPanel({ model, designLcwtF, designAmbientF, desig
           {xIsExact && yIsExact
             ? "Highlighted cell shows performance at the exact design point."
             : "Design-point values are bilinearly interpolated between the four highlighted cells (linear slope across each axis)."}
+        </div>
+      )}
+
+      {note && (
+        <div className="px-5 py-3 border-t border-border/60 text-[11px] italic text-muted-foreground">
+          Note: {note}
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
-import { SAUDI_EXCLUDED_GROUP_IDS, SAUDI_EXCLUDED_SERIES_IDS } from "@/lib/mock-data/saudi-restrictions";
+import { SAUDI_EXCLUDED_GROUP_IDS, SAUDI_EXCLUDED_SERIES_IDS, isKuwaitOnlySeries } from "@/lib/mock-data/saudi-restrictions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import type { ProductGroup, ProductSeries } from "@/types/product";
@@ -34,15 +34,18 @@ export function ProductGroupGrid() {
     return groups.filter(g => !SAUDI_EXCLUDED_GROUP_IDS.has(g.id));
   }, [groups, isSaudi]);
 
+  const isKuwait = projectInfo?.country === "Kuwait";
+
   const seriesCountByGroup = useMemo(() => {
     const counts: Record<string, number> = {};
     if (!allSeries) return counts;
     for (const s of allSeries) {
       if (isSaudi && SAUDI_EXCLUDED_SERIES_IDS.has(s.id)) continue;
+      if (!isKuwait && isKuwaitOnlySeries(s)) continue;
       counts[s.groupId] = (counts[s.groupId] ?? 0) + 1;
     }
     return counts;
-  }, [allSeries, isSaudi]);
+  }, [allSeries, isSaudi, isKuwait]);
 
   if (isError) {
     return (
@@ -110,7 +113,7 @@ export function ProductGroupGrid() {
                 className="absolute bottom-0 left-0 right-0 h-0.5 scale-x-0 group-hover:scale-x-100
                   transition-transform duration-300 origin-center"
                 style={{
-                  background: `linear-gradient(90deg, transparent, ${group.gradientFrom}, transparent)`,
+                  background: `linear-gradient(90deg, transparent, #42B2DF, transparent)`,
                 }}
               />
 
@@ -138,7 +141,7 @@ export function ProductGroupGrid() {
                 {group.shortDescription}
               </p>
 
-              {/* Series count badge — colored on hover. Falls back to the group's static seriesCount for groups with no entries in product-series.ts (e.g. VRF). */}
+              {/* Series count badge — COOLEX accent blue for all groups. */}
               {(() => {
                 const count = seriesCountByGroup[group.id] ?? group.seriesCount ?? 0;
                 const label = count > 0 ? `${count} series` : group.tonRange;
@@ -146,11 +149,7 @@ export function ProductGroupGrid() {
                 return (
                   <span
                     className="relative text-[10px] font-medium px-2.5 py-0.5 rounded-full
-                      transition-all duration-300"
-                    style={{
-                      color: group.gradientFrom,
-                      background: `${group.gradientFrom}1A`,
-                    }}
+                      text-gray-600 bg-gray-100 transition-all duration-300"
                   >
                     {label}
                   </span>

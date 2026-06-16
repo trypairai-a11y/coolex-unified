@@ -10,6 +10,7 @@ export interface EquipmentOption {
 }
 
 const ROOFTOP_PACKAGED_SERIES_IDS = ['rpui', 'rpuf', 'rpuc', 'fapu', 'spu'];
+const SPLIT_SERIES_IDS = ['split-cs', 'split-ds', 'dstc', 'dstf'];
 
 export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   // Construction
@@ -172,9 +173,20 @@ export const EQUIPMENT_OPTIONS: EquipmentOption[] = [
   { id: 'thac-overload-fan', category: 'electrical', label: 'Overload Relay - Condenser Fan Motor', description: 'Thermal overload relay for condenser fan motor protection', priceAdderKWD: 45, applicableSeriesIds: ['thac'] },
   { id: 'thac-bms', category: 'electrical', label: 'Building Management System (BMS)', description: 'BACnet / Modbus interface for integration with site building management system', priceAdderKWD: 285, applicableSeriesIds: ['thac'] },
   { id: 'thac-comp-breaker', category: 'electrical', label: 'Compressor Circuit Breaker', description: 'Dedicated circuit breaker for compressor short-circuit and overload protection', priceAdderKWD: 110, applicableSeriesIds: ['thac'] },
+
+  // ── Split Series (DSSC/CDEC, DSSF/CDEF, DSTC/DSEC, DSTF/DSEF) ──
+  // Electrical
+  { id: 'split-wifi-ctrl', category: 'electrical', label: 'WIFI Controller', description: 'Wi-Fi enabled controller for remote operation and monitoring via mobile app', priceAdderKWD: 85, applicableSeriesIds: SPLIT_SERIES_IDS },
+  { id: 'split-crankcase-heater', category: 'electrical', label: 'Crank Case Heater', description: 'Compressor crankcase heater to prevent refrigerant migration during off-cycle in low-ambient conditions', priceAdderKWD: 55, applicableSeriesIds: SPLIT_SERIES_IDS },
+
+  // Construction
+  { id: 'split-cond-coat', category: 'construction', label: 'Condenser Coil Protective Coating', description: 'BlueFinTM coating on condenser coil for salt air and industrial environments', priceAdderKWD: 140, applicableSeriesIds: SPLIT_SERIES_IDS },
+  { id: 'split-evap-coat', category: 'construction', label: 'Evaporator Coil Protective Coating', description: 'Electrofin E-Coat on evaporator coil for corrosive environments', priceAdderKWD: 120, applicableSeriesIds: SPLIT_SERIES_IDS },
+  { id: 'split-copper-evap', category: 'construction', label: 'Copper Fins - Evaporator', description: 'Copper fins on evaporator coil for enhanced durability in harsh environments', priceAdderKWD: 180, applicableSeriesIds: SPLIT_SERIES_IDS },
+  { id: 'split-copper-cond', category: 'construction', label: 'Copper Fins - Condenser', description: 'Copper fins on condenser coil for enhanced durability in harsh environments', priceAdderKWD: 220, applicableSeriesIds: SPLIT_SERIES_IDS },
 ];
 
-const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac', 'vrf', 'acc-bp', 'acc-st'];
+const CURATED_ONLY_SERIES_IDS = [...ROOFTOP_PACKAGED_SERIES_IDS, ...SPLIT_SERIES_IDS, 'ccu-std', 'acsc', 'thac', 'dhac', 'vrf', 'acc-bp', 'acc-st'];
 
 export function getOptionsForSeries(seriesId: string): EquipmentOption[] {
   if (CURATED_ONLY_SERIES_IDS.includes(seriesId)) {

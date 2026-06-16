@@ -74,4 +74,26 @@ export interface Model {
   // Tabulated CCU performance at the user's design point.
   // Bilinearly interpolated from the catalogue matrix on SST × ambient (°F).
   matrixCondensingTempF?: number;
+  // Tabulated NGW fan-coil performance at the user's design point.
+  // Bilinearly interpolated from the catalogue matrix on airflow (CFM) ×
+  // entering (chilled-supply) water temp (°F). GPM / WPD are English-native.
+  matrixWaterFlowGPM?: number;
+  matrixWaterPressureDropFtH2O?: number;
+  // VRF indoor unit catalogue fields (e.g. IVLF ducted-split units). Heat-pump
+  // models list both cooling (totalCapacityBtuh) and heating output; the fan
+  // motor is the indoor DC fan (the VRF compressor lives in the outdoor unit).
+  heatingCapacityBtuh?: number;
+  fanMotorWatts?: number;
+  coilRows?: number;
+  bodyWeight_kg?: number;
+  connectingGasPipe?: string;
+  connectingLiquidPipe?: string;
+  connectingDrainPipe?: string;
+  expansionDevice?: string;
+  evaporatorCoilType?: string;
+  powerSupply?: string;
+  controllerType?: string;
+  // Full catalogue designation when the model number is a shorthand for a matched
+  // pair (e.g. DSSF-CDEF: "CHCF-024 A7 / CHEF-024 A7" for outdoor / indoor units).
+  modelDesignation?: string;
 }

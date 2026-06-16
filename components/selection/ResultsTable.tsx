@@ -76,13 +76,16 @@ export function ResultsTable() {
     projectInfo?.country === "Kuwait" &&
     ambientF === 118 &&
     (isCrac || isPackagedExclSPU || isSplit);
+  const powerSupply = typeof dcRaw?.powerSupply === "string" ? dcRaw.powerSupply : "";
   const evapConditions = {
     enteringDBF: dc?.enteringDBF,
     enteringWBF: dc?.enteringWBF,
     espInWG: dc?.espInWG,
     leavingWaterTempF: dc?.leavingWaterTempF,
+    enteringWaterTempF: dc?.enteringWaterTempF,
     ambientTempF: dc?.ambientTempF,
     saturatedSuctionTempF: dc?.saturatedSuctionTempF,
+    is60Hz: powerSupply.includes("60Hz"),
   };
   const { data: models, isLoading, isError } = useModels(selectedSeries?.id ?? null, capacityBtuh, basis, airflowCFM, evapConditions);
 

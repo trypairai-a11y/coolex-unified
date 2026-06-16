@@ -30,7 +30,6 @@ import {
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useOptions } from "@/hooks/useSelection";
 import type { EquipmentOption } from "@/lib/mock-data/options";
-import { PerformanceDataPanel } from "@/components/selection/PerformanceDataPanel";
 import type { VRFIndoorType } from "@/types/selection";
 
 const CATEGORY_CONFIG: Record<
@@ -96,7 +95,6 @@ export function OptionsConfigurator() {
     selectedSeries,
     selectedModels,
     selectedOptions,
-    designConditions,
     toggleOption,
     setStep,
     navigateBack,
@@ -105,13 +103,6 @@ export function OptionsConfigurator() {
   const isVRF = selectedGroup?.id === "vrf";
   const optionsSeriesId = isVRF ? "vrf" : selectedSeries?.id ?? null;
   const { data: options, isLoading, isError } = useOptions(optionsSeriesId);
-
-  const primaryModel = selectedModels[0] ?? null;
-  const dc = designConditions as Record<string, number | string> | null;
-  const designLwtF = (dc?.leavingWaterTempF as number | undefined) ?? null;
-  const designAmbientF = (dc?.ambientTempF as number | undefined) ?? null;
-  const designSstF = (dc?.saturatedSuctionTempF as number | undefined) ?? null;
-  const is60Hz = typeof dc?.powerSupply === "string" && dc.powerSupply.includes("60Hz");
 
   return (
     <div className="w-full">
@@ -129,18 +120,6 @@ export function OptionsConfigurator() {
           </p>
         </div>
       </div>
-
-      {!isVRF && primaryModel && (
-        <div className="mb-6">
-          <PerformanceDataPanel
-            model={primaryModel}
-            designLcwtF={designLwtF}
-            designAmbientF={designAmbientF}
-            designSstF={designSstF}
-            is60Hz={is60Hz}
-          />
-        </div>
-      )}
 
       {isLoading ? (
         <div className="space-y-4">

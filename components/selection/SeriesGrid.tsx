@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
-import { SAUDI_EXCLUDED_SERIES_IDS } from "@/lib/mock-data/saudi-restrictions";
+import { SAUDI_EXCLUDED_SERIES_IDS, isKuwaitOnlySeries } from "@/lib/mock-data/saudi-restrictions";
 import { EquipmentIllustration } from "./EquipmentIllustration";
 import type { ProductSeries } from "@/types/product";
 
@@ -23,10 +23,13 @@ export function SeriesGrid() {
 
   const series = useMemo(() => {
     if (!rawSeries) return rawSeries;
-    if (projectInfo?.country === 'Saudi Arabia') {
-      return rawSeries.filter(s => !SAUDI_EXCLUDED_SERIES_IDS.has(s.id));
-    }
-    return rawSeries;
+    const isSaudi = projectInfo?.country === 'Saudi Arabia';
+    const isKuwait = projectInfo?.country === 'Kuwait';
+    return rawSeries.filter(s => {
+      if (isSaudi && SAUDI_EXCLUDED_SERIES_IDS.has(s.id)) return false;
+      if (!isKuwait && isKuwaitOnlySeries(s)) return false;
+      return true;
+    });
   }, [rawSeries, projectInfo?.country]);
 
   const hasSpeedTypes = series?.some(s => s.speedType);
@@ -92,12 +95,16 @@ export function SeriesGrid() {
       if (!groups.has(ref)) groups.set(ref, []);
       groups.get(ref)!.push(s);
     }
-    return Array.from(groups.entries()).map(([ref, items]) => ({
-      key: ref,
-      label: ref,
-      icon: 'snowflake' as const,
-      items,
-    }));
+    // Order refrigerants with R-410A first, then the rest alphabetically
+    const refOrder = (ref: string) => (ref === 'R-410A' ? 0 : 1);
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => refOrder(a) - refOrder(b) || a.localeCompare(b))
+      .map(([ref, items]) => ({
+        key: ref,
+        label: ref,
+        icon: 'snowflake' as const,
+        items,
+      }));
   }, [series, hasSpeedTypes]);
 
 

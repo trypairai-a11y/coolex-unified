@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, cfmToM3h, round } from "@/lib/utils/unit-conversions";
+import { getVRFIndoorSpec } from "@/lib/mock-data/vrf-indoor";
 import type { VRFIndoorType } from "@/types/selection";
 
 const INDOOR_SPEC_PROFILE: Record<
@@ -24,12 +25,20 @@ const INDOOR_SPEC_PROFILE: Record<
 
 function computeIndoorSpecs(indoorType: VRFIndoorType, capacityKbtuh: number) {
   const p = INDOOR_SPEC_PROFILE[indoorType];
-  const totalBtuh = capacityKbtuh * 1000;
+  // Catalogue-backed indoor types (e.g. IVLF low-static, IWEF wall-mounted) use
+  // the rated cooling/airflow and model number from the real spec table; other
+  // types stay synthesized from the generic profile.
+  const catalog = getVRFIndoorSpec(indoorType, capacityKbtuh);
+  const totalBtuh = catalog ? catalog.coolingCapacityBtuh : capacityKbtuh * 1000;
   const sensibleBtuh = totalBtuh * p.sensibleRatio;
   const powerKW = round(totalBtuh / p.eer / 1000, 2);
-  const airflowCFM = Math.round(capacityKbtuh * p.cfmPerKbtuh * 10) * 10;
+  const airflowCFM = catalog
+    ? catalog.airflowCFM
+    : Math.round(capacityKbtuh * p.cfmPerKbtuh * 10) * 10;
   return {
-    modelNumber: `${p.prefix}-${String(capacityKbtuh).padStart(3, "0")}`,
+    modelNumber: catalog
+      ? catalog.modelNumber
+      : `${p.prefix}-${String(capacityKbtuh).padStart(3, "0")}`,
     matchPercent: 100,
     totalBtuh,
     sensibleBtuh,
@@ -76,7 +85,7 @@ const INDOOR_TYPES: {
     image: "/images/vrf-ducted-split-inverter.png",
     accent: "#7C3AED",
     bg: "#F3EBFF",
-    capacities: [12, 16, 18, 22, 24, 30, 36, 42, 48, 60],
+    capacities: [16, 18, 24, 30, 36, 42, 48, 60],
   },
   {
     value: "cassette",
@@ -235,24 +244,13 @@ export function VRFDesignConditions() {
                             key={value}
                             type="button"
                             onClick={() => setVRFRoomIndoorType(room.id, value)}
-                            className={`relative flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150 focus:outline-none ${
-                              selected
-                                ? "shadow-[0_0_0_3px_rgba(0,87,184,0.1)]"
-                                : "border-[#E2E8F4] bg-white hover:border-[#B8D4F0] hover:bg-[#F8FBFF]"
-                            }`}
-                            style={
-                              selected
-                                ? { borderColor: accent, backgroundColor: bg }
-                                : undefined
-                            }
+                            className="relative flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all duration-150 focus:outline-none border-[#E2E8F4] bg-white hover:border-[#B8D4F0] hover:bg-[#F8FBFF]"
                           >
                             <div
                               className="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl transition-all duration-150 overflow-hidden"
                               style={
                                 image
                                   ? { backgroundColor: bg }
-                                  : selected
-                                  ? { backgroundColor: accent, color: "white" }
                                   : { backgroundColor: bg, color: accent }
                               }
                             >
@@ -267,7 +265,7 @@ export function VRFDesignConditions() {
                             <div className="flex-1 min-w-0">
                               <p
                                 className="text-[12px] font-semibold leading-tight"
-                                style={{ color: selected ? accent : "#0D1626" }}
+                                style={{ color: "#0D1626" }}
                               >
                                 {label}
                               </p>

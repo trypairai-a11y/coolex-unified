@@ -2,10 +2,12 @@ import type { Model } from '@/types/product';
 
 // Real NGW Fan Coil Unit data extracted from:
 // "2025 NGW Selection Software r1.xlsm"
-// Default selection conditions:
-//   Entering DB: 80°F, Entering WB: 67°F
-//   Water Inlet: 45°F, Water Outlet: 54°F
+// Rating basis (catalogue): cooling capacities are based on 80/67°F entering
+// air (DB/WB) and 44/54°F entering/leaving chilled-water temperature.
 //   Ext. Static: 0.5 in WG
+// NOTE: these per-model values are nominal fallbacks; at selection time
+// applyNGWDesignPoint (lib/mock-data/models.ts) overwrites capacity / flow /
+// WPD by interpolating ngw-performance.ts at the design airflow + water temp.
 
 export interface NGWModelSpec extends Model {
   coilRows: number;

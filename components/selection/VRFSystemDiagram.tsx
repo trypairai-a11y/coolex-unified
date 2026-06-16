@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   ArrowRight,
   ArrowUpDown,
+  Download,
   Info,
   Move,
   Plus,
@@ -18,7 +19,16 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, round } from "@/lib/utils/unit-conversions";
 import { VRF_OUTDOOR_SIZES, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
-import type { VRFCanvasPos, VRFCustomPipe, VRFIndoorType, VRFUnitId } from "@/types/selection";
+import { evaluateVRFPiping } from "@/lib/utils/vrf-piping";
+import { VRFPipingCompliance } from "@/components/selection/VRFPipingCompliance";
+import { getVRFIndoorModelNumber } from "@/lib/mock-data/vrf-indoor";
+import type {
+  VRFCanvasPos,
+  VRFCustomPipe,
+  VRFIndoorType,
+  VRFPipeEndpoint,
+  VRFUnitId,
+} from "@/types/selection";
 
 const INDOOR_IMAGE: Record<VRFIndoorType, string> = {
   "ducted-split-low-static": "/images/vrf-ducted-split.png",
@@ -116,6 +126,35 @@ function computeManhattanFt(a: VRFCanvasPos, b: VRFCanvasPos): number {
   return Math.round((dxFt + dyFt) * 2) / 2; // snap to 0.5 ft
 }
 
+/** Migrate legacy unit-only pipes (fromUnitId/toUnitId) to the endpoint model. */
+function pipeEndpoints(p: VRFCustomPipe): { from: VRFPipeEndpoint; to: VRFPipeEndpoint } {
+  const from = p.from ?? { kind: "unit" as const, unitId: p.fromUnitId! };
+  const to = p.to ?? { kind: "unit" as const, unitId: p.toUnitId! };
+  return { from, to };
+}
+
+interface Seg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** Closest point on segment `s` to point `p`, plus the squared distance to it. */
+function closestOnSeg(p: VRFCanvasPos, s: Seg): { point: VRFCanvasPos; distSq: number } {
+  const dx = s.x2 - s.x1;
+  const dy = s.y2 - s.y1;
+  const lenSq = dx * dx + dy * dy;
+  const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - s.x1) * dx + (p.y - s.y1) * dy) / lenSq));
+  const point = { x: s.x1 + t * dx, y: s.y1 + t * dy };
+  const ddx = p.x - point.x;
+  const ddy = p.y - point.y;
+  return { point, distSq: ddx * ddx + ddy * ddy };
+}
+
+// Click within this many px of a pipe line snaps onto it.
+const PIPE_SNAP_PX = 14;
+
 interface FlattenedRoom {
   key: string;
   floorId: string;
@@ -158,9 +197,13 @@ export function VRFSystemDiagram() {
   const unitSystem = useUnitStore((s) => s.unitSystem);
   const isMetric = unitSystem === "metric";
 
-  // Custom-pipe authoring state
+  // Custom-pipe authoring state. The start endpoint can be a unit or a free
+  // point picked anywhere on the canvas (including off an existing pipe line).
   const [addPipeMode, setAddPipeMode] = useState(false);
-  const [pendingPipeStart, setPendingPipeStart] = useState<VRFUnitId | null>(null);
+  const [pendingPipeStart, setPendingPipeStart] = useState<VRFPipeEndpoint | null>(null);
+  // Live pointer position (canvas coords) while sketching a pipe — drives the
+  // dashed preview line from the chosen start anchor to the cursor.
+  const [pipePointer, setPipePointer] = useState<VRFCanvasPos | null>(null);
   // Live drag preview — keyed map so a single drag can move multiple selected
   // units simultaneously. null when nothing is being dragged.
   const [dragPreview, setDragPreview] = useState<Map<VRFUnitId, VRFCanvasPos> | null>(null);
@@ -180,6 +223,7 @@ export function VRFSystemDiagram() {
   const exitAddPipeMode = useCallback(() => {
     setAddPipeMode(false);
     setPendingPipeStart(null);
+    setPipePointer(null);
   }, []);
 
   // Esc cancels add-pipe mode.
@@ -375,9 +419,21 @@ export function VRFSystemDiagram() {
 
   const getUnitTopLeft = useCallback(
     (id: VRFUnitId): VRFCanvasPos => {
+      const auto = autoTopLeft.get(id) ?? { x: 0, y: 0 };
+      // The ODU sits on the roof and drags freely in both axes.
+      if (id === "odu") {
+        return dragPreview?.get("odu") ?? unitPositions?.odu ?? auto;
+      }
+      // Indoor units stay locked to their floor's branch line so every floor reads
+      // as one straight row, parallel to the horizontal pipe. Horizontal position
+      // still follows drag/override; the vertical center is always the branch y
+      // (auto), which also keeps the branch segments straight and undoes any
+      // previously-persisted vertical offset.
       const preview = dragPreview?.get(id);
-      if (preview) return preview;
-      return unitPositions?.[id] ?? autoTopLeft.get(id) ?? { x: 0, y: 0 };
+      if (preview) return { x: preview.x, y: auto.y };
+      const stored = unitPositions?.[id];
+      if (stored) return { x: stored.x, y: auto.y };
+      return auto;
     },
     [dragPreview, unitPositions, autoTopLeft]
   );
@@ -397,6 +453,13 @@ export function VRFSystemDiagram() {
     [getUnitTopLeft]
   );
 
+  /** Canvas position of any pipe endpoint — unit anchor or pinned free point. */
+  const resolveEndpoint = useCallback(
+    (ep: VRFPipeEndpoint): VRFCanvasPos =>
+      ep.kind === "unit" ? getUnitAnchor(ep.unitId) : { x: ep.x, y: ep.y },
+    [getUnitAnchor]
+  );
+
   // Trunk follows the ODU horizontally. When the ODU is at its auto position,
   // dynamicTrunkX === TRUNK_X and the visual is identical to before; once it's
   // dragged the entire trunk + branch network anchors to the new center.
@@ -410,17 +473,74 @@ export function VRFSystemDiagram() {
   const liveCustomPipes = useMemo(
     () =>
       customPipes.map((p) => {
-        const anchorA = getUnitAnchor(p.fromUnitId);
-        const anchorB = getUnitAnchor(p.toUnitId);
+        const { from, to } = pipeEndpoints(p);
+        const anchorA = resolveEndpoint(from);
+        const anchorB = resolveEndpoint(to);
+        // Right-angle (Manhattan) routing: drop a vertical riser from A, then run
+        // horizontally to B. Pipes stay axis-aligned; for same-x or same-y anchors
+        // the elbow collapses onto the line and it renders as a straight segment.
+        const elbow = { x: anchorA.x, y: anchorB.y };
         return {
           ...p,
           anchorA,
           anchorB,
+          elbow,
           liveFt: computeManhattanFt(anchorA, anchorB),
         };
       }),
-    // getUnitAnchor depends on dragPreview, so this recomputes during drags.
-    [customPipes, getUnitAnchor]
+    // resolveEndpoint depends on dragPreview, so this recomputes during drags.
+    [customPipes, resolveEndpoint]
+  );
+
+  // Every visible pipe segment, in canvas coords — used to snap add-pipe clicks
+  // onto an existing line so "click the pipe" lands exactly on it. Mirrors the
+  // geometry rendered in the SVG below.
+  const pipeSegments = useMemo<Seg[]>(() => {
+    const segs: Seg[] = [];
+    if (floorLayouts.length === 0) return segs;
+    const firstY = floorLayouts[0].y;
+    if (!isDeleted(MAIN_TRUNK_ID)) {
+      segs.push({ x1: dynamicTrunkX, y1: oduBottomLive, x2: dynamicTrunkX, y2: firstY });
+    }
+    floorLayouts.slice(1).forEach((f, i) => {
+      if (isDeleted(trunkSegId(f.floorId))) return;
+      segs.push({ x1: dynamicTrunkX, y1: floorLayouts[i].y, x2: dynamicTrunkX, y2: f.y });
+    });
+    floorLayouts.forEach((f) => {
+      f.rooms.forEach((r, idx) => {
+        if (isDeleted(branchSegId(r.id))) return;
+        const from =
+          idx === 0 ? { x: dynamicTrunkX, y: f.y } : getUnitAnchor(f.rooms[idx - 1].id);
+        const to = getUnitAnchor(r.id);
+        // Manhattan branch: horizontal leg then vertical leg.
+        segs.push({ x1: from.x, y1: from.y, x2: to.x, y2: from.y });
+        segs.push({ x1: to.x, y1: from.y, x2: to.x, y2: to.y });
+      });
+    });
+    liveCustomPipes.forEach((p) => {
+      segs.push({ x1: p.anchorA.x, y1: p.anchorA.y, x2: p.elbow.x, y2: p.elbow.y });
+      segs.push({ x1: p.elbow.x, y1: p.elbow.y, x2: p.anchorB.x, y2: p.anchorB.y });
+    });
+    return segs;
+  }, [floorLayouts, dynamicTrunkX, oduBottomLive, getUnitAnchor, liveCustomPipes, isDeleted]);
+
+  /** Snap a raw canvas click to the nearest pipe line if it's close enough;
+   *  otherwise leave it as a free point. Returns a `point` endpoint either way. */
+  const snapToPipe = useCallback(
+    (pos: VRFCanvasPos): VRFPipeEndpoint => {
+      let best: VRFCanvasPos | null = null;
+      let bestDistSq = PIPE_SNAP_PX * PIPE_SNAP_PX;
+      for (const s of pipeSegments) {
+        const { point, distSq } = closestOnSeg(pos, s);
+        if (distSq <= bestDistSq) {
+          bestDistSq = distSq;
+          best = point;
+        }
+      }
+      const at = best ?? pos;
+      return { kind: "point", x: Math.round(at.x), y: Math.round(at.y) };
+    },
+    [pipeSegments]
   );
 
   // Totals — auto pipe lengths (excluding any segment the user has hidden) plus
@@ -437,18 +557,51 @@ export function VRFSystemDiagram() {
     ) +
     liveCustomPipes.reduce((a, p) => a + p.liveFt, 0);
 
-  const handleUnitClickInAddMode = useCallback(
-    (id: VRFUnitId) => {
+  // Run the layout through the VRF piping-guide rule engine. Deleted auto-pipes
+  // contribute zero length so the compliance numbers track the visible diagram.
+  const customPipesFt = liveCustomPipes.reduce((a, p) => a + p.liveFt, 0);
+  const pipingResult = useMemo(
+    () =>
+      evaluateVRFPiping({
+        mainTrunkFt: isDeleted(MAIN_TRUNK_ID) ? 0 : mainTrunkFt,
+        oduTons,
+        oduAbove: true, // outdoor unit sits on the roof, above the indoor units
+        customPipesFt,
+        floors: floorsData.map((f, fi) => ({
+          segFromAboveFt:
+            fi === 0 || isDeleted(trunkSegId(f.floorId))
+              ? 0
+              : floorSegFt[f.floorId] ?? DEFAULT_FLOOR_GAP_FT,
+          rooms: f.rooms.map((r) => ({
+            id: r.id,
+            name: r.name,
+            capacityKbtuh: r.capacityKbtuh,
+            branchFt: isDeleted(branchSegId(r.id))
+              ? 0
+              : branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT,
+          })),
+        })),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [floorsData, branchFt, floorSegFt, mainTrunkFt, oduTons, customPipesFt, deletedAuto]
+  );
+
+  const handleAddPipeAnchor = useCallback(
+    (endpoint: VRFPipeEndpoint) => {
       if (!pendingPipeStart) {
-        setPendingPipeStart(id);
+        setPendingPipeStart(endpoint);
         return;
       }
-      if (pendingPipeStart === id) {
-        // Same unit clicked twice → clear selection but stay in add mode.
+      // Clicking the same unit again clears the in-progress start.
+      if (
+        pendingPipeStart.kind === "unit" &&
+        endpoint.kind === "unit" &&
+        pendingPipeStart.unitId === endpoint.unitId
+      ) {
         setPendingPipeStart(null);
         return;
       }
-      // Two distinct units → create the pipe and exit the mode.
+      // Two distinct anchors → create the pipe and exit the mode.
       const newId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -457,18 +610,29 @@ export function VRFSystemDiagram() {
       // matches the visual from the moment the pipe is drawn. The label
       // continues to live-track this distance in render.
       const initialFt = computeManhattanFt(
-        getUnitAnchor(pendingPipeStart),
-        getUnitAnchor(id)
+        resolveEndpoint(pendingPipeStart),
+        resolveEndpoint(endpoint)
       );
       addVRFCustomPipe({
         id: newId,
-        fromUnitId: pendingPipeStart,
-        toUnitId: id,
+        from: pendingPipeStart,
+        to: endpoint,
         lengthFt: initialFt,
       });
       exitAddPipeMode();
     },
-    [pendingPipeStart, addVRFCustomPipe, exitAddPipeMode, getUnitAnchor]
+    [pendingPipeStart, addVRFCustomPipe, exitAddPipeMode, resolveEndpoint]
+  );
+
+  /** A click on the canvas (empty space or a pipe line) while in add-pipe mode.
+   *  Snaps to the nearest pipe when close, else pins a free point. */
+  const handleCanvasClickInAddMode = useCallback(
+    (clientX: number, clientY: number) => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      handleAddPipeAnchor(snapToPipe({ x: clientX - rect.left, y: clientY - rect.top }));
+    },
+    [handleAddPipeAnchor, snapToPipe]
   );
 
   /** Begin a unit-card drag. In add-pipe mode we treat clicks as anchor selections instead.
@@ -522,7 +686,7 @@ export function VRFSystemDiagram() {
           // Treat as a click. In add-pipe mode register the anchor; otherwise
           // collapse the selection to just this unit (or clear if already alone).
           if (addPipeMode) {
-            handleUnitClickInAddMode(id);
+            handleAddPipeAnchor({ kind: "unit", unitId: id });
           } else {
             setSelectedIds((prev) => {
               if (prev.size === 1 && prev.has(id)) return new Set();
@@ -539,7 +703,7 @@ export function VRFSystemDiagram() {
       addPipeMode,
       selectedIds,
       getUnitTopLeft,
-      handleUnitClickInAddMode,
+      handleAddPipeAnchor,
       setVRFUnitPosition,
     ]
   );
@@ -551,7 +715,12 @@ export function VRFSystemDiagram() {
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (e.button !== 0) return;
       if (e.target !== e.currentTarget) return;
-      if (addPipeMode) return;
+      // In add-pipe mode a click on empty canvas or a pipe line drops an anchor
+      // (snapped onto the pipe when close) rather than starting a marquee.
+      if (addPipeMode) {
+        handleCanvasClickInAddMode(e.clientX, e.clientY);
+        return;
+      }
 
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -615,7 +784,18 @@ export function VRFSystemDiagram() {
       window.addEventListener("pointerup", onUp);
       window.addEventListener("pointercancel", onUp);
     },
-    [addPipeMode, floorLayouts, getUnitTopLeft]
+    [addPipeMode, floorLayouts, getUnitTopLeft, handleCanvasClickInAddMode]
+  );
+
+  /** Track the cursor while sketching a pipe so the dashed preview line follows. */
+  const handleCanvasPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!addPipeMode || !pendingPipeStart) return;
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPipePointer({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    },
+    [addPipeMode, pendingPipeStart]
   );
 
   if (!vrfLayout || allRooms.length === 0) {
@@ -651,6 +831,14 @@ export function VRFSystemDiagram() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href="/docs/coolex-vrf-piping-guide.pdf"
+              download="COOLEX-VRF-Piping-Guide.pdf"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" /> Piping guide (PDF)
+            </a>
+          </Button>
           <Button variant="outline" size="sm" onClick={resetLayout}>
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> Reset layout
           </Button>
@@ -679,9 +867,18 @@ export function VRFSystemDiagram() {
           label="Total Pipe Length"
           value={formatLen(totalPipeFt, isMetric)}
           sub="sum of all segments"
-          accent={PIPE_COLOR}
+          accent={
+            pipingResult.overall === "violation"
+              ? "#B91C1C"
+              : pipingResult.overall === "warning"
+              ? "#B45309"
+              : PIPE_COLOR
+          }
         />
       </div>
+
+      {/* Piping-guide compliance */}
+      <VRFPipingCompliance result={pipingResult} isMetric={isMetric} />
 
       {/* Legend & how-to */}
       <div className="flex items-center gap-x-5 gap-y-2 mb-3 flex-wrap text-[11px] text-[#4A5568]">
@@ -722,8 +919,8 @@ export function VRFSystemDiagram() {
             <span className="text-[11px] text-[#0057B8] font-medium inline-flex items-center gap-1.5 bg-[#EBF3FF] border border-[#B8D4F0] rounded-full px-2.5 py-1">
               <Info className="w-3.5 h-3.5" />
               {pendingPipeStart
-                ? "Click the unit to connect to (Esc to cancel)"
-                : "Click the first unit to start the pipe"}
+                ? "Click a unit, a pipe line, or any point to connect to (Esc to cancel)"
+                : "Click a unit, a pipe line, or any point to start the pipe"}
             </span>
           )}
           {deletedAuto.size > 0 && (
@@ -753,7 +950,8 @@ export function VRFSystemDiagram() {
         <div
           ref={canvasRef}
           onPointerDown={beginMarquee}
-          className="relative mx-auto"
+          onPointerMove={handleCanvasPointerMove}
+          className={`relative mx-auto ${addPipeMode ? "cursor-crosshair" : ""}`}
           style={{
             width: canvasW,
             height: canvasH,
@@ -837,26 +1035,41 @@ export function VRFSystemDiagram() {
             {/* Custom user-drawn pipes — solid blue between unit anchors. */}
             {liveCustomPipes.map((p) => (
               <g key={`cp-${p.id}`}>
-                <Pipe x1={p.anchorA.x} y1={p.anchorA.y} x2={p.anchorB.x} y2={p.anchorB.y} />
+                <PipePath
+                  points={`${p.anchorA.x},${p.anchorA.y} ${p.elbow.x},${p.elbow.y} ${p.anchorB.x},${p.anchorB.y}`}
+                />
                 <circle cx={p.anchorA.x} cy={p.anchorA.y} r={3.5} fill={PIPE_COLOR} />
                 <circle cx={p.anchorB.x} cy={p.anchorB.y} r={3.5} fill={PIPE_COLOR} />
               </g>
             ))}
 
-            {/* Pending custom-pipe preview — dashed line from the chosen anchor
-                to where the user's pointer currently is on the canvas. */}
+            {/* Pending custom-pipe preview — marker on the chosen anchor plus a
+                dashed Manhattan line to wherever the pointer currently is. */}
             {addPipeMode && pendingPipeStart && (() => {
-              const a = getUnitAnchor(pendingPipeStart);
+              const a = resolveEndpoint(pendingPipeStart);
+              const elbow = pipePointer ? { x: a.x, y: pipePointer.y } : null;
               return (
-                <circle
-                  cx={a.x}
-                  cy={a.y}
-                  r={6}
-                  fill="none"
-                  stroke={PIPE_COLOR}
-                  strokeWidth={2}
-                  className="pipe-flow"
-                />
+                <g>
+                  {pipePointer && elbow && (
+                    <polyline
+                      points={`${a.x},${a.y} ${elbow.x},${elbow.y} ${pipePointer.x},${pipePointer.y}`}
+                      stroke={PIPE_COLOR}
+                      strokeWidth={2}
+                      strokeDasharray="5 4"
+                      fill="none"
+                      opacity={0.7}
+                    />
+                  )}
+                  <circle
+                    cx={a.x}
+                    cy={a.y}
+                    r={6}
+                    fill="none"
+                    stroke={PIPE_COLOR}
+                    strokeWidth={2}
+                    className="pipe-flow"
+                  />
+                </g>
               );
             })()}
 
@@ -885,7 +1098,8 @@ export function VRFSystemDiagram() {
           {/* ODU card */}
           {(() => {
             const tl = getUnitTopLeft("odu");
-            const isPending = pendingPipeStart === "odu";
+            const isPending =
+              pendingPipeStart?.kind === "unit" && pendingPipeStart.unitId === "odu";
             return (
               <DraggableUnitCard
                 top={tl.y}
@@ -913,11 +1127,16 @@ export function VRFSystemDiagram() {
               const tl = getUnitTopLeft(r.id);
               const eer = INDOOR_EER[r.indoorType];
               const power = round((r.capacityKbtuh * 1000) / eer / 1000, 1);
-              const modelName = `${INDOOR_PREFIX[r.indoorType]}-${String(r.capacityKbtuh).padStart(3, "0")}`;
+              // Catalogue-backed indoor types carry a real model number (IVLF /
+              // IWEF); other indoor types use the synthesized prefix-capacity name.
+              const modelName =
+                getVRFIndoorModelNumber(r.indoorType, r.capacityKbtuh) ??
+                `${INDOOR_PREFIX[r.indoorType]}-${String(r.capacityKbtuh).padStart(3, "0")}`;
               const capDisplay = isMetric
                 ? `${round(btuhToKw(r.capacityKbtuh * 1000), 1)} kW`
                 : `${r.capacityKbtuh} kBTU/h`;
-              const isPending = pendingPipeStart === r.id;
+              const isPending =
+                pendingPipeStart?.kind === "unit" && pendingPipeStart.unitId === r.id;
               return (
                 <DraggableUnitCard
                   key={`card-${r.id}`}
@@ -1006,12 +1225,15 @@ export function VRFSystemDiagram() {
               Length is derived from the live anchor distance, so dragging either
               endpoint unit updates the badge in real time. */}
           {liveCustomPipes.map((p) => {
-            const midX = (p.anchorA.x + p.anchorB.x) / 2;
-            const midY = (p.anchorA.y + p.anchorB.y) / 2;
-            const orient =
-              Math.abs(p.anchorB.y - p.anchorA.y) > Math.abs(p.anchorB.x - p.anchorA.x)
-                ? "vertical"
-                : "horizontal";
+            // Place the badge on the longer leg of the right-angle route so it sits
+            // on the pipe rather than floating in the bend. Vertical leg runs along
+            // anchorA.x; horizontal leg runs along anchorB.y (= elbow).
+            const vLen = Math.abs(p.elbow.y - p.anchorA.y);
+            const hLen = Math.abs(p.anchorB.x - p.elbow.x);
+            const onVertical = vLen >= hLen;
+            const midX = onVertical ? p.anchorA.x : (p.elbow.x + p.anchorB.x) / 2;
+            const midY = onVertical ? (p.anchorA.y + p.elbow.y) / 2 : p.elbow.y;
+            const orient = onVertical ? "vertical" : "horizontal";
             return (
               <CustomPipeLabel
                 key={`cp-lbl-${p.id}`}
