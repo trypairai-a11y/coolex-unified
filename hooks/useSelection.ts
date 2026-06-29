@@ -11,6 +11,7 @@ interface EvapConditions {
   ambientTempF?: number;
   saturatedSuctionTempF?: number;
   is60Hz?: boolean;
+  altitudeFt?: number;
 }
 
 export function useModels(
@@ -20,9 +21,9 @@ export function useModels(
   airflowCFM: number | null = null,
   conditions: EvapConditions = {},
 ) {
-  const { enteringDBF, enteringWBF, espInWG, leavingWaterTempF, enteringWaterTempF, ambientTempF, saturatedSuctionTempF, is60Hz } = conditions;
+  const { enteringDBF, enteringWBF, espInWG, leavingWaterTempF, enteringWaterTempF, ambientTempF, saturatedSuctionTempF, is60Hz, altitudeFt } = conditions;
   return useQuery<Model[]>({
-    queryKey: ['models', seriesId, basis, capacityBtuh, airflowCFM, enteringDBF, enteringWBF, espInWG, leavingWaterTempF, enteringWaterTempF, ambientTempF, saturatedSuctionTempF, is60Hz],
+    queryKey: ['models', seriesId, basis, capacityBtuh, airflowCFM, enteringDBF, enteringWBF, espInWG, leavingWaterTempF, enteringWaterTempF, ambientTempF, saturatedSuctionTempF, is60Hz, altitudeFt],
     queryFn: async () => {
       if (!seriesId) return [];
       if (basis === 'airflow' && !airflowCFM) return [];
@@ -38,6 +39,7 @@ export function useModels(
       if (is60Hz != null) params.set('hz', is60Hz ? '60' : '50');
       if (ambientTempF != null) params.set('amb', String(ambientTempF));
       if (saturatedSuctionTempF != null) params.set('sst', String(saturatedSuctionTempF));
+      if (altitudeFt != null) params.set('alt', String(altitudeFt));
       const res = await fetch(`/api/mock/results?${params}`);
       return res.json();
     },

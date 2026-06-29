@@ -51,6 +51,8 @@ export interface Unit {
 
 export interface Project {
   id: string;
+  /** Human-readable project reference (e.g. "PRJ-2606-5GPY"), generated in the selection wizard. */
+  displayId?: string;
   name: string;
   clientName: string;
   salesEngineer: string;

@@ -48,11 +48,30 @@ export interface VRFRoom {
   capacity?: number;
 }
 
-export interface VRFFloor {
+/** A thermal zone groups one or more rooms within a floor. */
+export interface VRFZone {
   id: string;
   number: number;
   name: string;
   rooms: VRFRoom[];
+}
+
+export interface VRFFloor {
+  id: string;
+  number: number;
+  name: string;
+  zones: VRFZone[];
+}
+
+/**
+ * Flatten every room on a floor across its zones, preserving zone order then
+ * room order. Tolerates legacy layouts persisted before zones existed (rooms
+ * lived directly on the floor) so older Zustand state doesn't crash.
+ */
+export function floorRooms(floor: VRFFloor): VRFRoom[] {
+  if (floor.zones) return floor.zones.flatMap((z) => z.rooms);
+  const legacy = (floor as unknown as { rooms?: VRFRoom[] }).rooms;
+  return legacy ?? [];
 }
 
 export interface VRFDesignCondition {

@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const ambParam = searchParams.get('amb');
   const sstParam = searchParams.get('sst');
   const hzParam = searchParams.get('hz');
+  const altParam = searchParams.get('alt');
   const conditions: EvaporatorConditions = {
     enteringDBF: Number(searchParams.get('edb') ?? 80),
     enteringWBF: Number(searchParams.get('ewb') ?? 67),
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
     requiredAirflowCFM: basis === 'airflow' && airflow > 0 ? airflow : undefined,
     // ACSC 60/50 Hz table selection; default 60 Hz when unspecified.
     is60Hz: hzParam != null ? hzParam === '60' : undefined,
+    altitudeFt: altParam != null ? Number(altParam) : undefined,
   };
 
   const models = basis === 'airflow' && airflow > 0

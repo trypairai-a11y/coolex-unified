@@ -17,6 +17,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     description: 'Commercial split systems with multi-position indoor air handlers for ceiling, floor, or closet installation.',
     features: [],
     imageUrl: '/images/split.png',
+    imageScale: 1.7,
     isChiller: false,
     isCCU: false,
     hasDualRefrigerant: false,
@@ -36,6 +37,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     description: 'Inverter ducted split systems offering variable capacity operation from 20–110% to precisely match the cooling load.',
     features: [],
     imageUrl: '/images/split.png',
+    imageScale: 1.7,
     isChiller: false,
     isCCU: false,
     hasDualRefrigerant: false,
@@ -321,6 +323,7 @@ export const PRODUCT_SERIES: ProductSeries[] = [
     isCCU: false,
     hasDualRefrigerant: false,
     imageUrl: '/images/fcl.png',
+    imageScale: 1.6,
   },
   // RPUI / RPUF / RPUC / SPU - Rooftop Packaged
   // DSTC / DSTF - Split (concealed ducted)

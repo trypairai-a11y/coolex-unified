@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Plus, Minus, Building2, DoorClosed, Thermometer, Sun, Snowflake } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Minus, Building2, DoorClosed, Thermometer, Sun, Snowflake, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -10,25 +10,35 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore, type UnitSystem } from "@/lib/stores/unit-store";
 import { toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
 import { UnitToggle } from "@/components/selection/UnitToggle";
-import type { VRFDesignCondition, VRFFloor, VRFLayout, VRFRoom } from "@/types/selection";
+import type { VRFDesignCondition, VRFFloor, VRFLayout, VRFRoom, VRFZone } from "@/types/selection";
 
 const MAX_FLOORS = 50;
-const MAX_ROOMS_PER_FLOOR = 100;
+const MAX_ZONES_PER_FLOOR = 50;
+const MAX_ROOMS_PER_ZONE = 100;
 
-function makeRoom(floorNumber: number, roomNumber: number): VRFRoom {
+function makeRoom(floorNumber: number, zoneNumber: number, roomNumber: number): VRFRoom {
   return {
-    id: `f${floorNumber}-r${roomNumber}`,
+    id: `f${floorNumber}-z${zoneNumber}-r${roomNumber}`,
     number: roomNumber,
-    name: `Room ${floorNumber}.${roomNumber}`,
+    name: `Room ${floorNumber}.${zoneNumber}.${roomNumber}`,
   };
 }
 
-function makeFloor(floorNumber: number, roomCount = 1): VRFFloor {
+function makeZone(floorNumber: number, zoneNumber: number, roomCount = 1): VRFZone {
+  return {
+    id: `f${floorNumber}-z${zoneNumber}`,
+    number: zoneNumber,
+    name: `Zone ${floorNumber}.${zoneNumber}`,
+    rooms: Array.from({ length: roomCount }, (_, i) => makeRoom(floorNumber, zoneNumber, i + 1)),
+  };
+}
+
+function makeFloor(floorNumber: number, zoneCount = 1): VRFFloor {
   return {
     id: `floor-${floorNumber}`,
     number: floorNumber,
     name: `Floor ${floorNumber}`,
-    rooms: Array.from({ length: roomCount }, (_, i) => makeRoom(floorNumber, i + 1)),
+    zones: Array.from({ length: zoneCount }, (_, i) => makeZone(floorNumber, i + 1, 1)),
   };
 }
 
@@ -97,36 +107,68 @@ export function VRFLayoutBuilder() {
     });
   };
 
-  const setRoomCount = (floorIdx: number, count: number) => {
-    const next = Math.max(1, Math.min(MAX_ROOMS_PER_FLOOR, Math.floor(count) || 1));
+  const setZoneCount = (floorIdx: number, count: number) => {
+    const next = Math.max(1, Math.min(MAX_ZONES_PER_FLOOR, Math.floor(count) || 1));
     setFloors((prev) =>
       prev.map((f, i) => {
         if (i !== floorIdx) return f;
-        if (next === f.rooms.length) return f;
-        if (next > f.rooms.length) {
-          const additions = Array.from({ length: next - f.rooms.length }, (_, ri) =>
-            makeRoom(f.number, f.rooms.length + ri + 1)
+        if (next === f.zones.length) return f;
+        if (next > f.zones.length) {
+          const additions = Array.from({ length: next - f.zones.length }, (_, zi) =>
+            makeZone(f.number, f.zones.length + zi + 1, 1)
           );
-          return { ...f, rooms: [...f.rooms, ...additions] };
+          return { ...f, zones: [...f.zones, ...additions] };
         }
-        return { ...f, rooms: f.rooms.slice(0, next) };
+        return { ...f, zones: f.zones.slice(0, next) };
       })
     );
   };
 
-  const renameRoom = (floorIdx: number, roomIdx: number, name: string) => {
+  const setRoomCount = (floorIdx: number, zoneIdx: number, count: number) => {
+    const next = Math.max(1, Math.min(MAX_ROOMS_PER_ZONE, Math.floor(count) || 1));
     setFloors((prev) =>
       prev.map((f, i) => {
         if (i !== floorIdx) return f;
         return {
           ...f,
-          rooms: f.rooms.map((r, ri) => (ri === roomIdx ? { ...r, name } : r)),
+          zones: f.zones.map((z, zi) => {
+            if (zi !== zoneIdx) return z;
+            if (next === z.rooms.length) return z;
+            if (next > z.rooms.length) {
+              const additions = Array.from({ length: next - z.rooms.length }, (_, ri) =>
+                makeRoom(f.number, z.number, z.rooms.length + ri + 1)
+              );
+              return { ...z, rooms: [...z.rooms, ...additions] };
+            }
+            return { ...z, rooms: z.rooms.slice(0, next) };
+          }),
         };
       })
     );
   };
 
-  const totalRooms = floors.reduce((sum, f) => sum + f.rooms.length, 0);
+  const renameRoom = (floorIdx: number, zoneIdx: number, roomIdx: number, name: string) => {
+    setFloors((prev) =>
+      prev.map((f, i) => {
+        if (i !== floorIdx) return f;
+        return {
+          ...f,
+          zones: f.zones.map((z, zi) => {
+            if (zi !== zoneIdx) return z;
+            return {
+              ...z,
+              rooms: z.rooms.map((r, ri) => (ri === roomIdx ? { ...r, name } : r)),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const totalRooms = floors.reduce(
+    (sum, f) => sum + f.zones.reduce((zs, z) => zs + z.rooms.length, 0),
+    0
+  );
 
   const onContinue = () => {
     const layout: VRFLayout = { floors, ambientTempF, summer, winter };
@@ -362,60 +404,117 @@ export function VRFLayoutBuilder() {
                 <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#0057B8] mb-0.5">
                   Floor {floor.number}
                 </p>
-                <h3 className="text-sm font-semibold text-[#0D1626]">How many rooms on this floor?</h3>
+                <h3 className="text-sm font-semibold text-[#0D1626]">How many zones on this floor?</h3>
               </div>
             </div>
 
             <div className="px-5 sm:px-6 py-5">
               <div className="flex items-center gap-3 mb-5">
-                <Label className="text-xs text-muted-foreground">Rooms</Label>
+                <Label className="text-xs text-muted-foreground">Zones</Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setRoomCount(floorIdx, floor.rooms.length - 1)}
-                  disabled={floor.rooms.length <= 1}
-                  aria-label="Decrease rooms"
+                  onClick={() => setZoneCount(floorIdx, floor.zones.length - 1)}
+                  disabled={floor.zones.length <= 1}
+                  aria-label="Decrease zones"
                 >
                   <Minus className="w-4 h-4" />
                 </Button>
                 <Input
                   type="number"
                   min={1}
-                  max={MAX_ROOMS_PER_FLOOR}
-                  value={floor.rooms.length}
-                  onChange={(e) => setRoomCount(floorIdx, parseInt(e.target.value || "1", 10))}
+                  max={MAX_ZONES_PER_FLOOR}
+                  value={floor.zones.length}
+                  onChange={(e) => setZoneCount(floorIdx, parseInt(e.target.value || "1", 10))}
                   className="w-24 text-center font-semibold"
                 />
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => setRoomCount(floorIdx, floor.rooms.length + 1)}
-                  disabled={floor.rooms.length >= MAX_ROOMS_PER_FLOOR}
-                  aria-label="Increase rooms"
+                  onClick={() => setZoneCount(floorIdx, floor.zones.length + 1)}
+                  disabled={floor.zones.length >= MAX_ZONES_PER_FLOOR}
+                  aria-label="Increase zones"
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
+                <span className="text-xs text-muted-foreground ml-2">
+                  {floor.zones.length} {floor.zones.length === 1 ? "zone" : "zones"}
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {floor.rooms.map((room, roomIdx) => (
+              {/* Per-zone room configuration */}
+              <div className="space-y-4">
+                {floor.zones.map((zone, zoneIdx) => (
                   <div
-                    key={room.id}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E2E8F4] bg-[#F8FAFD]"
+                    key={zone.id}
+                    className="rounded-xl border border-[#E2E8F4] bg-[#F8FBFF] overflow-hidden"
                   >
-                    <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white border border-[#E2E8F4] text-[#0057B8]">
-                      <DoorClosed className="w-3.5 h-3.5" />
+                    <div className="px-4 py-3 border-b border-[#E7EEF8] flex items-center gap-3">
+                      <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white border border-[#E2E8F4] text-[#0057B8]">
+                        <Layers className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-[#0057B8]">
+                          Zone {floor.number}.{zone.number}
+                        </p>
+                        <p className="text-xs text-muted-foreground">How many rooms in this zone?</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setRoomCount(floorIdx, zoneIdx, zone.rooms.length - 1)}
+                          disabled={zone.rooms.length <= 1}
+                          aria-label="Decrease rooms"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </Button>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={MAX_ROOMS_PER_ZONE}
+                          value={zone.rooms.length}
+                          onChange={(e) => setRoomCount(floorIdx, zoneIdx, parseInt(e.target.value || "1", 10))}
+                          className="w-20 h-8 text-center font-semibold bg-white"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setRoomCount(floorIdx, zoneIdx, zone.rooms.length + 1)}
+                          disabled={zone.rooms.length >= MAX_ROOMS_PER_ZONE}
+                          aria-label="Increase rooms"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <span className="text-xs font-bold text-[#0057B8] w-10 shrink-0">
-                      {floor.number}.{room.number}
-                    </span>
-                    <Input
-                      value={room.name}
-                      onChange={(e) => renameRoom(floorIdx, roomIdx, e.target.value)}
-                      className="h-8 bg-white text-sm"
-                    />
+
+                    <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {zone.rooms.map((room, roomIdx) => (
+                        <div
+                          key={room.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#E2E8F4] bg-white"
+                        >
+                          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white border border-[#E2E8F4] text-[#0057B8]">
+                            <DoorClosed className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-xs font-bold text-[#0057B8] w-12 shrink-0">
+                            {floor.number}.{zone.number}.{room.number}
+                          </span>
+                          <Input
+                            value={room.name}
+                            onChange={(e) => renameRoom(floorIdx, zoneIdx, roomIdx, e.target.value)}
+                            className="h-8 bg-white text-sm"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>

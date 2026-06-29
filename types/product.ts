@@ -34,6 +34,7 @@ export interface ProductSeries {
   cfmRangeLabel?: string;
   speedType?: 'fixed' | 'variable';
   imageUrl?: string;
+  imageScale?: number;
   subtitle?: string;
   highlights?: string[];
 }
@@ -96,4 +97,10 @@ export interface Model {
   // Full catalogue designation when the model number is a shorthand for a matched
   // pair (e.g. DSSF-CDEF: "CHCF-024 A7 / CHEF-024 A7" for outdoor / indoor units).
   modelDesignation?: string;
+  // ISO 13253 static-pressure de-rating (ducted comfort ACs only). Catalogue
+  // capacity is rated at the band-minimum ESP; if the design ESP exceeds it, the
+  // capacity above is de-rated. espRatingBasisInWG is that band minimum;
+  // espDeratePercent is how much capacity was reduced (0 when design ESP ≤ basis).
+  espRatingBasisInWG?: number;
+  espDeratePercent?: number;
 }

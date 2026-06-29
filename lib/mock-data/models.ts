@@ -26,9 +26,62 @@ import { VRF_DUCTED_INVERTER_MODELS } from './vrf-ducted-inverter-models';
 import { VRF_DUCTED_HIGH_STATIC_MODELS } from './vrf-ducted-high-static-models';
 import { DSSF_CDEF_MODELS } from './dssf-cdef-models';
 import { getDSSFPerformance, getDSSFCfmRows } from './dssf-cdef-performance';
+import { PHE_MODELS, pheCapacityFactor } from './phe-models';
 import { fToC, gpmToLps } from '@/lib/utils/unit-conversions';
+import { btuhToKW, isoMinExternalStaticInWG, isDuctedISO } from './iso13253-static-pressure';
 
 const FTWG_TO_KPA = 2.98898;
+
+/**
+ * Capacity multiplier for running a ducted unit ABOVE its ISO 13253 rating-basis
+ * ESP. The catalogue capacity is rated at the band minimum ESP; for every 0.1
+ * in. WG of external static the customer requires beyond that minimum, the
+ * supply fan loses airflow and the coil loses ~1% capacity. At or below the band
+ * minimum the rated figure stands (factor = 1 — no capacity credit for an easier
+ * duct). Floored at 0.70 to avoid runaway de-rating past the fan's usable range.
+ *
+ * NOTE: this is an engineering approximation. Replace with per-model fan-curve
+ * (available-static vs airflow) data when the catalogue fan tables are digitized.
+ */
+function ductedESPFactor(totalCapacityBtuh: number, espInWG?: number): number {
+  if (espInWG == null || totalCapacityBtuh <= 0) return 1;
+  const basisInWG = isoMinExternalStaticInWG(btuhToKW(totalCapacityBtuh));
+  const excess = Math.max(0, espInWG - basisInWG);
+  return Math.max(0.70, 1 - excess * (1 / 0.1) * 0.01);
+}
+
+/**
+ * De-rate a ducted series' delivered capacity for external static pressure
+ * above the ISO 13253 band minimum, recomputing the derived figures (EER,
+ * nominal tons) so results reflect the unit at the customer's design ESP. Power
+ * input is unchanged. Mirrors applyAltitudeDerate; a no-op for non-ducted
+ * series or when no static is supplied.
+ */
+function applyDuctedESPDerate(models: Model[], seriesId: string, espInWG?: number): Model[] {
+  if (!isDuctedISO(seriesId) || espInWG == null) return models;
+  return models.map(m => {
+    const basisInWG = isoMinExternalStaticInWG(btuhToKW(m.totalCapacityBtuh));
+    const factor = ductedESPFactor(m.totalCapacityBtuh, espInWG);
+    if (factor >= 1) {
+      // Design ESP is at/below the ISO band minimum — rated figures stand.
+      return { ...m, espRatingBasisInWG: basisInWG, espDeratePercent: 0 };
+    }
+    const totalCapacityBtuh = Math.round(m.totalCapacityBtuh * factor);
+    const sensibleCapacityBtuh = Math.round(m.sensibleCapacityBtuh * factor);
+    const eer = m.powerKW > 0
+      ? Math.round((totalCapacityBtuh / (m.powerKW * 1000)) * 100) / 100
+      : m.eer;
+    return {
+      ...m,
+      totalCapacityBtuh,
+      sensibleCapacityBtuh,
+      eer,
+      nominalTons: Math.round((totalCapacityBtuh / 12000) * 100) / 100,
+      espRatingBasisInWG: basisInWG,
+      espDeratePercent: Math.round((1 - factor) * 1000) / 10,
+    };
+  });
+}
 
 // Helper to generate realistic mock models for a series
 function generateModels(seriesId: string, prefix: string, capacities: number[]): Model[] {
@@ -80,7 +133,7 @@ export const MOCK_MODELS: Record<string, Model[]> = {
   'dstf': generateModels('dstf', 'DSTF', [5, 6, 7.5, 8.5, 10]),
   'ccu-std': CCU_MODELS,
 
-  'phe': generateModels('phe', 'PHE', [3.5, 5, 7.5, 10, 12, 15]),
+  'phe': PHE_MODELS,
   'prec-dc': generateModels('prec-dc', 'CPDU', [5, 7.5, 10, 12.5, 15, 20, 25, 30]),
   'prec-tele': generateModels('prec-tele', 'CPTU', [1, 1.5, 2, 2.5, 3, 4, 5, 7.5, 10]),
   'fch': FCH_MODELS,
@@ -122,6 +175,10 @@ export interface EvaporatorConditions {
   requiredAirflowCFM?: number;
   // ACSC-only: selects the 60 Hz vs 50 Hz performance matrix.
   is60Hz?: boolean;
+  // Installation altitude (ft) above sea level. De-rates total cooling capacity
+  // via a correction factor (thinner air → lower condenser/coil capacity).
+  // Applies to every series; 0/undefined = sea level = no de-rating.
+  altitudeFt?: number;
   // Capacity-basis only: the required total cooling capacity (Btu/h). For
   // CFM-row units (SPU/DSSF/FAPU/PNGF/PNGV/NGW) the design-point scans every
   // catalogue airflow row and operates at the one whose capacity is closest to
@@ -176,6 +233,9 @@ function applyChillerDesignPoint(
   if (seriesId === 'acsc') {
     return applyACSCDesignPoint(models, cond);
   }
+  if (seriesId === 'phe') {
+    return applyPHEDesignPoint(models, cond);
+  }
 
   if (cond?.leavingWaterTempF == null || cond?.ambientTempF == null) return models;
   const lookup =
@@ -207,6 +267,34 @@ function applyChillerDesignPoint(
       // catalog values exactly (1 L/s ≈ 15.85 GPM, so 2-decimal L/s loses 0.16 GPM).
       matrixWaterFlowLPS: Math.round(perf.waterFlowLPS * 10000) / 10000,
       matrixWaterPressureDropKPa: Math.round(perf.waterPressureDropKPa * 100) / 100,
+    };
+  });
+}
+
+/**
+ * CRAC (PHCF-PHEF precision cooling): the catalogue cooling/sensible capacities
+ * are rated at 48 °C ambient (T4). Air-cooled DX capacity rises as the outdoor
+ * ambient falls, so scale each model's rated capacity by a linear slope relative
+ * to the 48 °C basis (see phe-models.ts). At T4 the factor is 1.0 (catalogue);
+ * at T1/T3 it is > 1. Power input is held constant, so EER tracks the capacity.
+ * No-op when the design ambient is unknown.
+ */
+function applyPHEDesignPoint(models: Model[], cond?: EvaporatorConditions): Model[] {
+  if (cond?.ambientTempF == null) return models;
+  const factor = pheCapacityFactor(fToC(cond.ambientTempF));
+  if (Math.abs(factor - 1) < 1e-9) return models;
+  return models.map(m => {
+    const totalCapacityBtuh = Math.round(m.totalCapacityBtuh * factor);
+    const sensibleCapacityBtuh = Math.round(m.sensibleCapacityBtuh * factor);
+    const eer = m.powerKW > 0
+      ? Math.round((totalCapacityBtuh / (m.powerKW * 1000)) * 100) / 100
+      : m.eer;
+    return {
+      ...m,
+      totalCapacityBtuh,
+      sensibleCapacityBtuh,
+      eer,
+      nominalTons: Math.round((totalCapacityBtuh / 12000) * 100) / 100,
     };
   });
 }
@@ -597,24 +685,71 @@ function applyNGWDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
  *   ~0.5% per °F above standard.
  * - Entering WB: Lower WB → less latent load → reduced total capacity.
  *   ~1.2% per °F below standard (WB has the largest impact on total capacity).
- * - ESP: Higher ESP → more fan heat added to the airstream and potential airflow reduction.
- *   ~1% per 0.1 in. WG above standard.
+ *
+ * External static pressure is NOT handled here — for ducted comfort ACs it is
+ * applied separately against each unit's ISO 13253 band-minimum rating basis
+ * (see ductedESPFactor / applyDuctedESPDerate), which varies by capacity.
  *
  * Returns a multiplier (e.g. 0.97 means 3% derating).
  */
 function capacityCorrectionFactor(cond: EvaporatorConditions): number {
   const dbDelta = (cond.enteringDBF ?? STD_EDB) - STD_EDB;
   const wbDelta = (cond.enteringWBF ?? STD_EWB) - STD_EWB;
-  const espDelta = (cond.espInWG ?? STD_ESP) - STD_ESP;
 
   // DB: higher = slight derating (sensible load increase)
   const dbFactor = 1 - Math.abs(dbDelta) * 0.005;
   // WB: lower = less latent, higher = more total — penalize deviation either way
   const wbFactor = 1 - Math.abs(wbDelta) * 0.012;
-  // ESP: higher = airflow restriction, fan heat — penalize excess
-  const espFactor = 1 - Math.max(0, espDelta) * (1 / 0.1) * 0.01;
 
-  return Math.max(0.70, dbFactor * wbFactor * espFactor);
+  return Math.max(0.70, dbFactor * wbFactor);
+}
+
+/**
+ * Altitude correction factor for total cooling capacity, per the COOLEX
+ * catalogue table (sea level → 1.0, de-rating ~4% by 7000 ft as thinner air
+ * lowers condenser/coil capacity). Linearly interpolated between breakpoints;
+ * clamped to 1.0 below sea level and to the 7000 ft value above it.
+ */
+const ALTITUDE_CORRECTION: ReadonlyArray<readonly [number, number]> = [
+  [0, 1.0], [1000, 0.996], [2000, 0.990], [3000, 0.984],
+  [4000, 0.980], [5000, 0.974], [6000, 0.965], [7000, 0.960],
+];
+
+export function altitudeCorrectionFactor(altitudeFt?: number): number {
+  if (altitudeFt == null || altitudeFt <= 0) return 1;
+  const last = ALTITUDE_CORRECTION[ALTITUDE_CORRECTION.length - 1];
+  if (altitudeFt >= last[0]) return last[1];
+  for (let i = 1; i < ALTITUDE_CORRECTION.length; i++) {
+    const [a1, f1] = ALTITUDE_CORRECTION[i];
+    if (altitudeFt <= a1) {
+      const [a0, f0] = ALTITUDE_CORRECTION[i - 1];
+      return f0 + (f1 - f0) * ((altitudeFt - a0) / (a1 - a0));
+    }
+  }
+  return 1;
+}
+
+/**
+ * Scale each model's delivered capacity by the altitude factor and recompute
+ * the derived figures (EER, nominal tons) so results reflect the de-rated unit.
+ * Power input is unchanged. A factor of 1 returns the models untouched.
+ */
+function applyAltitudeDerate(models: Model[], factor: number): Model[] {
+  if (factor >= 1) return models;
+  return models.map(m => {
+    const totalCapacityBtuh = Math.round(m.totalCapacityBtuh * factor);
+    const sensibleCapacityBtuh = Math.round(m.sensibleCapacityBtuh * factor);
+    const eer = m.powerKW > 0
+      ? Math.round((totalCapacityBtuh / (m.powerKW * 1000)) * 100) / 100
+      : m.eer;
+    return {
+      ...m,
+      totalCapacityBtuh,
+      sensibleCapacityBtuh,
+      eer,
+      nominalTons: Math.round((totalCapacityBtuh / 12000) * 100) / 100,
+    };
+  });
 }
 
 /**
@@ -636,22 +771,42 @@ export function getModelsMatchingCapacity(
     seriesId === 'acsc'   || seriesId === 'ccu-std' ||
     seriesId === 'fch'    || seriesId === 'fapu'    ||
     seriesId === 'rpuf'   || seriesId === 'spu'     ||
-    seriesId === 'split-ds';
+    seriesId === 'split-ds' || seriesId === 'phe';
   const corrFactor = isMatrixSized ? 1 : capacityCorrectionFactor(conditions ?? {});
+  // Altitude de-rates EVERY series (independent of the airside correction above),
+  // so it is never zeroed out for matrix-sized units.
+  const altFactor = altitudeCorrectionFactor(conditions?.altitudeFt);
+  // External static pressure de-rates ducted comfort ACs against their ISO 13253
+  // band-minimum rating basis (applies even to matrix-sized ducted units, whose
+  // catalogue matrices have no ESP axis). Use the requested capacity's band to
+  // size the design point; the per-model factor is applied below in the pipeline.
+  const reqESPFactor = isDuctedISO(seriesId)
+    ? ductedESPFactor(requestedBtuh, conditions?.espInWG)
+    : 1;
 
   // Tell the CFM-row design-points (SPU/DSSF/FAPU/PNGF/PNGV/NGW) which capacity
   // to size for so they operate at the catalogue airflow row closest to the
-  // load. Divide by corrFactor so the post-correction capacity (corrected =
-  // matrix × corrFactor) lands closest to the request for the corrected series.
+  // load. Divide by all factors so the de-rated capacity (corrected =
+  // matrix × corrFactor × altFactor × espFactor) lands closest to the request.
   const condForDesign: EvaporatorConditions = {
     ...conditions,
-    requiredCapacityBtuh: requestedBtuh > 0 ? requestedBtuh / corrFactor : undefined,
+    requiredCapacityBtuh: requestedBtuh > 0
+      ? requestedBtuh / (corrFactor * altFactor * reqESPFactor)
+      : undefined,
   };
-  const models = applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), condForDesign);
+  const models = applyDuctedESPDerate(
+    applyAltitudeDerate(
+      applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), condForDesign),
+      altFactor,
+    ),
+    seriesId,
+    conditions?.espInWG,
+  );
   if (models.length === 0) return [];
 
   const withMatch = models.map(m => {
     // Apply correction factor to catalog capacity (non-chillers only — see above).
+    // ESP de-rating is already baked into m.totalCapacityBtuh by applyDuctedESPDerate.
     const correctedCapacity = m.totalCapacityBtuh * corrFactor;
 
     // Match % = how well the model's capacity meets the request.
@@ -682,8 +837,16 @@ export function getModelsMatchingAirflow(
   conditions?: EvaporatorConditions,
 ): Model[] {
   // Apply tabulated design-point interpolation (NGW fan coils) so the listed
-  // capacity / flow / WPD reflect the requested airflow and entering water temp.
-  const models = applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), conditions);
+  // capacity / flow / WPD reflect the requested airflow and entering water temp,
+  // then de-rate the listed capacity for installation altitude.
+  const models = applyDuctedESPDerate(
+    applyAltitudeDerate(
+      applyChillerDesignPoint(seriesId, getModelsForSeries(seriesId), conditions),
+      altitudeCorrectionFactor(conditions?.altitudeFt),
+    ),
+    seriesId,
+    conditions?.espInWG,
+  );
   if (models.length === 0) return [];
 
   // ESP affects achievable airflow — higher ESP reduces delivered CFM

@@ -31,6 +31,7 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useOptions } from "@/hooks/useSelection";
 import type { EquipmentOption } from "@/lib/mock-data/options";
 import type { VRFIndoorType } from "@/types/selection";
+import { floorRooms } from "@/types/selection";
 
 const CATEGORY_CONFIG: Record<
   string,
@@ -276,7 +277,7 @@ function VRFOptionsLayout({ options }: { options: EquipmentOption[] }) {
 
   const indoorRooms =
     vrfLayout?.floors.flatMap((f) =>
-      f.rooms
+      floorRooms(f)
         .filter((r) => !!r.indoorType && !!r.capacity)
         .map((r) => ({
           roomId: r.id,

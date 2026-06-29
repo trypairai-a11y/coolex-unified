@@ -10,7 +10,9 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, cfmToM3h, round } from "@/lib/utils/unit-conversions";
 import { getVRFIndoorSpec } from "@/lib/mock-data/vrf-indoor";
+import { VRF_OUTDOOR_UNITS, pickVRFOutdoorUnit } from "@/lib/utils/vrf";
 import type { VRFIndoorType } from "@/types/selection";
+import { floorRooms } from "@/types/selection";
 
 const INDOOR_SPEC_PROFILE: Record<
   VRFIndoorType,
@@ -61,33 +63,6 @@ const INDOOR_TYPES: {
   capacities: number[];
 }[] = [
   {
-    value: "ducted-split-low-static",
-    label: "Ducted Split (Low Static)",
-    description: "Concealed indoor for short duct runs",
-    image: "/images/vrf-ducted-split.png",
-    accent: "#0057B8",
-    bg: "#EBF3FF",
-    capacities: [18, 24, 30, 36],
-  },
-  {
-    value: "ducted-split-high-static",
-    label: "Ducted Split (High Static)",
-    description: "Concealed indoor for long duct runs",
-    image: "/images/vrf-ducted-split.png",
-    accent: "#0057B8",
-    bg: "#EBF3FF",
-    capacities: [16, 18, 24, 30, 36, 42, 48, 60],
-  },
-  {
-    value: "ducted-split-inverter",
-    label: "Ducted Split Inverter",
-    description: "Variable-capacity ducted indoor",
-    image: "/images/vrf-ducted-split-inverter.png",
-    accent: "#7C3AED",
-    bg: "#F3EBFF",
-    capacities: [16, 18, 24, 30, 36, 42, 48, 60],
-  },
-  {
     value: "cassette",
     label: "Cassette",
     description: "Ceiling-recessed 4-way grille",
@@ -123,14 +98,13 @@ export function VRFDesignConditions() {
     );
   }
 
-  const allRooms = vrfLayout.floors.flatMap((f) => f.rooms);
+  const allRooms = vrfLayout.floors.flatMap((f) => floorRooms(f));
   const allConfigured = allRooms.length > 0 && allRooms.every((r) => !!r.indoorType && !!r.capacity);
   const configuredCount = allRooms.filter((r) => !!r.indoorType && !!r.capacity).length;
   const totalCapacityKbtuh = allRooms.reduce((sum, r) => sum + (r.capacity ?? 0), 0);
   const totalCapacityTons = totalCapacityKbtuh / 12;
-  const OUTDOOR_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 48];
-  const recommendedOutdoorTons = OUTDOOR_SIZES.find((s) => s >= totalCapacityTons) ?? OUTDOOR_SIZES[OUTDOOR_SIZES.length - 1];
-  const combinationRatio = recommendedOutdoorTons > 0 ? (totalCapacityTons / recommendedOutdoorTons) * 100 : 0;
+  const recommendedOutdoorKbtuh = pickVRFOutdoorUnit(totalCapacityKbtuh).capacityKbtuh;
+  const combinationRatio = recommendedOutdoorKbtuh > 0 ? (totalCapacityKbtuh / recommendedOutdoorKbtuh) * 100 : 0;
 
   return (
     <div className="w-full">
@@ -202,7 +176,7 @@ export function VRFDesignConditions() {
         <OutdoorPanel
           totalCapacityKbtuh={totalCapacityKbtuh}
           totalCapacityTons={totalCapacityTons}
-          recommendedOutdoorTons={recommendedOutdoorTons}
+          recommendedOutdoorKbtuh={recommendedOutdoorKbtuh}
           combinationRatio={combinationRatio}
           indoorCount={allRooms.length}
           isMetric={isMetric}
@@ -218,7 +192,16 @@ export function VRFDesignConditions() {
               <div className="flex-1 h-px bg-[#E2E8F4]" />
             </div>
 
-            {floor.rooms.map((room) => {
+            {floor.zones.map((zone) => (
+              <div key={zone.id} className="space-y-4">
+                <div className="flex items-center gap-2 pl-1">
+                  <span className="text-[10px] font-semibold tracking-[0.1em] uppercase text-[#8894AB]">
+                    Zone {floor.number}.{zone.number}
+                  </span>
+                  <div className="flex-1 h-px bg-[#EEF2F8]" />
+                </div>
+
+                {zone.rooms.map((room) => {
               const selectedType = INDOOR_TYPES.find((t) => t.value === room.indoorType);
 
               return (
@@ -228,7 +211,7 @@ export function VRFDesignConditions() {
                 >
                   <div className="px-5 sm:px-6 pt-5 pb-3 border-b border-[#F0F4FB] flex items-center gap-3">
                     <span className="text-xs font-bold text-[#0057B8] bg-[#EBF3FF] px-2 py-0.5 rounded-md">
-                      {floor.number}.{room.number}
+                      {floor.number}.{zone.number}.{room.number}
                     </span>
                     <h3 className="text-sm font-semibold text-[#0D1626]">
                       {room.name} <span className="text-muted-foreground font-normal">— what is the type of indoor?</span>
@@ -380,7 +363,9 @@ export function VRFDesignConditions() {
                   </div>
                 </div>
               );
-            })}
+                })}
+              </div>
+            ))}
           </div>
         ))}
       </div>
@@ -409,32 +394,51 @@ export function VRFDesignConditions() {
 function OutdoorPanel({
   totalCapacityKbtuh,
   totalCapacityTons,
-  recommendedOutdoorTons,
+  recommendedOutdoorKbtuh,
   combinationRatio,
   indoorCount,
   isMetric,
 }: {
   totalCapacityKbtuh: number;
   totalCapacityTons: number;
-  recommendedOutdoorTons: number;
+  recommendedOutdoorKbtuh: number;
   combinationRatio: number;
   indoorCount: number;
   isMetric: boolean;
 }) {
-  const OUTDOOR_SIZES = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 48];
+  // Manual selection is limited to outdoor units that keep the combination
+  // ratio (totalIndoor / outdoor) between 50% and 130%.
+  const MIN_RATIO = 50;
+  const MAX_RATIO = 130;
+  const manualUnits = VRF_OUTDOOR_UNITS.filter((u) => {
+    const ratio = (totalCapacityKbtuh / u.capacityKbtuh) * 100;
+    return ratio >= MIN_RATIO && ratio <= MAX_RATIO;
+  });
   const [selectionMode, setSelectionMode] = useState<"auto" | "manual">("auto");
-  const [manualTons, setManualTons] = useState<number>(recommendedOutdoorTons);
+  const [manualKbtuh, setManualKbtuh] = useState<number>(recommendedOutdoorKbtuh);
 
-  const effectiveTons = selectionMode === "auto" ? recommendedOutdoorTons : manualTons;
+  // Keep the manual choice inside the allowed ratio window; fall back to the
+  // nearest valid unit (or the recommended unit) when it drifts out of range.
+  const manualValid = manualUnits.some((u) => u.capacityKbtuh === manualKbtuh);
+  const recommendedValid = manualUnits.some((u) => u.capacityKbtuh === recommendedOutdoorKbtuh);
+  const manualKbtuhInRange = manualValid
+    ? manualKbtuh
+    : recommendedValid
+    ? recommendedOutdoorKbtuh
+    : manualUnits[0]?.capacityKbtuh ?? recommendedOutdoorKbtuh;
+  const effectiveKbtuh = selectionMode === "auto" ? recommendedOutdoorKbtuh : manualKbtuhInRange;
+  const effectiveUnit =
+    VRF_OUTDOOR_UNITS.find((u) => u.capacityKbtuh === effectiveKbtuh) ??
+    pickVRFOutdoorUnit(totalCapacityKbtuh);
   const effectiveCombinationRatio =
-    effectiveTons > 0 ? (totalCapacityTons / effectiveTons) * 100 : 0;
-  const outdoorModel = `VRF-OU-${String(effectiveTons).padStart(3, "0")}`;
+    effectiveKbtuh > 0 ? (totalCapacityKbtuh / effectiveKbtuh) * 100 : 0;
+  const outdoorModel = effectiveUnit.modelNumber;
   const totalCapacityDisplay = isMetric
     ? `${round(btuhToKw(totalCapacityKbtuh * 1000), 1)} kW`
     : `${totalCapacityKbtuh.toFixed(0)} kBTU/h`;
   const effectiveCapacityDisplay = isMetric
-    ? `${round(btuhToKw(effectiveTons * 12000), 1)} kW`
-    : `${(effectiveTons * 12).toFixed(0)} kBTU/h`;
+    ? `${round(btuhToKw(effectiveKbtuh * 1000), 1)} kW`
+    : `${effectiveKbtuh.toFixed(0)} kBTU/h`;
   const totalEer = Math.max(8, 11.8 - Math.abs(effectiveCombinationRatio - 100) * 0.02);
   const totalCop = totalEer / 3.412;
   const eerDisplayValue = isMetric ? totalCop.toFixed(2) : totalEer.toFixed(1);
@@ -527,17 +531,19 @@ function OutdoorPanel({
             <div className="max-w-md">
               <Label className="text-xs font-semibold text-[#0D1626]">Outdoor Unit Model</Label>
               <Select
-                value={String(effectiveTons)}
-                onValueChange={(v) => setManualTons(parseInt(v, 10))}
+                value={String(effectiveKbtuh)}
+                onValueChange={(v) => setManualKbtuh(parseInt(v, 10))}
                 disabled={selectionMode === "auto"}
               >
                 <SelectTrigger className="mt-1.5 bg-white border-[#B8D4F0] disabled:opacity-70 disabled:cursor-not-allowed">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {OUTDOOR_SIZES.map((t) => (
-                    <SelectItem key={t} value={String(t)}>
-                      VRF-OU-{String(t).padStart(3, "0")} · {t} tons
+                  {manualUnits.map((u) => (
+                    <SelectItem key={u.code} value={String(u.capacityKbtuh)}>
+                      {u.modelNumber} · {isMetric
+                        ? `${round(btuhToKw(u.capacityKbtuh * 1000), 1)} kW`
+                        : `${u.capacityKbtuh} kBTU/h`}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -545,7 +551,7 @@ function OutdoorPanel({
               <p className="text-[11px] text-[#8894AB] mt-2 leading-snug">
                 {selectionMode === "auto"
                   ? "Auto-sized to the smallest outdoor unit that covers the total indoor capacity. Switch to Manual to override."
-                  : "Pick any outdoor unit size. Useful when you need headroom for future expansion or a specific model."}
+                  : `Only outdoor sizes that keep the combination ratio between ${MIN_RATIO}% and ${MAX_RATIO}% are listed.`}
               </p>
             </div>
           </div>

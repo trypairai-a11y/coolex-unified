@@ -25,6 +25,7 @@ import {
   Download,
   Loader2,
   Receipt,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +94,13 @@ export default function ProjectDetailPage() {
   const { user } = useAuthStore();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [combinedPdfLoading, setCombinedPdfLoading] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
+
+  const handleCopyId = (value: string) => {
+    navigator.clipboard.writeText(value);
+    setIdCopied(true);
+    setTimeout(() => setIdCopied(false), 1500);
+  };
 
   const handleDownloadCombinedPDF = async () => {
     if (!project || project.units.length === 0) return;
@@ -359,9 +367,29 @@ export default function ProjectDetailPage() {
 
       {/* ─── Project Details ─── */}
       <div className="rounded-xl border bg-card shadow-sm">
-        <div className="px-6 py-4 border-b flex items-center gap-2">
-          <Settings2 className="w-4 h-4 text-muted-foreground" />
+        <div className="px-6 py-4 border-b flex items-center gap-3">
+          <Settings2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           <h2 className="font-semibold text-sm">Project Details</h2>
+          <div className="flex items-center gap-1.5 ml-1">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Project ID
+            </span>
+            <span className="font-mono text-xs font-medium text-foreground bg-muted/60 rounded-md px-2 py-1 tracking-wide">
+              {project.displayId ?? project.id}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleCopyId(project.displayId ?? project.id)}
+              className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Copy Project ID"
+            >
+              {idCopied ? (
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-5">

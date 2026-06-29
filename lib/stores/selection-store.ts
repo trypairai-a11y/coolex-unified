@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
 import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType, VRFCanvasPos, VRFCustomPipe, VRFUnitId } from '@/types/selection';
-import { pickVRFOutdoorTons, synthesizeVRFOutdoorModel } from '@/lib/utils/vrf';
+import { floorRooms } from '@/types/selection';
+import { pickVRFOutdoorUnit, synthesizeVRFOutdoorModel } from '@/lib/utils/vrf';
 
 /** Key in vrfOptionsByUnit: 'odu' for the outdoor unit, otherwise a room id (indoor unit). */
 export type VRFUnitKey = 'odu' | string;
@@ -123,11 +124,14 @@ export const useSelectionStore = create<SelectionState>()(
             ...state.vrfLayout,
             floors: state.vrfLayout.floors.map((f) => ({
               ...f,
-              rooms: f.rooms.map((r) =>
-                r.id === roomId
-                  ? { ...r, indoorType, capacity: r.indoorType === indoorType ? r.capacity : undefined }
-                  : r
-              ),
+              zones: f.zones.map((z) => ({
+                ...z,
+                rooms: z.rooms.map((r) =>
+                  r.id === roomId
+                    ? { ...r, indoorType, capacity: r.indoorType === indoorType ? r.capacity : undefined }
+                    : r
+                ),
+              })),
             })),
           },
         };
@@ -140,7 +144,10 @@ export const useSelectionStore = create<SelectionState>()(
             ...state.vrfLayout,
             floors: state.vrfLayout.floors.map((f) => ({
               ...f,
-              rooms: f.rooms.map((r) => (r.id === roomId ? { ...r, capacity } : r)),
+              zones: f.zones.map((z) => ({
+                ...z,
+                rooms: z.rooms.map((r) => (r.id === roomId ? { ...r, capacity } : r)),
+              })),
             })),
           },
         };
@@ -258,7 +265,7 @@ export const useSelectionStore = create<SelectionState>()(
       confirmVRFDesign: () => set((state) => {
         if (!state.vrfLayout) return { step: 5 };
         const totalKbtuh = state.vrfLayout.floors
-          .flatMap((f) => f.rooms)
+          .flatMap((f) => floorRooms(f))
           .reduce((sum, r) => sum + (r.capacity ?? 0), 0);
         // VRF doesn't have a single entering-DB/WB the way chillers/fan coils do —
         // synthesize standard indoor cooling design conditions so step 7 has the
@@ -275,8 +282,8 @@ export const useSelectionStore = create<SelectionState>()(
         // than relying on a useEffect inside the system-diagram step) so that
         // the submittal step always has a model — even if the user navigates
         // forward without the diagram component getting a chance to mount.
-        const oduTons = pickVRFOutdoorTons(totalKbtuh);
-        const oduModel = synthesizeVRFOutdoorModel(oduTons);
+        const oduUnit = pickVRFOutdoorUnit(totalKbtuh);
+        const oduModel = synthesizeVRFOutdoorModel(oduUnit);
         return { step: 5, designConditions, selectedModels: [oduModel] };
       }),
 

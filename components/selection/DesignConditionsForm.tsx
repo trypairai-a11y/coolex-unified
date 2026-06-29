@@ -16,7 +16,9 @@ import type { SelectionBasis } from "@/types/selection";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { round, toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
+import type { UnitSystem } from "@/lib/stores/unit-store";
 import { UnitToggle } from "@/components/selection/UnitToggle";
+import { isDuctedISO, btuhToKW, isoMinExternalStaticInWG } from "@/lib/mock-data/iso13253-static-pressure";
 
 // Treat blank/NaN as "missing" so an empty number input fails a required check
 // instead of being silently coerced to 0 by z.coerce.number().
@@ -26,14 +28,35 @@ const emptyToUndefined = (v: unknown) =>
 const requiredNumber = (message: string) =>
   z.preprocess(emptyToUndefined, z.coerce.number({ error: message }));
 
-function buildStandardSchema(isFanCoil: boolean) {
+function buildStandardSchema(isFanCoil: boolean, espMaxInWG?: number, unitSystem: UnitSystem = "imperial") {
+  // Some series (e.g. the 2–5 Ton ducted splits) cap the allowable external
+  // static pressure. The form value is in display units, so convert it back to
+  // imperial (in. WG) before comparing against the limit.
+  const applyEspMax = <T extends z.ZodTypeAny>(schema: T) => {
+    if (espMaxInWG == null) return schema;
+    return schema.superRefine((data: unknown, ctx: z.RefinementCtx) => {
+      const raw = (data as { espInWG?: unknown } | null | undefined)?.espInWG;
+      if (raw == null || raw === "" || Number.isNaN(Number(raw))) return;
+      const espImperial = toImperial(Number(raw), "espInWG", unitSystem);
+      if (espImperial > espMaxInWG + 1e-6) {
+        const maxDisplay = toDisplay(espMaxInWG, "espInWG", unitSystem);
+        const label = unitSystem === "imperial" ? "in. WG" : "Pa";
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Maximum external static pressure is ${maxDisplay} ${label}`,
+          path: ["espInWG"],
+        });
+      }
+    });
+  };
+
   const base = z.object({
     requiredCoolingCapacityBtuh: z.coerce.number().min(0).max(100000000).optional(),
     requiredAirflowCFM: z.coerce.number().min(0).max(10000000).optional(),
     powerSupply: z.string().min(1, "Power supply is required"),
     enteringDBF: z.coerce.number(),
     enteringWBF: z.coerce.number(),
-    espInWG: z.coerce.number().min(0),
+    espInWG: requiredNumber("External static pressure is required").pipe(z.number().min(0)),
     altitudeFt: z.coerce.number().min(0),
     ambientTempF: z.coerce.number().optional(),
     refrigerant: z.string().optional(),
@@ -51,18 +74,17 @@ function buildStandardSchema(isFanCoil: boolean) {
     saturatedSuctionTempF: z.coerce.number().optional(),
   });
 
-  if (!isFanCoil) return base;
+  if (!isFanCoil) return applyEspMax(base);
 
   // Fan coils (NGW / FCH / FCL): cooling capacity, evaporator air temps, and the
   // hydronic inputs are mandatory. Leaving water temp and flow rate are an
   // either/or pair (one auto-calculates the other), so at least one is required.
-  return base
+  return applyEspMax(base
     .extend({
       requiredCoolingCapacityBtuh: requiredNumber("Cooling capacity is required").pipe(z.number().min(0).max(100000000)),
       enteringDBF: requiredNumber("Entering dry bulb is required"),
       enteringWBF: requiredNumber("Entering wet bulb is required"),
       enteringWaterTempF: requiredNumber("Entering water temp is required"),
-      espInWG: requiredNumber("External static pressure is required").pipe(z.number().min(0)),
     })
     .superRefine((data, ctx) => {
       const lwt = data.leavingWaterTempF;
@@ -73,7 +95,7 @@ function buildStandardSchema(isFanCoil: boolean) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["leavingWaterTempF"] });
         ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: ["waterFlowRateGPM"] });
       }
-    });
+    }));
 }
 
 type FormData = z.infer<ReturnType<typeof buildStandardSchema>>;
@@ -149,6 +171,9 @@ export function DesignConditionsForm() {
   const isDHAC = selectedSeries?.id === 'dhac';
   const isPHE = selectedSeries?.id === 'phe';
   const is50HzOnly = isCCU || isTHAC || isDHAC || isPHE;
+  // 2–5 Ton ducted splits (DSSC/CDEC and DSSF/CDEF): ESP is limited to 0–0.4 in. WG.
+  const isLimitedEspSplit = selectedSeries?.id === 'split-cs' || selectedSeries?.id === 'split-ds';
+  const espMaxInWG = isLimitedEspSplit ? 0.4 : undefined;
 
   // Chillers and condensing units are always selected by capacity — never expose the airflow basis.
   useEffect(() => {
@@ -164,7 +189,7 @@ export function DesignConditionsForm() {
     powerSupply: is50HzOnly || projectInfo?.country !== 'Saudi Arabia' ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
     enteringDBF: 80,
     enteringWBF: 67,
-    espInWG: 0.5,
+    espInWG: isLimitedEspSplit ? 0.3 : 0.5,
     altitudeFt: 0,
     ambientTempF: 95,
     ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
@@ -187,7 +212,7 @@ export function DesignConditionsForm() {
 
   // Series flags are fixed for the form's lifetime (chosen in step 3), so the
   // schema is computed once and stays stable across re-renders.
-  const schema = useMemo(() => buildStandardSchema(isFanCoil), [isFanCoil]);
+  const schema = useMemo(() => buildStandardSchema(isFanCoil, espMaxInWG, unitSystem), [isFanCoil, espMaxInWG, unitSystem]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, setValue, getValues, watch, formState: { errors } } = useForm<FormData>({
@@ -354,6 +379,30 @@ export function DesignConditionsForm() {
   };
 
   const u = (field: string) => unitLabel(field, unitSystem);
+
+  // External static pressure tooltip — states the allowable range for the
+  // selected series. Capped splits have a hard 0–max window; ducted ISO units
+  // are rated at the ISO 13253 minimum for their capacity band (going higher is
+  // allowed but de-rates capacity); everything else falls back to a typical band.
+  const espTooltip = (() => {
+    const espUnit = u('espInWG');
+    if (isLimitedEspSplit && espMaxInWG != null) {
+      const max = toDisplay(espMaxInWG, 'espInWG', unitSystem);
+      return `Total external static pressure for the duct system. Allowable range: 0–${max} ${espUnit}.`;
+    }
+    if (selectedSeries && isDuctedISO(selectedSeries.id) && selectionBasis === 'capacity') {
+      const capNum = Number(wCapacity);
+      if (Number.isFinite(capNum) && capNum > 0) {
+        const capBtuh = toImperial(capNum, 'requiredCoolingCapacityBtuh', unitSystem);
+        const minInWG = isoMinExternalStaticInWG(btuhToKW(capBtuh));
+        const minDisplay = round(toDisplay(minInWG, 'espInWG', unitSystem), unitSystem === 'imperial' ? 2 : 0);
+        return `Total external static pressure for the duct system. Performance is rated at the ISO 13253 minimum for this capacity — ${minDisplay} ${espUnit}, the bottom of the allowable range. Higher ESP is allowed but de-rates capacity.`;
+      }
+    }
+    return unitSystem === 'imperial'
+      ? 'Total external static pressure for the duct system. Allowable range (typical): 0.3–1.5 in. WG.'
+      : 'Total external static pressure for the duct system. Allowable range (typical): 75–375 Pa.';
+  })();
 
   return (
     <div className="w-full">
@@ -549,7 +598,7 @@ export function DesignConditionsForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FieldWithTooltip
               label={`Altitude (${u('altitudeFt')})`}
-              tooltip="Installation altitude above sea level. Affects capacity and fan performance."
+              tooltip="Installation altitude above sea level. Total cooling capacity is multiplied by an altitude correction factor (1.0 at sea level → 0.96 at 7000 ft)."
             >
               <Input type="number" {...register("altitudeFt")} />
             </FieldWithTooltip>
@@ -692,14 +741,23 @@ export function DesignConditionsForm() {
 
               <FieldWithTooltip
                 label={`External Static Pressure (${u('espInWG')})`}
-                tooltip={unitSystem === 'imperial'
-                  ? "Total external static pressure for the duct system. Typical: 0.3–1.5 in. WG."
-                  : "Total external static pressure for the duct system. Typical: 75–375 Pa."}
-                required={isFanCoil}
+                tooltip={espTooltip}
+                required
                 filled={wESP != null && String(wESP) !== ""}
               >
-                <Input type="number" step={unitSystem === 'imperial' ? "0.05" : "1"} {...register("espInWG")} />
+                <Input
+                  type="number"
+                  step={unitSystem === 'imperial' ? "0.05" : "1"}
+                  min={0}
+                  max={espMaxInWG != null ? toDisplay(espMaxInWG, 'espInWG', unitSystem) : undefined}
+                  {...register("espInWG")}
+                />
                 {errors.espInWG && <p className="text-xs text-destructive">{errors.espInWG.message}</p>}
+                {isLimitedEspSplit && !errors.espInWG && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Allowed range: 0–{espMaxInWG != null ? toDisplay(espMaxInWG, 'espInWG', unitSystem) : ''} {u('espInWG')}
+                  </p>
+                )}
               </FieldWithTooltip>
 
             </div>

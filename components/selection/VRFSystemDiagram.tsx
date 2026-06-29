@@ -20,7 +20,7 @@ import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, round } from "@/lib/utils/unit-conversions";
-import { VRF_OUTDOOR_SIZES, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
+import { pickVRFOutdoorUnit, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
 import { evaluateVRFPiping } from "@/lib/utils/vrf-piping";
 import { VRFPipingCompliance } from "@/components/selection/VRFPipingCompliance";
 import { getVRFIndoorModelNumber } from "@/lib/mock-data/vrf-indoor";
@@ -31,6 +31,7 @@ import type {
   VRFPipeEndpoint,
   VRFUnitId,
 } from "@/types/selection";
+import { floorRooms } from "@/types/selection";
 
 const INDOOR_IMAGE: Record<VRFIndoorType, string> = {
   "ducted-split-low-static": "/images/vrf-ducted-split.png",
@@ -288,7 +289,7 @@ export function VRFSystemDiagram() {
     if (!vrfLayout) return [];
     const out: FlattenedRoom[] = [];
     vrfLayout.floors.forEach((f, fi) => {
-      f.rooms.forEach((r, ri) => {
+      floorRooms(f).forEach((r, ri) => {
         if (!r.indoorType || !r.capacity) return;
         out.push({
           key: r.id,
@@ -309,16 +310,16 @@ export function VRFSystemDiagram() {
 
   const totalKbtuh = allRooms.reduce((s, r) => s + r.capacityKbtuh, 0);
   const totalTons = totalKbtuh / 12;
-  const oduTons =
-    VRF_OUTDOOR_SIZES.find((s) => s >= totalTons) ?? VRF_OUTDOOR_SIZES[VRF_OUTDOOR_SIZES.length - 1];
-  const oduModel = `VRF-OU-${String(oduTons).padStart(3, "0")}`;
+  const oduUnit = pickVRFOutdoorUnit(totalKbtuh);
+  const oduTons = oduUnit.capacityKbtuh / 12;
+  const oduModel = oduUnit.modelNumber;
 
   // Re-hydrate selectedModels if the ODU sizing changes (e.g. user went back
   // and added a room). Initial hydration happens in confirmVRFDesign so the
   // submittal step always has a model.
   useEffect(() => {
     if (allRooms.length === 0) return;
-    const synth = synthesizeVRFOutdoorModel(oduTons);
+    const synth = synthesizeVRFOutdoorModel(oduUnit);
     const current = selectedModels[0];
     if (!current || current.id !== synth.id) {
       toggleModelSelection(synth);
@@ -385,6 +386,26 @@ export function VRFSystemDiagram() {
   // Geometry — derived from live ft state so the diagram grows/shrinks as lengths change.
   const mainTrunkPx = vPx(mainTrunkFt);
 
+  // ODU position drives the whole layout: the trunk riser and the entire branch
+  // network anchor to `dynamicTrunkX`, so dragging the ODU slides everything as a
+  // group and the riser never detaches from the branches. Computed here (before
+  // `floorLayouts`) straight from the drag/stored/auto sources — it depends only
+  // on the ODU, not the indoor layout, which keeps the dependency graph acyclic.
+  // Clamped so the system can't be dragged left past its home position (off the
+  // canvas); rightward drags grow the canvas instead.
+  const oduPreview = dragPreview?.get("odu");
+  const { dynamicTrunkX, oduTopLeftLive, oduBottomLive } = useMemo(() => {
+    const rawOduX = oduPreview?.x ?? unitPositions?.odu?.x ?? TRUNK_X - ODU_W / 2;
+    const rawOduY = oduPreview?.y ?? unitPositions?.odu?.y ?? TOP_PAD;
+    const trunkX = Math.max(TRUNK_X, rawOduX + ODU_W / 2);
+    const tl = { x: trunkX - ODU_W / 2, y: rawOduY };
+    return {
+      dynamicTrunkX: trunkX,
+      oduTopLeftLive: tl,
+      oduBottomLive: tl.y + ODU_BLOCK_H,
+    };
+  }, [oduPreview, unitPositions?.odu]);
+
   // Right-extension from trunk needed to fit every floor's branch + last unit.
   const widestExtentPx = useMemo(() => {
     return Math.max(
@@ -398,7 +419,9 @@ export function VRFSystemDiagram() {
     );
   }, [floorsData, branchFt]);
 
-  const canvasW = TRUNK_X + widestExtentPx + HORIZ_PAD;
+  // Anchored at the live trunk x so the canvas grows to the right as the system
+  // is dragged rightward (and stays put when clamped at its left-edge home).
+  const canvasW = dynamicTrunkX + widestExtentPx + HORIZ_PAD;
 
   const floorLayouts: FloorLayout[] = useMemo(() => {
     const layouts: FloorLayout[] = [];
@@ -415,7 +438,8 @@ export function VRFSystemDiagram() {
         y = prev.y + INDOOR_BLOCK_H + gapPx;
       }
       const segPxs = f.rooms.map((r) => hPx(branchFt[r.id] ?? DEFAULT_BRANCH_SEG_FT));
-      let cursorX = TRUNK_X;
+      // Branch row starts at the live trunk x so the whole network follows the ODU.
+      let cursorX = dynamicTrunkX;
       const rooms = f.rooms.map((r, idx) => {
         cursorX += segPxs[idx];
         return {
@@ -434,7 +458,7 @@ export function VRFSystemDiagram() {
       });
     });
     return layouts;
-  }, [floorsData, mainTrunkPx, floorSegFt, branchFt]);
+  }, [floorsData, mainTrunkPx, floorSegFt, branchFt, dynamicTrunkX]);
 
   const lastFloor = floorLayouts[floorLayouts.length - 1];
   const canvasH =
@@ -458,9 +482,10 @@ export function VRFSystemDiagram() {
   const getUnitTopLeft = useCallback(
     (id: VRFUnitId): VRFCanvasPos => {
       const auto = autoTopLeft.get(id) ?? { x: 0, y: 0 };
-      // The ODU sits on the roof and drags freely in both axes.
+      // The ODU drags freely; its live (clamped) position is derived above and
+      // also anchors the trunk + branch network, so they move together.
       if (id === "odu") {
-        return dragPreview?.get("odu") ?? unitPositions?.odu ?? auto;
+        return oduTopLeftLive;
       }
       // Indoor units stay locked to their floor's branch line so every floor reads
       // as one straight row, parallel to the horizontal pipe. Horizontal position
@@ -473,7 +498,7 @@ export function VRFSystemDiagram() {
       if (stored) return { x: stored.x, y: auto.y };
       return auto;
     },
-    [dragPreview, unitPositions, autoTopLeft]
+    [dragPreview, unitPositions, autoTopLeft, oduTopLeftLive]
   );
 
   /** Anchor used as a pipe endpoint. ODU attaches at the bottom of its card; indoor units at the card center. */
@@ -497,13 +522,6 @@ export function VRFSystemDiagram() {
       ep.kind === "unit" ? getUnitAnchor(ep.unitId) : { x: ep.x, y: ep.y },
     [getUnitAnchor]
   );
-
-  // Trunk follows the ODU horizontally. When the ODU is at its auto position,
-  // dynamicTrunkX === TRUNK_X and the visual is identical to before; once it's
-  // dragged the entire trunk + branch network anchors to the new center.
-  const oduTopLeftLive = getUnitTopLeft("odu");
-  const dynamicTrunkX = oduTopLeftLive.x + ODU_W / 2;
-  const oduBottomLive = oduTopLeftLive.y + ODU_BLOCK_H;
 
   // Live-derived geometry for custom pipes. Length tracks the actual distance
   // between unit anchors, so dragging either endpoint updates the number on the
@@ -715,9 +733,41 @@ export function VRFSystemDiagram() {
         window.removeEventListener("pointerup", onUp);
         window.removeEventListener("pointercancel", onUp);
         if (moved) {
-          // Commit every dragged unit's final position to the store. Each call
-          // is independent so React can batch them.
-          lastPositions.forEach((pos, uid) => setVRFUnitPosition(uid, pos));
+          // Commit the drag. The ODU floats freely, so persist its absolute
+          // position. Indoor units are locked to their floor's branch row, so
+          // instead of an absolute override we translate the horizontal move into
+          // that unit's branch length — this keeps the printed length in sync with
+          // the on-canvas distance (matching custom pipes) and lets downstream
+          // siblings shift along with it, instead of leaving a stretched line
+          // whose label still reads the old value.
+          const centerX = (uid: VRFUnitId) => {
+            const tl = lastPositions.get(uid);
+            const halfW = uid === "odu" ? ODU_W / 2 : INDOOR_IMG_W / 2;
+            return tl ? tl.x + halfW : getUnitAnchor(uid).x;
+          };
+          const oduTL = lastPositions.get("odu");
+          const trunkX = oduTL
+            ? Math.max(TRUNK_X, oduTL.x + ODU_W / 2)
+            : dynamicTrunkX;
+          lastPositions.forEach((pos, uid) => {
+            if (uid === "odu") {
+              // Persist the clamped position so it can't be left-of-home.
+              setVRFUnitPosition(uid, { x: trunkX - ODU_W / 2, y: pos.y });
+              return;
+            }
+            // Locate the unit on its floor to find its branch's upstream anchor
+            // (the trunk for the first unit, otherwise the previous sibling).
+            for (const f of floorLayouts) {
+              const idx = f.rooms.findIndex((r) => r.id === uid);
+              if (idx === -1) continue;
+              const fromX = idx === 0 ? trunkX : centerX(f.rooms[idx - 1].id);
+              const gapFt = (centerX(uid) - fromX) / H_PX_PER_FT;
+              setVRFBranchFt(uid, Math.max(0.5, gapFt));
+              // Drop any stale absolute override so branch length drives position.
+              setVRFUnitPosition(uid, null);
+              break;
+            }
+          });
           setDragPreview(null);
         } else {
           setDragPreview(null);
@@ -741,8 +791,12 @@ export function VRFSystemDiagram() {
       addPipeMode,
       selectedIds,
       getUnitTopLeft,
+      getUnitAnchor,
       handleAddPipeAnchor,
       setVRFUnitPosition,
+      setVRFBranchFt,
+      floorLayouts,
+      dynamicTrunkX,
     ]
   );
 
@@ -945,7 +999,7 @@ export function VRFSystemDiagram() {
 
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        <SummaryCard label="Outdoor Unit" value={oduModel} sub={`${oduTons} tons`} accent="#B45309" />
+        <SummaryCard label="Outdoor Unit" value={oduModel} sub={`${round(oduTons, 1)} tons`} accent="#B45309" />
         <SummaryCard
           label="Indoor Units"
           value={String(allRooms.length)}
@@ -1212,7 +1266,7 @@ export function VRFSystemDiagram() {
                 image="/images/vrf-outdoor-unit.png"
                 title={oduModel}
                 subtitle="Outdoor Unit"
-                power={`${oduTons} tons capacity`}
+                power={`${round(oduTons, 1)} tons capacity`}
                 accent="#B45309"
                 bg="#FEF4E6"
                 addPipeMode={addPipeMode}

@@ -15,10 +15,11 @@ import { useToast } from "@/components/ui/toast";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, round } from "@/lib/utils/unit-conversions";
 import { buildOracleBOM } from "@/lib/nomenclature";
-import { pickVRFOutdoorTons, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
+import { pickVRFOutdoorUnit, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
 import type { SubmittalOption } from "@/types/submittal";
 import type { Project, Unit, Revision, SubmittalSnapshot } from "@/types/project";
 import type { DesignConditionsFormData } from "@/types/selection";
+import { floorRooms } from "@/types/selection";
 
 const PDFViewer = dynamic(
   () => import("@/components/submittal/SubmittalPDF").then(m => m.SubmittalPDFViewer),
@@ -64,13 +65,13 @@ export function SubmittalPreview() {
   useEffect(() => {
     if (!isVRF || !vrfLayout) return;
     const totalKbtuh = vrfLayout.floors
-      .flatMap((f) => f.rooms)
+      .flatMap((f) => floorRooms(f))
       .reduce((sum, r) => sum + (r.capacity ?? 0), 0);
     if (totalKbtuh <= 0) return;
 
     if (selectedModels.length === 0) {
-      const oduTons = pickVRFOutdoorTons(totalKbtuh);
-      useSelectionStore.setState({ selectedModels: [synthesizeVRFOutdoorModel(oduTons)] });
+      const oduUnit = pickVRFOutdoorUnit(totalKbtuh);
+      useSelectionStore.setState({ selectedModels: [synthesizeVRFOutdoorModel(oduUnit)] });
     }
     if (!designConditions) {
       const dc: DesignConditionsFormData = {
@@ -246,6 +247,7 @@ export function SubmittalPreview() {
 
       const project: Project = {
         id: projectId,
+        displayId: projectInfo.projectId,
         name: projectInfo.projectName,
         clientName: projectInfo.clientName ?? "",
         salesEngineer: projectInfo.salesEngineer ?? "",

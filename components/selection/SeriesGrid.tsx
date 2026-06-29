@@ -210,7 +210,12 @@ function SeriesCard({ series: s, index, onSelect }: { series: ProductSeries; ind
       {/* Equipment illustration */}
       <div className="mb-3">
         {s.imageUrl ? (
-          <img src={s.imageUrl} alt={s.name} className="w-full h-24 object-contain" />
+          <img
+            src={s.imageUrl}
+            alt={s.name}
+            className="w-full h-24 object-contain"
+            style={s.imageScale ? { transform: `scale(${s.imageScale})` } : undefined}
+          />
         ) : (
           <EquipmentIllustration groupId={s.groupId} />
         )}

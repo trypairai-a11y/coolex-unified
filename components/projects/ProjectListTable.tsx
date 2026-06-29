@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, ChevronUp, ChevronDown, FolderOpen, Plus } from "lucide-react";
+import { Search, ChevronUp, ChevronDown, FolderOpen, Plus, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ function formatDate(iso: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(iso));
 }
 
-type SortKey = "name" | "clientName" | "updatedAt" | "status";
+type SortKey = "name" | "id" | "clientName" | "updatedAt" | "status";
 
 export function ProjectListTable() {
   const { data: projects, isLoading } = useProjects();
@@ -34,6 +34,7 @@ export function ProjectListTable() {
 
   const filtered = (projects ?? []).filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.id.toLowerCase().includes(search.toLowerCase()) ||
     p.clientName.toLowerCase().includes(search.toLowerCase()) ||
     p.salesEngineer.toLowerCase().includes(search.toLowerCase())
   );
@@ -48,6 +49,35 @@ export function ProjectListTable() {
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("desc"); }
+  };
+
+  // Export the currently-filtered/sorted project list to an .xlsx file.
+  // Mirrors the on-screen columns and adds a unit count + total quantity.
+  const handleExport = async () => {
+    if (!sorted.length) return;
+    const XLSX = await import("xlsx");
+    const rows = sorted.map((p) => ({
+      Project: p.name,
+      "Project ID": p.displayId ?? p.id,
+      Client: p.clientName,
+      Engineer: p.salesEngineer,
+      Country: p.country,
+      Status: p.status.charAt(0).toUpperCase() + p.status.slice(1),
+      Units: p.units.length,
+      "Total Quantity": p.units.reduce((sum, u) => sum + (u.quantity ?? 0), 0),
+      "Submitted For": p.submittedFor,
+      Created: formatDate(p.createdAt),
+      "Last Modified": formatDate(p.updatedAt),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+      { wch: 22 }, { wch: 16 }, { wch: 20 }, { wch: 18 }, { wch: 16 },
+      { wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Projects");
+    const stamp = new Intl.DateTimeFormat("en-CA").format(new Date()); // YYYY-MM-DD
+    XLSX.writeFile(workbook, `COOLEX-Projects-${stamp}.xlsx`);
   };
 
   const SortIcon = ({ k }: { k: SortKey }) => {
@@ -73,6 +103,14 @@ export function ProjectListTable() {
             <Plus className="w-4 h-4 mr-1" /> New Project
           </Button>
         </Link>
+        <Button
+          variant="outline"
+          onClick={handleExport}
+          disabled={isLoading || sorted.length === 0}
+          title="Download the project list as an Excel file"
+        >
+          <Download className="w-4 h-4 mr-1" /> Export to Excel
+        </Button>
       </div>
 
       {/* Table */}
@@ -93,6 +131,7 @@ export function ProjectListTable() {
               <tr>
                 {[
                   { label: "Project", key: "name" as SortKey },
+                  { label: "Project ID", key: "id" as SortKey },
                   { label: "Client", key: "clientName" as SortKey },
                   { label: "Engineer", key: null },
                   { label: "Units", key: null },
@@ -117,6 +156,7 @@ export function ProjectListTable() {
                     <div className="font-medium text-foreground">{project.name}</div>
                     <div className="text-xs text-muted-foreground">{project.country}</div>
                   </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{project.id}</td>
                   <td className="px-4 py-3 text-muted-foreground">{project.clientName}</td>
                   <td className="px-4 py-3 text-muted-foreground">{project.salesEngineer}</td>
                   <td className="px-4 py-3 text-center text-muted-foreground">{project.units.length}</td>
