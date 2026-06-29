@@ -337,6 +337,7 @@ export function SubmittalPreview() {
           generatedBy={user?.name ?? ""}
           oracleBOM={oracleBOM}
           unitSystem={unitSystem}
+          vrfLayout={isVRF ? vrfLayout ?? undefined : undefined}
         />
       </div>
 

@@ -4,13 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, ArrowRight, Info, Thermometer, Wind } from "lucide-react";
+import { ArrowLeft, ArrowRight, Info, Mountain, Thermometer, Wind } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableHead, TableHeader, TableRow, TableCell } from "@/components/ui/table";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { SelectionBasis } from "@/types/selection";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -19,6 +21,7 @@ import { round, toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conver
 import type { UnitSystem } from "@/lib/stores/unit-store";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { isDuctedISO, btuhToKW, isoMinExternalStaticInWG } from "@/lib/mock-data/iso13253-static-pressure";
+import { ALTITUDE_FACTORS } from "@/lib/utils/altitude";
 
 // Treat blank/NaN as "missing" so an empty number input fails a required check
 // instead of being silently coerced to 0 by z.coerce.number().
@@ -118,6 +121,43 @@ function FieldWithTooltip({ label, tooltip, required, filled, children }: { labe
   );
 }
 
+function AltitudeFactorsDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="gap-1.5 h-8 text-xs">
+          <Mountain className="w-3.5 h-3.5" />
+          Altitude Factors
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Altitude Correction Factors</DialogTitle>
+          <DialogDescription>
+            Multiply the total capacity by the correction factor for the installation altitude.
+          </DialogDescription>
+        </DialogHeader>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Altitude (ft)</TableHead>
+              <TableHead className="text-right">Correction factor</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ALTITUDE_FACTORS.map((row) => (
+              <TableRow key={row.altitude}>
+                <TableCell className="font-medium">{row.altitude}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.factor.toFixed(3)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const BASIS_OPTIONS: { value: SelectionBasis; label: string; sublabel: string; description: string; icon: React.ElementType }[] = [
   {
     value: "capacity",
@@ -189,7 +229,7 @@ export function DesignConditionsForm() {
     powerSupply: is50HzOnly || projectInfo?.country !== 'Saudi Arabia' ? "400-415V/3Ph/50Hz" : "380-400V/3Ph/60Hz",
     enteringDBF: 80,
     enteringWBF: 67,
-    espInWG: isLimitedEspSplit ? 0.3 : 0.5,
+    espInWG: isCRAC ? 0.1 : isLimitedEspSplit ? 0.3 : 0.5,
     altitudeFt: 0,
     ambientTempF: 95,
     ...(isChiller ? { enteringWaterTempF: 54, leavingWaterTempF: 44, waterFlowRateGPM: 24 } : {}),
@@ -205,6 +245,8 @@ export function DesignConditionsForm() {
   // Convert to display units for initial form values
   const displayDefaults = { ...savedImperial };
   for (const field of CONVERTIBLE_FIELDS) {
+    // CRAC external static pressure is always shown/stored in in. WG — never converted.
+    if (isCRAC && field === 'espInWG') continue;
     if (displayDefaults[field] != null) {
       displayDefaults[field] = toDisplay(displayDefaults[field] as number, field, unitSystem);
     }
@@ -359,18 +401,20 @@ export function DesignConditionsForm() {
     if (prevSystem === unitSystem) return;
     prevUnitRef.current = unitSystem;
     for (const field of CONVERTIBLE_FIELDS) {
+      if (isCRAC && field === 'espInWG') continue;
       const rawVal = getValues(field as keyof FormData) as number | undefined;
       if (rawVal == null) continue;
       const imperial = toImperial(rawVal, field, prevSystem);
       const converted = toDisplay(imperial, field, unitSystem);
       setValue(field as keyof FormData, converted as never);
     }
-  }, [unitSystem, getValues, setValue]);
+  }, [unitSystem, getValues, setValue, isCRAC]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const onSubmitWrapped = (data: any) => {
     // Convert all values back to Imperial before storing
     for (const field of CONVERTIBLE_FIELDS) {
+      if (isCRAC && field === 'espInWG') continue;
       if (data[field] != null) {
         data[field] = toImperial(data[field], field, unitSystem);
       }
@@ -598,9 +642,12 @@ export function DesignConditionsForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FieldWithTooltip
               label={`Altitude (${u('altitudeFt')})`}
-              tooltip="Installation altitude above sea level. Total cooling capacity is multiplied by an altitude correction factor (1.0 at sea level → 0.96 at 7000 ft)."
+              tooltip="Capacity will vary above sea level altitude."
             >
-              <Input type="number" {...register("altitudeFt")} />
+              <div className="flex items-center gap-2">
+                <Input type="number" {...register("altitudeFt")} className="flex-1" />
+                <AltitudeFactorsDialog />
+              </div>
             </FieldWithTooltip>
             {!isFanCoil && (
               <FieldWithTooltip
@@ -740,18 +787,32 @@ export function DesignConditionsForm() {
               })()}
 
               <FieldWithTooltip
-                label={`External Static Pressure (${u('espInWG')})`}
-                tooltip={espTooltip}
-                required
+                label={isCRAC ? 'External Static Pressure (in. WG)' : `External Static Pressure (${u('espInWG')})`}
+                tooltip={isCRAC ? 'External static pressure for the CRAC unit. Selectable values: 0, 0.1, or 0.2 in. WG.' : espTooltip}
+                required={!isCRAC}
                 filled={wESP != null && String(wESP) !== ""}
               >
-                <Input
-                  type="number"
-                  step={unitSystem === 'imperial' ? "0.05" : "1"}
-                  min={0}
-                  max={espMaxInWG != null ? toDisplay(espMaxInWG, 'espInWG', unitSystem) : undefined}
-                  {...register("espInWG")}
-                />
+                {isCRAC ? (
+                  <Select
+                    value={wESP != null ? String(wESP) : undefined}
+                    onValueChange={(v) => setValue("espInWG", Number(v) as never, { shouldDirty: true, shouldValidate: true })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select ESP..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0 in. WG</SelectItem>
+                      <SelectItem value="0.1">0.1 in. WG</SelectItem>
+                      <SelectItem value="0.2">0.2 in. WG</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    type="number"
+                    step={unitSystem === 'imperial' ? "0.05" : "1"}
+                    min={0}
+                    max={espMaxInWG != null ? toDisplay(espMaxInWG, 'espInWG', unitSystem) : undefined}
+                    {...register("espInWG")}
+                  />
+                )}
                 {errors.espInWG && <p className="text-xs text-destructive">{errors.espInWG.message}</p>}
                 {isLimitedEspSplit && !errors.espInWG && (
                   <p className="text-[11px] text-muted-foreground">

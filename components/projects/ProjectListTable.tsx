@@ -130,8 +130,8 @@ export function ProjectListTable() {
             <thead className="bg-muted/50">
               <tr>
                 {[
-                  { label: "Project", key: "name" as SortKey },
                   { label: "Project ID", key: "id" as SortKey },
+                  { label: "Project", key: "name" as SortKey },
                   { label: "Client", key: "clientName" as SortKey },
                   { label: "Engineer", key: null },
                   { label: "Units", key: null },
@@ -152,11 +152,11 @@ export function ProjectListTable() {
             <tbody>
               {sorted.map((project: Project) => (
                 <tr key={project.id} className="border-t hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{project.id}</td>
                   <td className="px-4 py-3">
                     <div className="font-medium text-foreground">{project.name}</div>
                     <div className="text-xs text-muted-foreground">{project.country}</div>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{project.id}</td>
                   <td className="px-4 py-3 text-muted-foreground">{project.clientName}</td>
                   <td className="px-4 py-3 text-muted-foreground">{project.salesEngineer}</td>
                   <td className="px-4 py-3 text-center text-muted-foreground">{project.units.length}</td>

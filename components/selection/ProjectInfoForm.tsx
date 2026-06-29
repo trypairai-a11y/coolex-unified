@@ -131,7 +131,7 @@ export function ProjectInfoForm() {
   );
 
   const projectId = useMemo(
-    () => `${getCountryProjectPrefix(country)}-${suffixRef.current}`,
+    () => (country ? `${getCountryProjectPrefix(country)}-${suffixRef.current}` : ""),
     [country]
   );
 
@@ -157,28 +157,6 @@ export function ProjectInfoForm() {
 
         <SectionCard num="01" icon={Building2} title="Project Details" description="Identify the project and client">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
-            <div className="md:col-span-2">
-              <Field label="Project ID" hint="(auto-generated)">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-[42px] px-3.5 rounded-lg border border-[#DDE3EF] bg-[#F0F4FB] text-sm font-mono font-medium text-[#4A5578] flex items-center tracking-wide">
-                    {projectId}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyId}
-                    className="inline-flex items-center justify-center w-[42px] h-[42px] rounded-lg border border-[#DDE3EF] bg-[#FAFBFF] text-[#6B7A99] hover:bg-[#EBF3FF] hover:text-[#0057B8] hover:border-[#B8C4DA] transition-all duration-150"
-                    title="Copy Project ID"
-                  >
-                    {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
-              </Field>
-            </div>
-            <div className="md:col-span-2">
-              <Field label="Project Name" required filled={!!projectName} error={errors.projectName?.message}>
-                <StyledInput placeholder="e.g. Al Hamra Village Phase 3" {...register("projectName")} />
-              </Field>
-            </div>
             <Field label="Country" required filled={!!country} error={errors.country?.message}>
               <select
                 {...register("country")}
@@ -195,6 +173,27 @@ export function ProjectInfoForm() {
                 ))}
               </select>
             </Field>
+            <Field label="Project ID" hint="(auto-generated)">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-[42px] px-3.5 rounded-lg border border-[#DDE3EF] bg-[#F0F4FB] text-sm font-mono font-medium text-[#4A5578] flex items-center tracking-wide">
+                  {projectId || <span className="font-sans not-italic text-[#9BA8C0] tracking-normal">Select a country first</span>}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyId}
+                  disabled={!projectId}
+                  className="inline-flex items-center justify-center w-[42px] h-[42px] rounded-lg border border-[#DDE3EF] bg-[#FAFBFF] text-[#6B7A99] hover:bg-[#EBF3FF] hover:text-[#0057B8] hover:border-[#B8C4DA] transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none"
+                  title="Copy Project ID"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </Field>
+            <div className="md:col-span-2">
+              <Field label="Project Name" required filled={!!projectName} error={errors.projectName?.message}>
+                <StyledInput placeholder="e.g. Al Hamra Village Phase 3" {...register("projectName")} />
+              </Field>
+            </div>
             <Field label="Client Name" error={errors.clientName?.message}>
               <StyledInput placeholder="e.g. Gulf Bank K.S.C.P." {...register("clientName")} />
             </Field>

@@ -56,6 +56,7 @@ export function RecentProjectsList() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border/60">
+            <th className="text-left pb-2.5 pr-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Project ID</th>
             <th className="text-left pb-2.5 pr-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Project</th>
             <th className="text-left pb-2.5 pr-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hidden md:table-cell">Client</th>
             <th className="text-left pb-2.5 pr-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Engineer</th>
@@ -67,6 +68,7 @@ export function RecentProjectsList() {
         <tbody>
           {recent.map((project) => (
             <tr key={project.id} className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors group">
+              <td className="py-3 pr-4 font-mono text-xs text-muted-foreground whitespace-nowrap">{project.displayId ?? project.id}</td>
               <td className="py-3 pr-4">
                 <div className="font-semibold text-foreground truncate max-w-[180px] text-sm">{project.name}</div>
                 <div className="text-xs text-muted-foreground mt-0.5">{project.units.length} unit{project.units.length !== 1 ? "s" : ""}</div>

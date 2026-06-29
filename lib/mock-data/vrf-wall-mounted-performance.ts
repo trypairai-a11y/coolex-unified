@@ -4,7 +4,7 @@
  * Transcribed from the COOLEX wall-mounted indoor performance table. Like the
  * other indoor types this is a flat spec table keyed by the marketing capacity
  * class (kBTU/h), aligned with the capacities offered for the `wall-mounted`
- * indoor type in the VRF wizard (12 / 18 / 24 / 30).
+ * indoor type in the VRF wizard (18 / 24 / 30).
  *
  * Unlike the low-static lineup, gas-pipe diameter and coil rows vary by model
  * (12.70 mm / 2-row on the small sizes, 15.88 mm / 3-row on the large), so those
@@ -44,28 +44,13 @@ export const VRF_WALL_MOUNTED_COMMON = {
 } as const;
 
 /** Capacity classes available for this lineup, ascending. */
-export const VRF_WALL_MOUNTED_CAPACITIES = [12, 18, 24, 30] as const;
+export const VRF_WALL_MOUNTED_CAPACITIES = [18, 24, 30] as const;
 
 const GAS_SMALL = '12.70 mm (1/2")';
 const GAS_LARGE = '15.88 mm (5/8")';
 const LIQUID_PIPE = '6.35 mm (1/4")';
 
 const SPECS: Record<number, VRFWallMountedSpec> = {
-  12: {
-    nominalKbtuh: 12,
-    modelNumber: "IWEF-00124DH",
-    coolingCapacityKW: 3.5,
-    coolingCapacityBtuh: 12000,
-    heatingCapacityKW: 3.8,
-    heatingCapacityBtuh: 12900,
-    fanMotorWatts: 30,
-    fanMotorWattsLabel: "30",
-    airflowCFM: 470,
-    coilRows: 2,
-    bodyWeightKg: 9.3,
-    gasPipe: GAS_SMALL,
-    liquidPipe: LIQUID_PIPE,
-  },
   18: {
     nominalKbtuh: 18,
     modelNumber: "IWEF-00184DH",

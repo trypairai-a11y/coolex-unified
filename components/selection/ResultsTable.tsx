@@ -9,11 +9,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useModels } from "@/hooks/useSelection";
 import { NomenclatureInline } from "@/components/selection/NomenclatureBreakdown";
-import { PHEPerformancePanel } from "@/components/selection/PHEPerformancePanel";
 import type { Model } from "@/types/product";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, btuhToTons, fToC, cfmToM3h, gpmToLps, lpsToGpm, kpaToFtWg, inWGToPa, round } from "@/lib/utils/unit-conversions";
+import { leavingConditions } from "@/lib/utils/psychrometrics";
 
 type SortKey = keyof Pick<Model, "totalCapacityBtuh" | "sensibleCapacityBtuh" | "powerKW" | "eer" | "airflowCFM" | "matchPercent">;
 
@@ -85,6 +85,14 @@ export function ResultsTable() {
     : typeof enteringDBF === "number"
       ? enteringDBF
       : null;
+  // Entering wet bulb paired with baseEnteringDBF (mixed final-entering when
+  // fresh air is on, otherwise the form's entering WB). Used to seed the
+  // psychrometric leaving-WB calculation.
+  const baseEnteringWBF = useFinalEntering
+    ? finalEWB!
+    : typeof enteringWBF === "number"
+      ? enteringWBF
+      : null;
   const leavingFor = (model: Model): { dbF: number; wbF: number } => {
     // Leaving dry bulb from the sensible-heat equation:
     //   leaving DB = entering DB − sensible / (1.08 × airflow CFM)
@@ -93,9 +101,26 @@ export function ResultsTable() {
       baseEnteringDBF != null && model.airflowCFM > 0
         ? baseEnteringDBF - model.sensibleCapacityBtuh / (1.08 * model.airflowCFM)
         : model.leavingDBF;
-    const wbF = useFinalEntering
-      ? finalEWB! - (STD_EWB - model.leavingWBF)
-      : model.leavingWBF;
+    // Leaving wet bulb via the submittal sheet's psychrometric solver (entering
+    // enthalpy → leaving enthalpy via the total-heat equation → WB at the
+    // leaving DB, clamped at saturation). Falls back to the catalog WB when the
+    // entering air condition or capacities are unavailable.
+    const wbF =
+      baseEnteringDBF != null &&
+      baseEnteringWBF != null &&
+      model.airflowCFM > 0 &&
+      model.totalCapacityBtuh > 0
+        ? leavingConditions({
+            enteringDbF: baseEnteringDBF,
+            enteringWbF: baseEnteringWBF,
+            totalCapacityBtuh: model.totalCapacityBtuh,
+            sensibleCapacityBtuh: model.sensibleCapacityBtuh,
+            cfm: model.airflowCFM,
+            altitudeFt: dc?.altitudeFt ?? 0,
+          }).leavingWbF
+        : useFinalEntering
+          ? finalEWB! - (STD_EWB - model.leavingWBF)
+          : model.leavingWBF;
     return { dbF, wbF };
   };
   const enteringConditions: { dbF: number; wbF: number } | null = useFinalEntering
@@ -229,11 +254,6 @@ export function ResultsTable() {
                       <div className="font-medium">
                         {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
                       </div>
-                      {model.espDeratePercent != null && model.espDeratePercent > 0 && (
-                        <div className="text-[10px] font-medium text-amber-600">
-                          −{model.espDeratePercent}% @ static
-                        </div>
-                      )}
                     </div>
                     {!isWaterFanCoil && (
                       <div>
@@ -457,14 +477,6 @@ export function ResultsTable() {
                         </td>
                         <td className="px-4 py-3 text-black">
                           {isMetric ? `${round(btuhToKw(model.totalCapacityBtuh), 1)} kW` : `${formatBtuh(model.totalCapacityBtuh)} Btu/h`}
-                          {model.espDeratePercent != null && model.espDeratePercent > 0 && (
-                            <div
-                              className="text-[10px] font-medium text-amber-600"
-                              title={`De-rated ${model.espDeratePercent}% for ${espInWG?.toFixed(2)} in. WG external static, above the ISO 13253 rating basis of ${model.espRatingBasisInWG?.toFixed(2)} in. WG for this size.`}
-                            >
-                              −{model.espDeratePercent}% @ static
-                            </div>
-                          )}
                         </td>
                         <td className="px-4 py-3 text-black">
                           {round(btuhToTons(model.totalCapacityBtuh), 1)} TR
@@ -590,12 +602,6 @@ export function ResultsTable() {
             </div>
           </div>
         </>
-      )}
-
-      {/* CRAC (PHCF-PHEF) catalogue performance — rated at 48 °C / T4, with
-          calculated T1 / T3 capacities. Highlights the active design ambient. */}
-      {isCrac && !isLoading && !isError && (
-        <PHEPerformancePanel designAmbientF={ambientF} />
       )}
 
       <div className="flex justify-between items-center gap-4 mt-6">
