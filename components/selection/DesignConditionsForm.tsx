@@ -711,25 +711,31 @@ export function DesignConditionsForm() {
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">Evaporator Conditions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FieldWithTooltip
-                label={`Entering Dry Bulb (${u('enteringDBF')})`}
-                tooltip="Room dry-bulb temperature at the evaporator inlet."
-                required
-                filled={wDB != null && String(wDB) !== ""}
-              >
-                <Input type="number" step="0.1" {...register("enteringDBF")} />
-                {errors.enteringDBF && <p className="text-xs text-destructive">{errors.enteringDBF.message}</p>}
-              </FieldWithTooltip>
+              {/* FAPU is 100% fresh air — the entering air is the ambient/fresh-air
+                  condition, so room entering DB/WB don't apply. */}
+              {!isFAPU && (
+                <FieldWithTooltip
+                  label={`Entering Dry Bulb (${u('enteringDBF')})`}
+                  tooltip="Room dry-bulb temperature at the evaporator inlet."
+                  required
+                  filled={wDB != null && String(wDB) !== ""}
+                >
+                  <Input type="number" step="0.1" {...register("enteringDBF")} />
+                  {errors.enteringDBF && <p className="text-xs text-destructive">{errors.enteringDBF.message}</p>}
+                </FieldWithTooltip>
+              )}
 
-              <FieldWithTooltip
-                label={`Entering Wet Bulb (${u('enteringWBF')})`}
-                tooltip="Room wet-bulb temperature at the evaporator inlet. Used to calculate latent load."
-                required
-                filled={wWB != null && String(wWB) !== ""}
-              >
-                <Input type="number" step="0.1" {...register("enteringWBF")} />
-                {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
-              </FieldWithTooltip>
+              {!isFAPU && (
+                <FieldWithTooltip
+                  label={`Entering Wet Bulb (${u('enteringWBF')})`}
+                  tooltip="Room wet-bulb temperature at the evaporator inlet. Used to calculate latent load."
+                  required
+                  filled={wWB != null && String(wWB) !== ""}
+                >
+                  <Input type="number" step="0.1" {...register("enteringWBF")} />
+                  {errors.enteringWBF && <p className="text-xs text-destructive">{errors.enteringWBF.message}</p>}
+                </FieldWithTooltip>
+              )}
 
               {isFanCoil && (() => {
                 const lwtFilled = wLWT != null && String(wLWT) !== "";

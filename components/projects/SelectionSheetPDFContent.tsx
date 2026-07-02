@@ -163,7 +163,7 @@ function formatDate(iso: string) {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(iso));
 }
 
-const COL = { no: 25, tag: 55, series: 50, model: 75, tons: 45, cfm: 50, qty: 30, rev: 35 };
+const COL = { no: 30, tag: 90, type: 253, tons: 80, qty: 70 };
 
 export function SelectionSheetDoc({ project }: { project: Project }) {
   const date = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -199,25 +199,17 @@ export function SelectionSheetDoc({ project }: { project: Project }) {
           <View style={s.tableHeader}>
             <Text style={[s.tableHeaderCell, { width: COL.no }]}>#</Text>
             <Text style={[s.tableHeaderCell, { width: COL.tag }]}>Tag</Text>
-            <Text style={[s.tableHeaderCell, { width: COL.series }]}>Series</Text>
-            <Text style={[s.tableHeaderCell, { width: COL.model }]}>Model</Text>
+            <Text style={[s.tableHeaderCell, { width: COL.type }]}>Type</Text>
             <Text style={[s.tableHeaderCell, { width: COL.tons }]}>Capacity</Text>
-            <Text style={[s.tableHeaderCell, { width: COL.cfm }]}>Airflow</Text>
             <Text style={[s.tableHeaderCell, { width: COL.qty }]}>Qty</Text>
-            <Text style={[s.tableHeaderCell, { width: COL.rev }]}>Rev</Text>
           </View>
           {project.units.map((unit: Unit, i: number) => (
             <View key={unit.id} style={[s.tableRow, i % 2 === 1 ? s.tableRowAlt : {}]}>
               <Text style={[s.tableCellBold, { width: COL.no }]}>{i + 1}</Text>
               <Text style={[s.tableCell, { width: COL.tag }]}>{unit.tag || "\u2014"}</Text>
-              <Text style={[s.tableCell, { width: COL.series }]}>{unit.seriesName}</Text>
-              <Text style={[s.tableCellBold, { width: COL.model }]}>{unit.model.modelNumber}</Text>
+              <Text style={[s.tableCell, { width: COL.type }]}>{unit.seriesName}</Text>
               <Text style={[s.tableCell, { width: COL.tons }]}>{unit.model.nominalTons} TR</Text>
-              <Text style={[s.tableCell, { width: COL.cfm }]}>
-                {unit.model.airflowCFM ? `${unit.model.airflowCFM.toLocaleString()} CFM` : "\u2014"}
-              </Text>
               <Text style={[s.tableCell, { width: COL.qty }]}>{unit.quantity}</Text>
-              <Text style={[s.tableCell, { width: COL.rev }]}>Rev. {unit.currentRevision}</Text>
             </View>
           ))}
         </View>

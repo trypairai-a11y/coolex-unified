@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { RevisionHistoryPanel } from "@/components/projects/RevisionHistoryPanel";
 import { SelectionSheetDialog } from "@/components/projects/SelectionSheetDialog";
+import { QuotationDialog } from "@/components/projects/QuotationDialog";
 import { useProject } from "@/hooks/useProjects";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useSelectionStore } from "@/lib/stores/selection-store";
@@ -93,6 +94,7 @@ export default function ProjectDetailPage() {
   const { reset } = useSelectionStore();
   const { user } = useAuthStore();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [quotationOpen, setQuotationOpen] = useState(false);
   const [combinedPdfLoading, setCombinedPdfLoading] = useState(false);
   const [idCopied, setIdCopied] = useState(false);
 
@@ -441,7 +443,7 @@ export default function ProjectDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {/* TODO: open quotation */}}
+                onClick={() => setQuotationOpen(true)}
               >
                 <Receipt className="w-3.5 h-3.5 mr-1.5" /> Quotation
               </Button>
@@ -611,6 +613,13 @@ export default function ProjectDetailPage() {
         project={project}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
+      />
+
+      <QuotationDialog
+        project={project}
+        open={quotationOpen}
+        onOpenChange={setQuotationOpen}
+        preparedByDefault={user?.name}
       />
 
       {/* ─── Edit Project Dialog ─── */}
