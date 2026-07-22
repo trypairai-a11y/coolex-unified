@@ -281,20 +281,23 @@ const SPEED_SUBGROUPS: {
   icon: typeof Gauge;
   iconColor: string;
   description: string;
+  tonRangeLabel?: string;
 }[] = [
   {
     speed: "fixed",
     label: "Fixed Speed",
     icon: Gauge,
     iconColor: "text-gray-500",
-    description: "Standard on/off compressor. Reliable, cost-effective comfort cooling.",
+    description: "Standard on/off compressor.",
+    tonRangeLabel: "1 – 3 Tons",
   },
   {
     speed: "inverter",
     label: "Inverter",
     icon: Zap,
     iconColor: "text-emerald-500",
-    description: "Variable-speed compressor for higher efficiency, precise temperature control, and quieter operation.",
+    description: "Variable-speed compressor.",
+    tonRangeLabel: "1 – 2.5 Tons",
   },
 ];
 
@@ -365,7 +368,7 @@ function SpeedSubGroupScreen({
                 </div>
 
                 {/* Ton range */}
-                <div className="text-xl font-semibold text-[#0057B8]">{series.tonRangeLabel}</div>
+                <div className="text-xl font-semibold text-[#0057B8]">{sub.tonRangeLabel ?? series.tonRangeLabel}</div>
                 <p className="mt-2 text-sm text-gray-600">{sub.description}</p>
               </motion.button>
             );
