@@ -59,6 +59,14 @@ export function m3hToCfm(m3h: number): number {
   return m3h / 1.699;
 }
 
+// --- Power (shaft) ---
+// 1 mechanical horsepower = 0.745699872 kW
+export const KW_PER_HP = 0.745699872;
+
+export function hpToKw(hp: number): number {
+  return hp * KW_PER_HP;
+}
+
 // --- Capacity ---
 export const BTU_PER_KW = 3412.14;
 

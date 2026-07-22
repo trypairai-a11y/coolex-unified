@@ -10,7 +10,19 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, cfmToM3h, round } from "@/lib/utils/unit-conversions";
 import { getVRFIndoorSpec } from "@/lib/mock-data/vrf-indoor";
-import { VRF_OUTDOOR_UNITS, pickVRFOutdoorUnit } from "@/lib/utils/vrf";
+import {
+  MAX_COMBINATION_RATIO,
+  MAX_VRF_OUTDOOR_MODULES,
+  MIN_COMBINATION_RATIO,
+  VRF_OUTDOOR_UNITS,
+  isVRFCombinationRatioValid,
+  pickVRFOutdoorCombination,
+  vrfCombinationRatio,
+  vrfCombinedCapacityKbtuh,
+  vrfModuleLoadSplitKbtuh,
+  vrfOutdoorUnitsFromCodes,
+} from "@/lib/utils/vrf";
+import type { VRFOutdoorUnit } from "@/lib/utils/vrf";
 import type { VRFIndoorType } from "@/types/selection";
 import { floorRooms } from "@/types/selection";
 
@@ -93,21 +105,26 @@ const INDOOR_TYPES: {
 
 type VRFView = "indoor" | "outdoor";
 
-// A VRF system is only valid when the combination ratio (total indoor /
-// outdoor capacity) sits between these bounds. Selecting an outdoor unit
-// outside this window flags the design and blocks progression.
-const MIN_COMBINATION_RATIO = 50;
-const MAX_COMBINATION_RATIO = 130;
+/** Sentinel for the "no module in this slot" choice — Radix Select can't hold "". */
+const NO_SECOND_MODULE = "none";
 
 export function VRFDesignConditions() {
-  const { vrfLayout, setVRFRoomIndoorType, setVRFRoomCapacity, confirmVRFDesign, navigateBack } = useSelectionStore();
+  const {
+    vrfLayout,
+    setVRFRoomIndoorType,
+    setVRFRoomCapacity,
+    setVRFOutdoorCodes,
+    confirmVRFDesign,
+    navigateBack,
+  } = useSelectionStore();
   const unitSystem = useUnitStore((s) => s.unitSystem);
   const isMetric = unitSystem === "metric";
   const [view, setView] = useState<VRFView>("indoor");
   // Outdoor selection state is lifted here so the Continue button can gate on
-  // whether the chosen outdoor unit keeps the combination ratio in range.
+  // whether the chosen module(s) keep the combination ratio in range.
   const [selectionMode, setSelectionMode] = useState<"auto" | "manual">("auto");
-  const [manualKbtuh, setManualKbtuh] = useState<number | null>(null);
+  // Manual overrides, as nameplate codes. null = follow the auto sizing.
+  const [manualCodes, setManualCodes] = useState<string[] | null>(null);
 
   if (!vrfLayout) {
     return (
@@ -122,14 +139,19 @@ export function VRFDesignConditions() {
   const configuredCount = allRooms.filter((r) => !!r.indoorType && !!r.capacity).length;
   const totalCapacityKbtuh = allRooms.reduce((sum, r) => sum + (r.capacity ?? 0), 0);
   const totalCapacityTons = totalCapacityKbtuh / 12;
-  const recommendedOutdoorKbtuh = pickVRFOutdoorUnit(totalCapacityKbtuh).capacityKbtuh;
-  const effectiveOutdoorKbtuh =
-    selectionMode === "auto" ? recommendedOutdoorKbtuh : manualKbtuh ?? recommendedOutdoorKbtuh;
-  const effectiveCombinationRatio =
-    effectiveOutdoorKbtuh > 0 ? (totalCapacityKbtuh / effectiveOutdoorKbtuh) * 100 : 0;
-  const outdoorRatioValid =
-    effectiveCombinationRatio >= MIN_COMBINATION_RATIO &&
-    effectiveCombinationRatio <= MAX_COMBINATION_RATIO;
+  // Auto sizing returns one module, or a manifolded bank of up to four once the
+  // load outgrows a single unit. Manual mode starts from whatever was chosen last
+  // (persisted on the layout), else from the auto pick.
+  const autoUnits = pickVRFOutdoorCombination(totalCapacityKbtuh);
+  const storedUnits = vrfOutdoorUnitsFromCodes(vrfLayout.outdoorCodes ?? []);
+  const manualUnits = manualCodes
+    ? vrfOutdoorUnitsFromCodes(manualCodes)
+    : storedUnits.length > 0
+    ? storedUnits
+    : autoUnits;
+  const effectiveUnits = selectionMode === "auto" ? autoUnits : manualUnits;
+  const effectiveCombinationRatio = vrfCombinationRatio(totalCapacityKbtuh, effectiveUnits);
+  const outdoorRatioValid = isVRFCombinationRatioValid(effectiveCombinationRatio);
 
   return (
     <div className="w-full">
@@ -201,12 +223,12 @@ export function VRFDesignConditions() {
         <OutdoorPanel
           totalCapacityKbtuh={totalCapacityKbtuh}
           totalCapacityTons={totalCapacityTons}
-          effectiveOutdoorKbtuh={effectiveOutdoorKbtuh}
+          effectiveUnits={effectiveUnits}
           effectiveCombinationRatio={effectiveCombinationRatio}
           outdoorRatioValid={outdoorRatioValid}
           selectionMode={selectionMode}
           setSelectionMode={setSelectionMode}
-          setManualKbtuh={setManualKbtuh}
+          setManualCodes={setManualCodes}
           indoorCount={allRooms.length}
           isMetric={isMetric}
         />
@@ -313,14 +335,6 @@ export function VRFDesignConditions() {
                                 : `${(s.totalBtuh / 1000).toFixed(0)}k Btu/h`
                               : "—",
                           },
-                          {
-                            label: "Sensible Cap.",
-                            value: s
-                              ? isMetric
-                                ? `${round(btuhToKw(s.sensibleBtuh), 1)} kW`
-                                : `${(s.sensibleBtuh / 1000).toFixed(0)}k Btu/h`
-                              : "—",
-                          },
                           { label: "Power", value: s ? `${s.powerKW} kW` : "—" },
                           {
                             label: "Airflow",
@@ -340,7 +354,7 @@ export function VRFDesignConditions() {
                               <p className="text-xs text-[#8894AB]">{selectedType.description}</p>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
                               <div className="rounded-lg border-2 border-[#0057B8]/30 bg-white p-3 min-w-0">
                                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[#0057B8] truncate">
                                   Capacity <span className="text-destructive">*</span>
@@ -407,6 +421,9 @@ export function VRFDesignConditions() {
             if (view === "indoor") {
               setView("outdoor");
             } else {
+              // Persist the modules first — confirmVRFDesign reads them back off
+              // the layout to synthesize the outdoor model(s).
+              setVRFOutdoorCodes(effectiveUnits.map((u) => u.code));
               confirmVRFDesign();
             }
           }}
@@ -428,37 +445,53 @@ export function VRFDesignConditions() {
 function OutdoorPanel({
   totalCapacityKbtuh,
   totalCapacityTons,
-  effectiveOutdoorKbtuh,
+  effectiveUnits,
   effectiveCombinationRatio,
   outdoorRatioValid,
   selectionMode,
   setSelectionMode,
-  setManualKbtuh,
+  setManualCodes,
   indoorCount,
   isMetric,
 }: {
   totalCapacityKbtuh: number;
   totalCapacityTons: number;
-  effectiveOutdoorKbtuh: number;
+  effectiveUnits: VRFOutdoorUnit[];
   effectiveCombinationRatio: number;
   outdoorRatioValid: boolean;
   selectionMode: "auto" | "manual";
   setSelectionMode: (m: "auto" | "manual") => void;
-  setManualKbtuh: (k: number) => void;
+  setManualCodes: (codes: string[]) => void;
   indoorCount: number;
   isMetric: boolean;
 }) {
-  const effectiveUnit =
-    VRF_OUTDOOR_UNITS.find((u) => u.capacityKbtuh === effectiveOutdoorKbtuh) ??
-    pickVRFOutdoorUnit(totalCapacityKbtuh);
-  const outdoorModel = effectiveUnit.modelNumber;
+  const isCombined = effectiveUnits.length > 1;
+  const outdoorModel = effectiveUnits.map((u) => u.modelNumber).join(" + ");
+  const combinedKbtuh = vrfCombinedCapacityKbtuh(effectiveUnits);
+  const moduleLoads = vrfModuleLoadSplitKbtuh(totalCapacityKbtuh, effectiveUnits);
   const ratioOutOfRange = !outdoorRatioValid;
-  const totalCapacityDisplay = isMetric
-    ? `${round(btuhToKw(totalCapacityKbtuh * 1000), 1)} kW`
-    : `${totalCapacityKbtuh.toFixed(0)} kBTU/h`;
-  const effectiveCapacityDisplay = isMetric
-    ? `${round(btuhToKw(effectiveOutdoorKbtuh * 1000), 1)} kW`
-    : `${effectiveOutdoorKbtuh.toFixed(0)} kBTU/h`;
+  const fmtCapacity = (kbtuh: number) =>
+    isMetric ? `${round(btuhToKw(kbtuh * 1000), 1)} kW` : `${kbtuh.toFixed(0)} kBTU/h`;
+  const totalCapacityDisplay = fmtCapacity(totalCapacityKbtuh);
+  const effectiveCapacityDisplay = fmtCapacity(combinedKbtuh);
+  const setModule = (index: number, code: string | null) => {
+    const next = effectiveUnits.map((u) => u.code);
+    if (code === null) next.splice(index, 1);
+    else next[index] = code;
+    // Clearing a module closes the gap, promoting the ones after it up a slot.
+    setManualCodes(next.filter(Boolean));
+  };
+  // Manual mode always offers one empty slot past the current bank so another
+  // module can be added by hand, up to the manifold limit.
+  const slots = Array.from(
+    {
+      length:
+        selectionMode === "auto"
+          ? effectiveUnits.length
+          : Math.min(MAX_VRF_OUTDOOR_MODULES, effectiveUnits.length + 1),
+    },
+    (_, i) => i,
+  );
   const totalEer = Math.max(8, 11.8 - Math.abs(effectiveCombinationRatio - 100) * 0.02);
   const totalCop = totalEer / 3.412;
   const eerDisplayValue = isMetric ? totalCop.toFixed(2) : totalEer.toFixed(1);
@@ -499,11 +532,14 @@ function OutdoorPanel({
             <Sun className="w-4 h-4" strokeWidth={2} />
           </span>
           <div>
-            <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#B45309]">Outdoor Condensing Unit</p>
+            <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-[#B45309]">
+              {isCombined ? "Outdoor Condensing Units — Combined" : "Outdoor Condensing Unit"}
+            </p>
             <h3 className="text-sm font-semibold text-[#0D1626]">
               {selectionMode === "auto"
                 ? `Auto-sized from ${indoorCount} indoor unit${indoorCount === 1 ? "" : "s"}`
                 : `Manually selected · ${indoorCount} indoor unit${indoorCount === 1 ? "" : "s"} connected`}
+              {isCombined && ` · ${effectiveUnits.length} modules manifolded into one system`}
             </h3>
           </div>
         </div>
@@ -519,8 +555,11 @@ function OutdoorPanel({
               <p className="text-[10px] font-semibold uppercase tracking-wide text-[#B45309]">
                 {selectionMode === "auto" ? "Recommended ODU" : "Selected ODU"}
               </p>
-              <p className="text-[14px] font-bold text-[#0D1626] mt-1">{outdoorModel}</p>
-              <p className="text-[11px] text-[#B45309] mt-0.5">{effectiveCapacityDisplay}</p>
+              <p className="text-[14px] font-bold text-[#0D1626] mt-1 leading-tight">{outdoorModel}</p>
+              <p className="text-[11px] text-[#B45309] mt-0.5">
+                {effectiveCapacityDisplay}
+                {isCombined && " combined"}
+              </p>
             </div>
             <div
               className={`rounded-lg border p-3 ${
@@ -567,62 +606,95 @@ function OutdoorPanel({
           </div>
 
           <div className="pt-2 border-t border-[#F0F4FB]">
-            <div className="max-w-md">
-              <Label className="text-xs font-semibold text-[#0D1626]">Outdoor Unit Model</Label>
-              <Select
-                value={String(effectiveOutdoorKbtuh)}
-                onValueChange={(v) => setManualKbtuh(parseInt(v, 10))}
-                disabled={selectionMode === "auto"}
-              >
-                <SelectTrigger
-                  className={`mt-1.5 bg-white disabled:opacity-70 disabled:cursor-not-allowed ${
-                    ratioOutOfRange && selectionMode === "manual"
-                      ? "border-red-300 ring-1 ring-red-200"
-                      : "border-[#B8D4F0]"
-                  }`}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VRF_OUTDOOR_UNITS.map((u) => {
-                    const ratio = (totalCapacityKbtuh / u.capacityKbtuh) * 100;
-                    const viable = ratio >= MIN_COMBINATION_RATIO && ratio <= MAX_COMBINATION_RATIO;
-                    return (
-                      <SelectItem key={u.code} value={String(u.capacityKbtuh)}>
-                        <span className="flex items-center gap-2">
-                          <span>
-                            {u.modelNumber} · {isMetric
-                              ? `${round(btuhToKw(u.capacityKbtuh * 1000), 1)} kW`
-                              : `${u.capacityKbtuh} kBTU/h`}
-                          </span>
-                          {viable && (
-                            <Check
-                              className="w-3.5 h-3.5 text-emerald-500 shrink-0"
-                              strokeWidth={3}
-                            />
-                          )}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <p
-                className={`text-[11px] mt-2 leading-snug ${
-                  ratioOutOfRange && selectionMode === "manual"
-                    ? "text-red-600 font-medium"
-                    : "text-[#8894AB]"
-                }`}
-              >
-                {selectionMode === "auto"
-                  ? "Auto-sized to the smallest outdoor unit that covers the total indoor capacity. Switch to Manual to override."
-                  : ratioOutOfRange
-                  ? `This size puts the combination ratio at ${effectiveCombinationRatio.toFixed(
-                      0,
-                    )}%, outside the allowed ${MIN_COMBINATION_RATIO}–${MAX_COMBINATION_RATIO}% range. Pick a size marked with a green tick to continue.`
-                  : `All outdoor sizes are listed. A green tick marks sizes that keep the combination ratio between ${MIN_COMBINATION_RATIO}% and ${MAX_COMBINATION_RATIO}%.`}
-              </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl">
+              {slots.map((slot) => {
+                const unit = effectiveUnits[slot];
+                // Every slot past the first is optional — a bank of up to four
+                // modules can be built by hand at any load.
+                const isSecond = slot > 0;
+                return (
+                  <div key={slot}>
+                    <Label className="text-xs font-semibold text-[#0D1626]">
+                      Outdoor Unit {slot + 1}
+                      {isSecond && selectionMode !== "auto" && (
+                        <span className="text-[#8894AB] font-normal ml-1">(optional)</span>
+                      )}
+                    </Label>
+                    <Select
+                      value={unit ? unit.code : isSecond ? NO_SECOND_MODULE : undefined}
+                      onValueChange={(v) =>
+                        setModule(slot, v === NO_SECOND_MODULE ? null : v)
+                      }
+                      disabled={selectionMode === "auto"}
+                    >
+                      <SelectTrigger
+                        className={`mt-1.5 bg-white disabled:opacity-70 disabled:cursor-not-allowed ${
+                          ratioOutOfRange && selectionMode === "manual"
+                            ? "border-red-300 ring-1 ring-red-200"
+                            : "border-[#B8D4F0]"
+                        }`}
+                      >
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {isSecond && (
+                          <SelectItem value={NO_SECOND_MODULE}>
+                            <span className="text-[#8894AB]">None — remove this module</span>
+                          </SelectItem>
+                        )}
+                        {VRF_OUTDOOR_UNITS.map((u) => {
+                          // A tick marks the sizes that land the *whole system*
+                          // in range, given whatever the other slot holds.
+                          const other = effectiveUnits.filter((_, i) => i !== slot);
+                          const ratio = vrfCombinationRatio(totalCapacityKbtuh, [...other, u]);
+                          return (
+                            <SelectItem key={u.code} value={u.code}>
+                              <span className="flex items-center gap-2">
+                                <span>
+                                  {u.modelNumber} · {fmtCapacity(u.capacityKbtuh)}
+                                </span>
+                                {isVRFCombinationRatioValid(ratio) && (
+                                  <Check
+                                    className="w-3.5 h-3.5 text-emerald-500 shrink-0"
+                                    strokeWidth={3}
+                                  />
+                                )}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] mt-1.5 text-[#8894AB]">
+                      {unit
+                        ? `Carries ${fmtCapacity(moduleLoads[slot])} of the indoor load`
+                        : "Add another module to raise the system capacity"}
+                    </p>
+                  </div>
+                );
+              })}
             </div>
+            <p
+              className={`text-[11px] mt-3 leading-snug max-w-2xl ${
+                ratioOutOfRange && selectionMode === "manual"
+                  ? "text-red-600 font-medium"
+                  : "text-[#8894AB]"
+              }`}
+            >
+              {selectionMode === "auto"
+                ? isCombined
+                  ? `The load is beyond what fewer modules can carry, so ${effectiveUnits.length} modules are manifolded into one system and the load is shared in proportion to their capacity. Switch to Manual to override.`
+                  : `Auto-sized to the smallest outdoor unit that covers the total indoor capacity. Switch to Manual to manifold up to ${MAX_VRF_OUTDOOR_MODULES} units or pick another size.`
+                : ratioOutOfRange
+                ? `This selection puts the combination ratio at ${effectiveCombinationRatio.toFixed(
+                    0,
+                  )}%, outside the allowed ${MIN_COMBINATION_RATIO}–${MAX_COMBINATION_RATIO}% range. ${
+                    effectiveCombinationRatio > MAX_COMBINATION_RATIO
+                      ? "Add or enlarge a module to bring it down."
+                      : "Drop to a smaller size to bring it up."
+                  }`
+                : `A green tick marks sizes that keep the whole system's combination ratio between ${MIN_COMBINATION_RATIO}% and ${MAX_COMBINATION_RATIO}%.`}
+            </p>
           </div>
         </div>
       </div>

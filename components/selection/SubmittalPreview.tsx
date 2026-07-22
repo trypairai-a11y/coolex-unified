@@ -15,7 +15,12 @@ import { useToast } from "@/components/ui/toast";
 import { useUnitStore } from "@/lib/stores/unit-store";
 import { btuhToKw, round } from "@/lib/utils/unit-conversions";
 import { buildOracleBOM } from "@/lib/nomenclature";
-import { pickVRFOutdoorUnit, synthesizeVRFOutdoorModel } from "@/lib/utils/vrf";
+import {
+  combineVRFOutdoorModels,
+  pickVRFOutdoorCombination,
+  synthesizeVRFOutdoorModels,
+  vrfOutdoorUnitsFromCodes,
+} from "@/lib/utils/vrf";
 import type { SubmittalOption } from "@/types/submittal";
 import type { Project, Unit, Revision, SubmittalSnapshot } from "@/types/project";
 import type { DesignConditionsFormData } from "@/types/selection";
@@ -57,6 +62,9 @@ export function SubmittalPreview() {
   } = useSelectionStore();
 
   const isVRF = selectedGroup?.id === 'vrf';
+  // Mini-split Wall Mounted preset flow jumps straight here from the series step,
+  // so "back" returns to Series rather than the (skipped) Options step.
+  const isMiniSplitPreset = selectedGroup?.id === 'mini-split' && selectedSeries?.id === 'ms-wall';
 
   // VRF state (ODU model + design conditions) is auto-derived from vrfLayout.
   // navigateBack to ≤5 wipes selectedModels, so on a forward jump straight to
@@ -70,8 +78,12 @@ export function SubmittalPreview() {
     if (totalKbtuh <= 0) return;
 
     if (selectedModels.length === 0) {
-      const oduUnit = pickVRFOutdoorUnit(totalKbtuh);
-      useSelectionStore.setState({ selectedModels: [synthesizeVRFOutdoorModel(oduUnit)] });
+      const units = vrfOutdoorUnitsFromCodes(vrfLayout.outdoorCodes ?? []);
+      useSelectionStore.setState({
+        selectedModels: synthesizeVRFOutdoorModels(
+          units.length > 0 ? units : pickVRFOutdoorCombination(totalKbtuh),
+        ),
+      });
     }
     if (!designConditions) {
       const dc: DesignConditionsFormData = {
@@ -89,7 +101,12 @@ export function SubmittalPreview() {
   const { addProject, addUnit, addRevision, updateUnitSubmittal } = useProjectsStore();
   const { user } = useAuthStore();
   const unitSystem = useUnitStore((s) => s.unitSystem);
-  const selectedModel = selectedModels[0] ?? null;
+  // A VRF pair is one system on paper: roll the modules up so the submittal
+  // documents the combined capacity rather than just the first module.
+  const selectedModel =
+    isVRF && selectedModels.length > 1
+      ? combineVRFOutdoorModels(selectedModels)
+      : selectedModels[0] ?? null;
   const showPricing = user?.role !== "dealer";
 
   const optionsSeriesId = isVRF ? 'vrf' : selectedSeries?.id ?? null;
@@ -290,8 +307,8 @@ export function SubmittalPreview() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigateBack(6)}>
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Options
+          <Button variant="outline" size="sm" onClick={() => navigateBack(isMiniSplitPreset ? 3 : 6)}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> {isMiniSplitPreset ? 'Back' : 'Back to Options'}
           </Button>
           <div>
             <h2 className="text-xl font-bold">Submittal Preview</h2>

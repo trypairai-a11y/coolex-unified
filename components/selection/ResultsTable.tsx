@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChevronUp, ChevronDown, AlertCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChevronUp, ChevronDown, AlertCircle, DatabaseZap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,22 @@ function ErrorState({ message }: { message: string }) {
     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
       <AlertCircle className="w-10 h-10 text-destructive/60" />
       <p className="text-sm">{message}</p>
+    </div>
+  );
+}
+
+function EmptyState({ seriesName }: { seriesName?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3 text-center">
+      <DatabaseZap className="w-10 h-10 opacity-40" />
+      <p className="text-sm font-medium text-foreground">
+        Performance data coming soon
+      </p>
+      <p className="text-sm max-w-sm">
+        {seriesName ? `The ${seriesName} series` : "This series"} has no published
+        performance data yet, so no models can be selected. Please check back once
+        the catalogue data has been added.
+      </p>
     </div>
   );
 }
@@ -226,6 +242,8 @@ export function ResultsTable() {
         </div>
       ) : isError ? (
         <ErrorState message="Failed to load model results" />
+      ) : sorted.length === 0 ? (
+        <EmptyState seriesName={selectedSeries?.name} />
       ) : (
         <>
           {/* Mobile card view */}

@@ -15,6 +15,11 @@ import { FAPU_MODELS } from './fapu-models';
 import { getFAPUPerformance, getFAPUCfmRows } from './fapu-performance';
 import { SPU_MODELS } from './spu-models';
 import { getSPUPerformance, getSPUCfmRows } from './spu-performance';
+import {
+  getSPUFanPerformance,
+  spuMotorHP,
+  SPU_FAN_ESP_INWG,
+} from './spu-fan-performance';
 import { PNGF_MODELS } from './pngf-models';
 import { getPNGFPerformance, getPNGFCfmRows } from './pngf-performance';
 import { PNGV_MODELS, buildPNGVModels } from './pngv-models';
@@ -27,7 +32,7 @@ import { VRF_DUCTED_HIGH_STATIC_MODELS } from './vrf-ducted-high-static-models';
 import { DSSF_CDEF_MODELS } from './dssf-cdef-models';
 import { getDSSFPerformance, getDSSFCfmRows } from './dssf-cdef-performance';
 import { PHE_MODELS, pheCapacityFactor } from './phe-models';
-import { fToC, gpmToLps } from '@/lib/utils/unit-conversions';
+import { fToC, gpmToLps, hpToKw } from '@/lib/utils/unit-conversions';
 import { btuhToKW, isoMinExternalStaticInWG, isDuctedISO } from './iso13253-static-pressure';
 
 const FTWG_TO_KPA = 2.98898;
@@ -545,6 +550,12 @@ function applySPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
   // Catalogue rating point: 80/67 °F entering air, 95 °F condenser ambient.
   const edbF = cond?.enteringDBF ?? 80;
   const ambientF = cond?.ambientTempF ?? 95;
+  // SPU supply-fan tables top out at 2.0 in. WG; clamp the design static there.
+  const espFloor = SPU_FAN_ESP_INWG[0];
+  const espCeil = SPU_FAN_ESP_INWG[SPU_FAN_ESP_INWG.length - 1];
+  const espInWG = cond?.espInWG != null
+    ? Math.min(Math.max(cond.espInWG, 0), espCeil)
+    : null;
   return models.map(m => {
     const rows = getSPUCfmRows(m.modelNumber);
     const operatingCFM = selectOperatingCFM(
@@ -555,7 +566,31 @@ function applySPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
     if (!perf) return m;
     const totalCapacityBtuh = Math.round(perf.totalCapacityBtuh);
     const sensibleCapacityBtuh = Math.round(perf.sensibleCapacityBtuh);
-    const powerKW = Math.round(perf.kwInput * 10) / 10;
+
+    // Supply-fan power draw from the fan table. The cooling matrix's kwInput
+    // bundles the fan at the table's minimum static (0.40 in. WG); for a design
+    // ESP above that we add the INCREMENTAL absorbed power the blower now draws
+    // (BHP → kW), so total consumption tracks the customer's duct static without
+    // double-counting the baseline fan. At/below 0.40 in. WG nothing is added.
+    let fanRpm: number | undefined;
+    let fanBhp: number | undefined;
+    let fanMotorHP: number | undefined;
+    let designEspInWG: number | undefined;
+    let addedFanKW = 0;
+    if (espInWG != null) {
+      const designEsp = Math.max(espInWG, espFloor);
+      const fanDesign = getSPUFanPerformance(m.modelNumber, operatingCFM, designEsp);
+      const fanBase = getSPUFanPerformance(m.modelNumber, operatingCFM, espFloor);
+      if (fanDesign) {
+        fanRpm = Math.round(fanDesign.rpm);
+        fanBhp = Math.round(fanDesign.bhp * 100) / 100;
+        fanMotorHP = Math.round(spuMotorHP(fanDesign.bhp) * 100) / 100;
+        designEspInWG = espInWG;
+        if (fanBase) addedFanKW = Math.max(0, hpToKw(fanDesign.bhp - fanBase.bhp));
+      }
+    }
+
+    const powerKW = Math.round((perf.kwInput + addedFanKW) * 10) / 10;
     const eer = Math.round((totalCapacityBtuh / (powerKW * 1000)) * 100) / 100;
     return {
       ...m,
@@ -565,6 +600,10 @@ function applySPUDesignPoint(models: Model[], cond?: EvaporatorConditions): Mode
       powerKW,
       eer,
       nominalTons: Math.round((totalCapacityBtuh / 12000) * 10) / 10,
+      fanRpm,
+      fanBhp,
+      fanMotorHP,
+      designEspInWG,
     };
   });
 }

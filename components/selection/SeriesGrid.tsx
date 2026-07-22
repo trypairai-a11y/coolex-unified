@@ -1,19 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Snowflake, Gauge, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSelectionStore } from "@/lib/stores/selection-store";
+import { useSelectionStore, type MiniSplitSpeed } from "@/lib/stores/selection-store";
 import { SAUDI_EXCLUDED_SERIES_IDS, isKuwaitOnlySeries } from "@/lib/mock-data/saudi-restrictions";
 import { EquipmentIllustration } from "./EquipmentIllustration";
 import type { ProductSeries } from "@/types/product";
 
 export function SeriesGrid() {
-  const { selectedGroup, setSelectedSeries, navigateBack, projectInfo } = useSelectionStore();
+  const { selectedGroup, setSelectedSeries, selectMiniSplitSubgroup, navigateBack, projectInfo } = useSelectionStore();
+
+  // Series flagged with `hasSpeedVariants` (mini-split Wall Mounted) don't select
+  // directly — clicking drills into fixed-speed / inverter sub-groups.
+  const [drillSeries, setDrillSeries] = useState<ProductSeries | null>(null);
+
+  const handleSelect = (s: ProductSeries) => {
+    if (s.hasSpeedVariants) {
+      setDrillSeries(s);
+    } else {
+      setSelectedSeries(s);
+    }
+  };
 
   const { data: rawSeries, isLoading } = useQuery<ProductSeries[]>({
     queryKey: ["product-series", selectedGroup?.id],
@@ -110,6 +122,17 @@ export function SeriesGrid() {
 
   if (!selectedGroup) return null;
 
+  // Sub-group drill-down: pick fixed-speed / inverter for a speed-variant series.
+  if (drillSeries) {
+    return (
+      <SpeedSubGroupScreen
+        series={drillSeries}
+        onBack={() => setDrillSeries(null)}
+        onSelect={(speed) => selectMiniSplitSubgroup(drillSeries, speed)}
+      />
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
@@ -132,7 +155,7 @@ export function SeriesGrid() {
         // Single group — no section headers needed
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {groupedSeries[0].items!.map((s, i) => (
-            <SeriesCard key={s.id} series={s} index={i} onSelect={setSelectedSeries} />
+            <SeriesCard key={s.id} series={s} index={i} onSelect={handleSelect} />
           ))}
         </div>
       ) : (
@@ -166,7 +189,7 @@ export function SeriesGrid() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {sub.items.map((s, i) => (
-                                <SeriesCard key={s.id} series={s} index={startIdx + i} onSelect={setSelectedSeries} />
+                                <SeriesCard key={s.id} series={s} index={startIdx + i} onSelect={handleSelect} />
                               ))}
                             </div>
                           </div>
@@ -181,7 +204,7 @@ export function SeriesGrid() {
                       return (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {group.items!.map((s, i) => (
-                            <SeriesCard key={s.id} series={s} index={startIdx + i} onSelect={setSelectedSeries} />
+                            <SeriesCard key={s.id} series={s} index={startIdx + i} onSelect={handleSelect} />
                           ))}
                         </div>
                       );
@@ -251,5 +274,106 @@ function SeriesCard({ series: s, index, onSelect }: { series: ProductSeries; ind
       )}
 
     </motion.button>
+  );
+}
+
+const SPEED_SUBGROUPS: {
+  speed: MiniSplitSpeed;
+  label: string;
+  icon: typeof Gauge;
+  iconColor: string;
+  description: string;
+}[] = [
+  {
+    speed: "fixed",
+    label: "Fixed Speed",
+    icon: Gauge,
+    iconColor: "text-gray-500",
+    description: "Standard on/off compressor. Reliable, cost-effective comfort cooling.",
+  },
+  {
+    speed: "inverter",
+    label: "Inverter",
+    icon: Zap,
+    iconColor: "text-emerald-500",
+    description: "Variable-speed compressor for higher efficiency, precise temperature control, and quieter operation.",
+  },
+];
+
+function SpeedSubGroupScreen({
+  series,
+  onBack,
+  onSelect,
+}: {
+  series: ProductSeries;
+  onBack: () => void;
+  onSelect: (speed: MiniSplitSpeed) => void;
+}) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key="speed-subgroups"
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.2 }}
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="outline" size="sm" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold text-foreground tracking-tight">{series.name}</h2>
+            <p className="text-muted-foreground text-sm">Select the compressor type</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
+          {SPEED_SUBGROUPS.map((sub, i) => {
+            const Icon = sub.icon;
+            return (
+              <motion.button
+                key={sub.speed}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.08 }}
+                whileTap={{ scale: 0.985 }}
+                onClick={() => onSelect(sub.speed)}
+                className="rounded-xl border border-gray-100 bg-white text-left p-5 shadow-sm hover:shadow-md hover:border-gray-200 transition-all h-full flex flex-col"
+              >
+                {/* Equipment illustration — same image as the parent series */}
+                <div className="mb-3">
+                  {series.imageUrl ? (
+                    <img
+                      src={series.imageUrl}
+                      alt={series.name}
+                      className="w-full h-24 object-contain"
+                      style={series.imageScale ? { transform: `scale(${series.imageScale})` } : undefined}
+                    />
+                  ) : (
+                    <EquipmentIllustration groupId={series.groupId} />
+                  )}
+                </div>
+
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <Icon className={`w-4 h-4 ${sub.iconColor}`} />
+                  <h3 className="text-base font-semibold text-gray-800">{sub.label}</h3>
+                  {series.refrigerants.map((r) => (
+                    <Badge key={r} variant="outline" className="text-xs flex items-center gap-1 border-gray-200 text-gray-500">
+                      <Snowflake className="w-3 h-3 text-blue-400" /> {r}
+                    </Badge>
+                  ))}
+                </div>
+
+                {/* Ton range */}
+                <div className="text-xl font-semibold text-[#0057B8]">{series.tonRangeLabel}</div>
+                <p className="mt-2 text-sm text-gray-600">{sub.description}</p>
+              </motion.button>
+            );
+          })}
+        </div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

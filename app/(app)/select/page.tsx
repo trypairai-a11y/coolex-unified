@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSelectionStore } from "@/lib/stores/selection-store";
 import { SelectionStepper } from "@/components/selection/SelectionStepper";
 import { ProductGroupGrid } from "@/components/selection/ProductGroupGrid";
@@ -27,6 +28,11 @@ const STEP_COMPONENTS = [
 export default function SelectPage() {
   const { step, selectedGroup } = useSelectionStore();
   const isVRF = selectedGroup?.id === 'vrf';
+
+  useEffect(() => {
+    document.getElementById("app-scroll")?.scrollTo({ top: 0 });
+  }, [step]);
+
   const StepComponent =
     isVRF && step === 3
       ? VRFLayoutBuilder

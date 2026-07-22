@@ -1,5 +1,5 @@
 export type RefrigerantType = 'R-410A' | 'R-32' | 'R-134a' | 'R-22' | 'R-407C' | 'R-404A';
-export type ProductCategory = 'package' | 'split' | 'vrf' | 'chiller' | 'ccu' | 'precision' | 'fan-coil' | 'crac';
+export type ProductCategory = 'package' | 'split' | 'mini-split' | 'vrf' | 'chiller' | 'ccu' | 'precision' | 'fan-coil' | 'crac' | 'ahu' | 'water';
 
 export interface ProductGroup {
   id: string;
@@ -33,6 +33,12 @@ export interface ProductSeries {
   hasDualRefrigerant: boolean;
   cfmRangeLabel?: string;
   speedType?: 'fixed' | 'variable';
+  /**
+   * When true, this series is not selected directly — clicking its card drills
+   * into fixed-speed / inverter sub-groups (a preset, static submittal flow).
+   * Used by the mini-split Wall Mounted card.
+   */
+  hasSpeedVariants?: boolean;
   imageUrl?: string;
   imageScale?: number;
   subtitle?: string;
@@ -103,4 +109,12 @@ export interface Model {
   // espDeratePercent is how much capacity was reduced (0 when design ESP ≤ basis).
   espRatingBasisInWG?: number;
   espDeratePercent?: number;
+  // SPU supply-fan operating point at the design airflow + external static,
+  // read from the fan performance table (spu-fan-performance.ts). fanBhp is the
+  // absorbed power (added to powerKW), fanMotorHP the recommended motor size
+  // (BHP × 1.2), fanRpm the required fan speed, at designEspInWG in. WG.
+  fanRpm?: number;
+  fanBhp?: number;
+  fanMotorHP?: number;
+  designEspInWG?: number;
 }

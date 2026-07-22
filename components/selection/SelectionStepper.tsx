@@ -28,6 +28,10 @@ export function SelectionStepper() {
   const { step, navigateBack, setStep, selectedSeries, selectedGroup } = useSelectionStore();
   const [pendingStep, setPendingStep] = useState<number | null>(null);
 
+  // Mini-split Wall Mounted is a preset flow: Group → Series → Submittal, with
+  // no design/results/options steps. Collapse the stepper to match.
+  const isMiniSplitPreset = selectedGroup?.id === 'mini-split' && selectedSeries?.id === 'ms-wall';
+
   const stepsForGroup = selectedGroup?.id === 'vrf'
     ? STEPS.map(s =>
         s.id === 3
@@ -36,6 +40,8 @@ export function SelectionStepper() {
           ? { ...s, label: 'Indoor/Outdoor' }
           : s
       )
+    : isMiniSplitPreset
+    ? STEPS.filter(s => [1, 2, 3, 7].includes(s.id))
     : STEPS;
 
   const handleStepClick = (targetStep: number) => {

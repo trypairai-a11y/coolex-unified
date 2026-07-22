@@ -17,7 +17,7 @@ import { useSelectionStore } from "@/lib/stores/selection-store";
 import type { SelectionBasis } from "@/types/selection";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnitStore } from "@/lib/stores/unit-store";
-import { round, toDisplay, toImperial, unitLabel } from "@/lib/utils/unit-conversions";
+import { round, toDisplay, toImperial, unitLabel, paToInWG } from "@/lib/utils/unit-conversions";
 import type { UnitSystem } from "@/lib/stores/unit-store";
 import { UnitToggle } from "@/components/selection/UnitToggle";
 import { isDuctedISO, btuhToKW, isoMinExternalStaticInWG } from "@/lib/mock-data/iso13253-static-pressure";
@@ -31,22 +31,29 @@ const emptyToUndefined = (v: unknown) =>
 const requiredNumber = (message: string) =>
   z.preprocess(emptyToUndefined, z.coerce.number({ error: message }));
 
-function buildStandardSchema(isFanCoil: boolean, espMaxInWG?: number, unitSystem: UnitSystem = "imperial") {
-  // Some series (e.g. the 2–5 Ton ducted splits) cap the allowable external
-  // static pressure. The form value is in display units, so convert it back to
-  // imperial (in. WG) before comparing against the limit.
-  const applyEspMax = <T extends z.ZodTypeAny>(schema: T) => {
-    if (espMaxInWG == null) return schema;
+function buildStandardSchema(isFanCoil: boolean, espMaxInWG?: number, unitSystem: UnitSystem = "imperial", espMinInWG?: number) {
+  // Some series cap the allowable external static pressure (e.g. the 2–5 Ton
+  // ducted splits), and some also enforce a floor (e.g. RPUF, whose supply-fan
+  // tables only run 0.1–0.6 in. WG). The form value is in display units, so
+  // convert it back to imperial (in. WG) before comparing against the limits.
+  const applyEspLimits = <T extends z.ZodTypeAny>(schema: T) => {
+    if (espMaxInWG == null && espMinInWG == null) return schema;
     return schema.superRefine((data: unknown, ctx: z.RefinementCtx) => {
       const raw = (data as { espInWG?: unknown } | null | undefined)?.espInWG;
       if (raw == null || raw === "" || Number.isNaN(Number(raw))) return;
       const espImperial = toImperial(Number(raw), "espInWG", unitSystem);
-      if (espImperial > espMaxInWG + 1e-6) {
-        const maxDisplay = toDisplay(espMaxInWG, "espInWG", unitSystem);
-        const label = unitSystem === "imperial" ? "in. WG" : "Pa";
+      const label = unitSystem === "imperial" ? "in. WG" : "Pa";
+      if (espMaxInWG != null && espImperial > espMaxInWG + 1e-6) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Maximum external static pressure is ${maxDisplay} ${label}`,
+          message: `Maximum external static pressure is ${toDisplay(espMaxInWG, "espInWG", unitSystem)} ${label}`,
+          path: ["espInWG"],
+        });
+      }
+      if (espMinInWG != null && espImperial < espMinInWG - 1e-6) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Minimum external static pressure is ${toDisplay(espMinInWG, "espInWG", unitSystem)} ${label}`,
           path: ["espInWG"],
         });
       }
@@ -61,11 +68,22 @@ function buildStandardSchema(isFanCoil: boolean, espMaxInWG?: number, unitSystem
     enteringWBF: z.coerce.number(),
     espInWG: requiredNumber("External static pressure is required").pipe(z.number().min(0)),
     altitudeFt: z.coerce.number().min(0),
-    ambientTempF: z.coerce.number().optional(),
+    // Outdoor ambient dry-bulb constrained to 25–55 °C (77–131 °F). The form
+    // value is in display units, so the bounds are unit-aware.
+    ambientTempF: z.coerce
+      .number()
+      .min(toDisplay(77, "ambientTempF", unitSystem), `Ambient temperature cannot be below ${toDisplay(77, "ambientTempF", unitSystem)} ${unitSystem === "imperial" ? "°F" : "°C"}`)
+      .max(toDisplay(131, "ambientTempF", unitSystem), `Ambient temperature cannot exceed ${toDisplay(131, "ambientTempF", unitSystem)} ${unitSystem === "imperial" ? "°F" : "°C"}`)
+      .optional(),
     refrigerant: z.string().optional(),
     hasFreshAir: z.boolean().optional(),
-    freshAirPercent: z.coerce.number().min(0).max(100).optional(),
-    freshAirDBF: z.coerce.number().optional(),
+    freshAirPercent: z.coerce.number().min(0).max(40, "Fresh air cannot exceed 40%").optional(),
+    // Outdoor dry-bulb capped at 55 °C (131 °F). The form value is in display
+    // units, so the ceiling is unit-aware: 131 °F imperial, 55 °C metric.
+    freshAirDBF: z.coerce
+      .number()
+      .max(toDisplay(131, "freshAirDBF", unitSystem), `Dry bulb cannot exceed ${toDisplay(131, "freshAirDBF", unitSystem)} ${unitSystem === "imperial" ? "°F" : "°C"}`)
+      .optional(),
     freshAirWBF: z.coerce.number().optional(),
     finalEnteringDBF: z.coerce.number().optional(),
     finalEnteringWBF: z.coerce.number().optional(),
@@ -77,12 +95,12 @@ function buildStandardSchema(isFanCoil: boolean, espMaxInWG?: number, unitSystem
     saturatedSuctionTempF: z.coerce.number().optional(),
   });
 
-  if (!isFanCoil) return applyEspMax(base);
+  if (!isFanCoil) return applyEspLimits(base);
 
   // Fan coils (NGW / FCH / FCL): cooling capacity, evaporator air temps, and the
   // hydronic inputs are mandatory. Leaving water temp and flow rate are an
   // either/or pair (one auto-calculates the other), so at least one is required.
-  return applyEspMax(base
+  return applyEspLimits(base
     .extend({
       requiredCoolingCapacityBtuh: requiredNumber("Cooling capacity is required").pipe(z.number().min(0).max(100000000)),
       enteringDBF: requiredNumber("Entering dry bulb is required"),
@@ -213,7 +231,14 @@ export function DesignConditionsForm() {
   const is50HzOnly = isCCU || isTHAC || isDHAC || isPHE;
   // 2–5 Ton ducted splits (DSSC/CDEC and DSSF/CDEF): ESP is limited to 0–0.4 in. WG.
   const isLimitedEspSplit = selectedSeries?.id === 'split-cs' || selectedSeries?.id === 'split-ds';
-  const espMaxInWG = isLimitedEspSplit ? 0.4 : undefined;
+  // SPU self-contained packaged units: supply-fan tables top out at 2.0 in. WG.
+  const isSPU = selectedSeries?.id === 'spu';
+  // RPUF rooftop packaged: supply-fan tables run 0.1–0.6 in. WG. Express the
+  // limits as clean Pa values (25 / 150) so the metric field reads 25–150 Pa
+  // rather than the 24.9 / 149.5 raw conversions.
+  const isRPUF = selectedSeries?.id === 'rpuf';
+  const espMaxInWG = isLimitedEspSplit ? 0.4 : isSPU ? 2.0 : isRPUF ? paToInWG(150) : undefined;
+  const espMinInWG = isRPUF ? paToInWG(25) : undefined;
 
   // Chillers and condensing units are always selected by capacity — never expose the airflow basis.
   useEffect(() => {
@@ -254,10 +279,10 @@ export function DesignConditionsForm() {
 
   // Series flags are fixed for the form's lifetime (chosen in step 3), so the
   // schema is computed once and stays stable across re-renders.
-  const schema = useMemo(() => buildStandardSchema(isFanCoil, espMaxInWG, unitSystem), [isFanCoil, espMaxInWG, unitSystem]);
+  const schema = useMemo(() => buildStandardSchema(isFanCoil, espMaxInWG, unitSystem, espMinInWG), [isFanCoil, espMaxInWG, unitSystem, espMinInWG]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { register, handleSubmit, setValue, getValues, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, getValues, watch, trigger, formState: { errors } } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(schema) as any,
     defaultValues: displayDefaults,
   });
@@ -434,13 +459,22 @@ export function DesignConditionsForm() {
       const max = toDisplay(espMaxInWG, 'espInWG', unitSystem);
       return `Total external static pressure for the duct system. Allowable range: 0–${max} ${espUnit}.`;
     }
+    if (isSPU && espMaxInWG != null) {
+      const max = round(toDisplay(espMaxInWG, 'espInWG', unitSystem), unitSystem === 'imperial' ? 1 : 0);
+      return `Total external static pressure for the duct system. Allowable range: 0–${max} ${espUnit}. The supply-fan power draw at this static is added to the unit's total power consumption.`;
+    }
+    if (isRPUF && espMaxInWG != null && espMinInWG != null) {
+      const min = round(toDisplay(espMinInWG, 'espInWG', unitSystem), unitSystem === 'imperial' ? 2 : 0);
+      const max = round(toDisplay(espMaxInWG, 'espInWG', unitSystem), unitSystem === 'imperial' ? 2 : 0);
+      return `External static pressure. Range ${min}–${max} ${espUnit}; higher ESP de-rates capacity.`;
+    }
     if (selectedSeries && isDuctedISO(selectedSeries.id) && selectionBasis === 'capacity') {
       const capNum = Number(wCapacity);
       if (Number.isFinite(capNum) && capNum > 0) {
         const capBtuh = toImperial(capNum, 'requiredCoolingCapacityBtuh', unitSystem);
         const minInWG = isoMinExternalStaticInWG(btuhToKW(capBtuh));
         const minDisplay = round(toDisplay(minInWG, 'espInWG', unitSystem), unitSystem === 'imperial' ? 2 : 0);
-        return `Total external static pressure for the duct system. Performance is rated at the ISO 13253 minimum for this capacity — ${minDisplay} ${espUnit}, the bottom of the allowable range. Higher ESP is allowed but de-rates capacity.`;
+        return `Total external static pressure for the duct system. Performance is rated at the ISO 13253 minimum for this capacity, ${minDisplay} ${espUnit}, the bottom of the allowable range. Higher ESP is allowed but de-rates capacity.`;
       }
     }
     return unitSystem === 'imperial'
@@ -652,11 +686,19 @@ export function DesignConditionsForm() {
             {!isFanCoil && (
               <FieldWithTooltip
                 label={`Ambient Temperature (${u('ambientTempF')})`}
-                tooltip="Outdoor ambient dry-bulb temperature at design conditions. Affects condenser and chiller performance."
+                tooltip={`Outdoor ambient dry-bulb temperature. Allowed range: ${toDisplay(77, "ambientTempF", unitSystem)}–${toDisplay(131, "ambientTempF", unitSystem)} ${u('ambientTempF')}.`}
                 required
                 filled={wAmbient != null && String(wAmbient) !== ""}
               >
-                <Input type="number" step="0.1" {...register("ambientTempF")} />
+                <Input
+                  type="number"
+                  step="0.1"
+                  min={toDisplay(77, "ambientTempF", unitSystem)}
+                  max={toDisplay(131, "ambientTempF", unitSystem)}
+                  {...register("ambientTempF", { onChange: () => { void trigger("ambientTempF"); } })}
+                  className={errors.ambientTempF ? "border-destructive" : ""}
+                />
+                {errors.ambientTempF && <p className="text-xs text-destructive">{errors.ambientTempF.message}</p>}
                 <div className="flex gap-2 pt-1">
                   {[
                     { label: "T1", ambientF: 95, dbF: 80, wbF: 67 },
@@ -728,7 +770,7 @@ export function DesignConditionsForm() {
               {!isFAPU && (
                 <FieldWithTooltip
                   label={`Entering Wet Bulb (${u('enteringWBF')})`}
-                  tooltip="Room wet-bulb temperature at the evaporator inlet. Used to calculate latent load."
+                  tooltip="Room wet-bulb temperature at the evaporator inlet."
                   required
                   filled={wWB != null && String(wWB) !== ""}
                 >
@@ -814,9 +856,14 @@ export function DesignConditionsForm() {
                   <Input
                     type="number"
                     step={unitSystem === 'imperial' ? "0.05" : "1"}
-                    min={0}
+                    min={espMinInWG != null ? toDisplay(espMinInWG, 'espInWG', unitSystem) : 0}
                     max={espMaxInWG != null ? toDisplay(espMaxInWG, 'espInWG', unitSystem) : undefined}
-                    {...register("espInWG")}
+                    {...register("espInWG", {
+                      // Re-validate the ESP field as the user types so an out-of-range
+                      // value (e.g. above the series max) flags immediately instead of
+                      // only on submit.
+                      onChange: () => { void trigger("espInWG"); },
+                    })}
                   />
                 )}
                 {errors.espInWG && <p className="text-xs text-destructive">{errors.espInWG.message}</p>}
@@ -848,19 +895,35 @@ export function DesignConditionsForm() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FieldWithTooltip
                   label="Fresh Air (%)"
-                  tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Typical: 10–30%."
+                  tooltip="Fresh (outdoor) air as a percentage of total supply airflow. Allowed range: 0–40%."
                   required
                   filled
                 >
-                  <Input type="number" step="1" min={0} max={100} placeholder="0" {...register("freshAirPercent")} />
+                  <Input
+                    type="number"
+                    step="1"
+                    min={0}
+                    max={40}
+                    placeholder="0"
+                    {...register("freshAirPercent", { onChange: () => { void trigger("freshAirPercent"); } })}
+                    className={errors.freshAirPercent ? "border-destructive" : ""}
+                  />
+                  {errors.freshAirPercent && <p className="text-xs text-destructive">{errors.freshAirPercent.message}</p>}
                 </FieldWithTooltip>
                 <FieldWithTooltip
                   label={`Dry Bulb (${u('freshAirDBF')})`}
-                  tooltip="Outdoor air dry-bulb temperature entering the mixing box."
+                  tooltip={`Outdoor air dry-bulb temperature entering the mixing box. Maximum: ${toDisplay(131, "freshAirDBF", unitSystem)} ${u('freshAirDBF')}.`}
                   required
                   filled
                 >
-                  <Input type="number" step="0.1" {...register("freshAirDBF")} />
+                  <Input
+                    type="number"
+                    step="0.1"
+                    max={toDisplay(131, "freshAirDBF", unitSystem)}
+                    {...register("freshAirDBF", { onChange: () => { void trigger("freshAirDBF"); } })}
+                    className={errors.freshAirDBF ? "border-destructive" : ""}
+                  />
+                  {errors.freshAirDBF && <p className="text-xs text-destructive">{errors.freshAirDBF.message}</p>}
                 </FieldWithTooltip>
                 <FieldWithTooltip
                   label={`Wet Bulb (${u('freshAirWBF')})`}

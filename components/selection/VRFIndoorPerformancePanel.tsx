@@ -58,7 +58,7 @@ export function VRFIndoorPerformancePanel({
               <th className="text-right font-semibold px-3 py-2 whitespace-nowrap">
                 {isMetric ? "Weight (kg)" : "Weight (lb)"}
               </th>
-              <th className="text-right font-semibold px-3 py-2 whitespace-nowrap">Gas</th>
+              <th className="text-right font-semibold px-3 py-2 whitespace-nowrap">Suction</th>
               <th className="text-right font-semibold px-3 py-2 whitespace-nowrap">Liquid</th>
             </tr>
           </thead>

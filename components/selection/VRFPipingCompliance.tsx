@@ -45,9 +45,9 @@ function formatM(valueM: number, isMetric: boolean): string {
 }
 
 function sizeLabel(size: PipeSize): string {
-  const gas = size.gasMm != null ? `Ø${size.gasMm.toFixed(2).replace(/\.?0+$/, "")}` : "—";
+  const suction = size.gasMm != null ? `Ø${size.gasMm.toFixed(2).replace(/\.?0+$/, "")}` : "—";
   const liq = size.liquidMm != null ? `Ø${size.liquidMm.toFixed(2).replace(/\.?0+$/, "")}` : "—";
-  return `${gas} gas / ${liq} liquid`;
+  return `${suction} suction / ${liq} liquid`;
 }
 
 export function VRFPipingCompliance({

@@ -58,7 +58,11 @@ export const DUCTED_ISO_SERIES: ReadonlySet<string> = new Set<string>([
   // Split ducted DX (CHCF/CHEF matched pairs)
   'split-cs', 'split-ds', 'dstc', 'dstf',
   // Packaged ducted + fresh-air
-  'rpui', 'rpuf', 'rpuc', 'pngv', 'fapu', 'spu',
+  // NOTE: SPU is intentionally excluded — it has a digitized supply-fan table
+  // (spu-fan-performance.ts) covering 0.40–2.0 in. WG, so external static is
+  // modelled as an INCREASE in fan/motor power draw at constant airflow (see
+  // applySPUDesignPoint), not as the generic ISO 13253 capacity de-rate.
+  'rpui', 'rpuf', 'rpuc', 'pngv', 'fapu',
 ]);
 
 /** True when the series is rated/de-rated on the ISO 13253 ESP basis. */

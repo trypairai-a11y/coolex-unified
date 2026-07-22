@@ -118,6 +118,13 @@ export interface VRFCustomPipe {
 
 export interface VRFLayout {
   floors: VRFFloor[];
+  /**
+   * Nameplate codes of the outdoor modules serving this system, in the order
+   * they appear on the diagram. One code = a single ODU; more = a manifolded
+   * bank (up to `MAX_VRF_OUTDOOR_MODULES`) sharing one trunk. Absent = fall back
+   * to auto-sizing from the load.
+   */
+  outdoorCodes?: string[];
   ambientTempF?: number;
   summer?: VRFDesignCondition;
   winter?: VRFDesignCondition;
@@ -129,6 +136,13 @@ export interface VRFLayout {
   branchFtById?: Record<string, number>;
   /** User-overridden positions for unit cards on the canvas. Absent = use auto-layout. */
   unitPositions?: Record<VRFUnitId, VRFCanvasPos>;
+  /**
+   * User-overridden positions for the floor/zone ribbon labels. Keyed by:
+   *   - "floor-{floorId}"
+   *   - "zone-{zoneId}"
+   * Absent = park the ribbon at its auto position.
+   */
+  labelPositions?: Record<string, VRFCanvasPos>;
   /** User-drawn pipes added on top of the auto-generated trunk/branch network. */
   customPipes?: VRFCustomPipe[];
   /**

@@ -3,7 +3,15 @@ import { devtools, persist } from 'zustand/middleware';
 import type { ProductGroup, ProductSeries, Model } from '@/types/product';
 import type { ProjectInfoFormData, DesignConditionsFormData, SelectionBasis, VRFLayout, VRFIndoorType, VRFCanvasPos, VRFCustomPipe, VRFUnitId } from '@/types/selection';
 import { floorRooms } from '@/types/selection';
-import { pickVRFOutdoorUnit, synthesizeVRFOutdoorModel } from '@/lib/utils/vrf';
+import {
+  pickVRFOutdoorCombination,
+  synthesizeVRFOutdoorModels,
+  vrfOutdoorUnitsFromCodes,
+} from '@/lib/utils/vrf';
+import { getModelsForSeries } from '@/lib/mock-data/models';
+
+/** Fixed-speed vs inverter compressor sub-group (mini-split preset flow). */
+export type MiniSplitSpeed = 'fixed' | 'inverter';
 
 /** Key in vrfOptionsByUnit: 'odu' for the outdoor unit, otherwise a room id (indoor unit). */
 export type VRFUnitKey = 'odu' | string;
@@ -28,6 +36,13 @@ interface SelectionState {
   setSelectionBasis: (basis: SelectionBasis) => void;
   setSelectedGroup: (group: ProductGroup) => void;
   setSelectedSeries: (series: ProductSeries) => void;
+  /**
+   * Mini-split preset flow: pick a fixed-speed / inverter sub-group of a
+   * speed-variant series (e.g. Wall Mounted). There is no selection process —
+   * a representative model and standard design conditions are preset and the
+   * wizard jumps straight to the submittal step.
+   */
+  selectMiniSplitSubgroup: (series: ProductSeries, speed: MiniSplitSpeed) => void;
   setProjectInfo: (info: ProjectInfoFormData) => void;
   updateProjectInfo: (partial: Partial<ProjectInfoFormData>) => void;
   setDesignConditions: (conditions: DesignConditionsFormData) => void;
@@ -39,6 +54,7 @@ interface SelectionState {
   setVRFBranchFt: (roomId: string, ft: number) => void;
   /** Set or clear (pos = null) a unit card's overridden top-left position. */
   setVRFUnitPosition: (unitId: VRFUnitId, pos: VRFCanvasPos | null) => void;
+  setVRFLabelPosition: (labelId: string, pos: VRFCanvasPos | null) => void;
   addVRFCustomPipe: (pipe: VRFCustomPipe) => void;
   removeVRFCustomPipe: (pipeId: string) => void;
   setVRFCustomPipeLength: (pipeId: string, ft: number) => void;
@@ -48,6 +64,8 @@ interface SelectionState {
   restoreAllVRFAutoPipes: () => void;
   /** Resets pipe lengths, dragged positions, custom pipes, and hidden auto-pipes. */
   resetVRFLayout: () => void;
+  /** Set the outdoor modules serving the system (1 or 2 nameplate codes). */
+  setVRFOutdoorCodes: (codes: string[]) => void;
   confirmVRFDesign: () => void;
   toggleModelSelection: (model: Model) => void;
   toggleOption: (optionId: string) => void;
@@ -191,6 +209,19 @@ export const useSelectionStore = create<SelectionState>()(
         };
       }),
 
+      setVRFLabelPosition: (labelId, pos) => set((state) => {
+        if (!state.vrfLayout) return {};
+        const next = { ...(state.vrfLayout.labelPositions ?? {}) };
+        if (pos === null) delete next[labelId];
+        else next[labelId] = pos;
+        return {
+          vrfLayout: {
+            ...state.vrfLayout,
+            labelPositions: Object.keys(next).length > 0 ? next : undefined,
+          },
+        };
+      }),
+
       addVRFCustomPipe: (pipe) => set((state) => {
         if (!state.vrfLayout) return {};
         const existing = state.vrfLayout.customPipes ?? [];
@@ -256,10 +287,16 @@ export const useSelectionStore = create<SelectionState>()(
             floorSegFtById: undefined,
             branchFtById: undefined,
             unitPositions: undefined,
+            labelPositions: undefined,
             customPipes: undefined,
             deletedAutoPipeIds: undefined,
           },
         };
+      }),
+
+      setVRFOutdoorCodes: (codes) => set((state) => {
+        if (!state.vrfLayout) return {};
+        return { vrfLayout: { ...state.vrfLayout, outdoorCodes: codes } };
       }),
 
       confirmVRFDesign: () => set((state) => {
@@ -278,13 +315,16 @@ export const useSelectionStore = create<SelectionState>()(
           espInWG: 0,
           altitudeFt: 0,
         };
-        // Hydrate selectedModels with the synthesized outdoor unit here (rather
-        // than relying on a useEffect inside the system-diagram step) so that
-        // the submittal step always has a model — even if the user navigates
-        // forward without the diagram component getting a chance to mount.
-        const oduUnit = pickVRFOutdoorUnit(totalKbtuh);
-        const oduModel = synthesizeVRFOutdoorModel(oduUnit);
-        return { step: 5, designConditions, selectedModels: [oduModel] };
+        // Hydrate selectedModels with the synthesized outdoor module(s) here
+        // (rather than relying on a useEffect inside the system-diagram step) so
+        // that the submittal step always has a model — even if the user
+        // navigates forward without the diagram component getting a chance to
+        // mount. A manifolded bank contributes one model per module.
+        const stored = state.vrfLayout.outdoorCodes ?? [];
+        const units = stored.length > 0
+          ? vrfOutdoorUnitsFromCodes(stored)
+          : pickVRFOutdoorCombination(totalKbtuh);
+        return { step: 5, designConditions, selectedModels: synthesizeVRFOutdoorModels(units) };
       }),
 
       setSelectedSeries: (series) => set((state) => {
@@ -297,6 +337,38 @@ export const useSelectionStore = create<SelectionState>()(
           selectedModels: [],
           selectedOptions: [],
           step: 4,
+        };
+      }),
+
+      selectMiniSplitSubgroup: (series, speed) => set(() => {
+        const models = getModelsForSeries(series.id);
+        // Representative preset unit — a 2-ton mid-range model when available.
+        const preset =
+          models.find((m) => m.nominalTons === 2)
+          ?? models[Math.floor(models.length / 2)]
+          ?? models[0];
+        if (!preset) return {};
+
+        const speedLabel = speed === 'inverter' ? 'Inverter' : 'Fixed Speed';
+        const labeledSeries: ProductSeries = {
+          ...series,
+          name: `${series.name} · ${speedLabel}`,
+        };
+        const presetModel: Model = { ...preset, compressorType: speedLabel };
+        const designConditions: DesignConditionsFormData = {
+          requiredCoolingCapacityBtuh: presetModel.totalCapacityBtuh,
+          powerSupply: '220V/1Ph/60Hz',
+          enteringDBF: 80,
+          enteringWBF: 67,
+          espInWG: 0,
+          altitudeFt: 0,
+        };
+        return {
+          selectedSeries: labeledSeries,
+          selectedModels: [presetModel],
+          selectedOptions: [],
+          designConditions,
+          step: 7, // → Submittal (skip design/results/options)
         };
       }),
 
