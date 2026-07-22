@@ -100,23 +100,21 @@ export function SeriesGrid() {
         });
     }
 
-    // Fallback: group by refrigerant
-    const groups = new Map<string, ProductSeries[]>();
-    for (const s of series) {
-      const ref = s.primaryRefrigerant;
-      if (!groups.has(ref)) groups.set(ref, []);
-      groups.get(ref)!.push(s);
-    }
-    // Order refrigerants with R-410A first, then the rest alphabetically
+    // Fallback: no speed types. The refrigerant is already shown as a badge on
+    // each card, so a refrigerant section header would just duplicate it. Render
+    // a single header-less group (ordering R-410A first) so the cards flow in a
+    // flat grid.
     const refOrder = (ref: string) => (ref === 'R-410A' ? 0 : 1);
-    return Array.from(groups.entries())
-      .sort(([a], [b]) => refOrder(a) - refOrder(b) || a.localeCompare(b))
-      .map(([ref, items]) => ({
-        key: ref,
-        label: ref,
-        icon: 'snowflake' as const,
-        items,
-      }));
+    const ordered = [...series].sort(
+      (a, b) => refOrder(a.primaryRefrigerant) - refOrder(b.primaryRefrigerant)
+        || a.primaryRefrigerant.localeCompare(b.primaryRefrigerant)
+    );
+    return [{
+      key: 'all',
+      label: '',
+      icon: 'snowflake' as const,
+      items: ordered,
+    }];
   }, [series, hasSpeedTypes]);
 
 
